@@ -23,13 +23,23 @@ const HomePage = () => {
     try {
       setLoading(true);
       
-      // Load courses
-      const coursesResponse = await api.courses.getCourses();
-      setCourses(coursesResponse.data.slice(0, 6)); // Show top 6 courses
+      // Load courses with error handling
+      try {
+        const coursesResponse = await api.courses.getCourses();
+        if (coursesResponse.success && coursesResponse.data) {
+          setCourses(coursesResponse.data.data ? coursesResponse.data.data.slice(0, 6) : coursesResponse.data.slice(0, 6));
+        } else {
+          console.warn('Failed to load courses:', coursesResponse.error);
+          setCourses([]); // Set empty array as fallback
+        }
+      } catch (courseError) {
+        console.error('Course loading error:', courseError);
+        setCourses([]); // Set empty array as fallback
+      }
 
       // Mock statistics based on user role
       const mockStats = {
-        totalCourses: coursesResponse.data.length,
+        totalCourses: courses.length || 0,
         enrolledCourses: 2,
         completedCourses: 1,
         totalStudents: 150,

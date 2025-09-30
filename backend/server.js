@@ -11,6 +11,15 @@ import databaseRoutes from './routes/database.js';
 // Load environment variables
 dotenv.config();
 
+console.log('🔍 Environment variables loaded:', {
+  PORT: process.env.PORT,
+  NODE_ENV: process.env.NODE_ENV,
+  FRONTEND_URL: process.env.FRONTEND_URL
+});
+
+// Add timestamp to force restart
+console.log('🕒 Server start time:', new Date().toISOString());
+
 const app = express();
 const PORT = process.env.PORT || 5000;
 
@@ -68,11 +77,32 @@ const startServer = async () => {
       console.log('🔧 Update backend/.env with your SQL Server details');
     }
     
-    app.listen(PORT, () => {
+    console.log(`🔧 Starting server on PORT: ${PORT}`);
+    console.log(`🔧 PORT type: ${typeof PORT}`);
+    
+    const server = app.listen(PORT, '0.0.0.0', (error) => {
+      if (error) {
+        console.error('❌ Failed to bind port:', error);
+        return;
+      }
       console.log(`🚀 Server is running on http://localhost:${PORT}`);
       console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
       console.log(`🔧 Environment: ${process.env.NODE_ENV || 'development'}`);
+      console.log(`✅ Server listening on all interfaces (0.0.0.0:${PORT})`);
     });
+    
+    server.on('error', (error) => {
+      console.error('❌ Server error:', error);
+      if (error.code === 'EADDRINUSE') {
+        console.log(`💡 Port ${PORT} is already in use. Try a different port.`);
+      }
+      process.exit(1);
+    });
+    
+    server.on('listening', () => {
+      console.log(`🎯 Server confirmed listening on port ${server.address().port}`);
+    });
+    
   } catch (error) {
     console.error('❌ Failed to start server:', error);
     process.exit(1);
