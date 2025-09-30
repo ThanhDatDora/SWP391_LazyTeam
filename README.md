@@ -1,1 +1,374 @@
-# SWP391_LazyTeam
+# Mini Coursera - Online Learning Platform
+
+## 📖 Overview
+
+Mini Coursera là một nền tảng học trực tuyến được xây dựng với React và TailwindCSS, cung cấp trải nghiệm học tập hiện đại và tương tác. Dự án bao gồm frontend React và backend Node.js/Express với SQL Server database.
+
+## ✨ Features
+
+### 🎓 Course Management
+- **Course Catalog**: Duyệt và tìm kiếm khóa học theo danh mục
+- **Course Creation**: Giảng viên có thể tạo và quản lý khóa học
+- **Content Management**: Quản lý bài học, video, tài liệu
+- **Progress Tracking**: Theo dõi tiến độ học tập của học viên
+
+### 👥 User Management
+- **Multi-role System**: Admin, Instructor, Learner
+- **Authentication**: Đăng ký, đăng nhập với JWT
+- **Profile Management**: Quản lý thông tin cá nhân
+- **Authorization**: Phân quyền truy cập theo vai trò
+
+### 📊 Assessment System
+- **Online Exams**: Tạo và thực hiện bài thi trực tuyến
+- **Question Management**: Quản lý ngân hàng câu hỏi
+- **Automatic Grading**: Chấm điểm tự động
+- **Exam History**: Lịch sử bài thi và kết quả
+
+### 🎨 Modern UI/UX
+- **Responsive Design**: Tối ưu cho mọi thiết bị
+- **TailwindCSS**: Thiết kế hiện đại và nhất quán
+- **Interactive Components**: Giao diện tương tác mượt mà
+- **Accessibility**: Hỗ trợ accessibility standards
+
+## 🛠 Tech Stack
+
+### Frontend
+- **React 18.2.0**: UI Framework
+- **React Router DOM**: Client-side routing
+- **TailwindCSS**: Utility-first CSS framework
+- **Lucide React**: Icon library
+- **Vite**: Build tool và development server
+
+### Backend
+- **Node.js**: Runtime environment
+- **Express.js**: Web framework
+- **SQL Server**: Database
+- **JWT**: Authentication
+- **bcryptjs**: Password hashing
+- **mssql**: SQL Server driver
+
+### Development Tools
+- **Concurrently**: Run multiple npm scripts
+- **ESLint**: Code quality
+- **PostCSS**: CSS processing
+- **Autoprefixer**: CSS vendor prefixes
+
+## 📁 Project Structure
+
+```
+mini-coursera-ui-tailwind/
+├── src/
+│   ├── components/          # Reusable UI components
+│   │   ├── course/         # Course-related components
+│   │   ├── layout/         # Layout components (Header, Footer, etc.)
+│   │   └── ui/            # Base UI components (Button, Card, etc.)
+│   ├── pages/              # Page components
+│   │   ├── admin/         # Admin panel pages
+│   │   ├── auth/          # Authentication pages
+│   │   ├── course/        # Course-related pages
+│   │   ├── exam/          # Exam pages
+│   │   └── instructor/    # Instructor dashboard
+│   ├── hooks/             # Custom React hooks
+│   ├── contexts/          # React contexts
+│   ├── services/          # API services
+│   ├── utils/             # Utility functions
+│   ├── config/            # Configuration files
+│   └── router/            # Routing configuration
+├── backend/               # Backend API server
+│   ├── routes/           # API routes
+│   ├── middleware/       # Express middleware
+│   ├── config/           # Backend configuration
+│   └── database/         # Database setup
+├── scripts/              # Build and utility scripts
+└── public/               # Static assets
+```
+
+## 🚀 Getting Started
+
+### Prerequisites
+- Node.js (v16 or higher)
+- npm or yarn
+- SQL Server database
+
+### Installation
+
+1. **Clone the repository**
+   ```bash
+   git clone <repository-url>
+   cd mini-coursera-ui-tailwind
+   ```
+
+2. **Install dependencies**
+   ```bash
+   # Install frontend dependencies
+   npm install
+   
+   # Install backend dependencies
+   cd backend
+   npm install
+   cd ..
+   ```
+
+3. **Environment Setup**
+   ```bash
+   # Copy environment variables template
+   cp .env.example .env.local
+   
+   # Edit .env.local with your configuration
+   ```
+
+4. **Database Setup**
+   - Tạo SQL Server database theo hướng dẫn trong `DATABASE_SETUP.md`
+   - Update connection string trong `.env.local`
+
+5. **Start Development Servers**
+   ```bash
+   # Start both frontend and backend
+   npm run dev:full
+   
+   # Or start separately
+   npm run dev:backend  # Backend only
+   npm run dev          # Frontend only
+   ```
+
+## 📊 Available Scripts
+
+### Frontend Scripts
+- `npm run dev` - Start development server
+- `npm run build` - Build for production
+- `npm run preview` - Preview production build
+- `npm run check-quality` - Run code quality checks
+- `npm run fix:navigation` - Fix navigation patterns
+- `npm run analyze` - Run quality check and build
+
+### Backend Scripts
+- `npm run dev:backend` - Start backend development server
+- `npm run dev:full` - Start both frontend and backend
+
+## 🔧 Configuration
+
+### Environment Variables
+
+Create `.env.local` file in the root directory:
+
+```env
+# API Configuration
+VITE_API_BASE_URL=http://localhost:5000/api
+
+# Feature Flags
+VITE_ENABLE_ADMIN=true
+VITE_ENABLE_PAYMENT=false
+VITE_ENABLE_NOTIFICATIONS=true
+VITE_ENABLE_ANALYTICS=false
+VITE_ENABLE_CHAT=false
+
+# Database (for backend)
+DB_SERVER=localhost
+DB_NAME=MiniCourseraFPTU1
+DB_USER=your_username
+DB_PASSWORD=your_password
+DB_PORT=1433
+
+# JWT Secret (for backend)
+JWT_SECRET=your_super_secret_jwt_key_here
+JWT_EXPIRES_IN=24h
+```
+
+### Database Configuration
+
+Tham khảo file `DATABASE_SETUP.md` để setup database SQL Server.
+
+## 🏗 Architecture
+
+### Frontend Architecture
+- **Component-based**: Sử dụng React functional components với hooks
+- **Context API**: Quản lý global state (Authentication, Theme)
+- **Custom Hooks**: Logic tái sử dụng (useNavigation, useAsyncState, useDataFetching)
+- **Service Layer**: API calls được tách riêng trong services/
+- **Utility Functions**: Helper functions cho formatting, validation, storage
+
+### Backend Architecture
+- **RESTful API**: Thiết kế API theo chuẩn REST
+- **Middleware**: Authentication, error handling, logging
+- **Database Layer**: SQL Server với stored procedures
+- **JWT Authentication**: Stateless authentication với refresh tokens
+- **Error Handling**: Centralized error handling và logging
+
+### Key Features Implementation
+
+#### Authentication System
+```javascript
+// Frontend - AuthContext
+const AuthContext = createContext();
+
+// Backend - JWT middleware
+const authenticateToken = (req, res, next) => {
+  // Verify JWT token
+};
+```
+
+#### Navigation Management
+```javascript
+// Custom hook for navigation
+const useNavigation = () => {
+  const navigate = useNavigate();
+  return {
+    goHome: () => navigate('/'),
+    goAuth: () => navigate('/auth'),
+    goCourse: (id) => navigate(`/course/${id}`)
+  };
+};
+```
+
+#### API Service
+```javascript
+// Centralized API service with error handling
+class ApiService {
+  async getCourses(params) {
+    return await httpClient.get('/courses', params);
+  }
+}
+```
+
+## 🧪 Quality Assurance
+
+### Code Quality Tools
+- **ESLint**: Code style và best practices
+- **Custom Quality Check**: Script kiểm tra patterns và conventions
+- **Navigation Fixer**: Tự động fix navigation patterns
+
+### Code Standards
+- **Component Naming**: PascalCase cho React components
+- **File Structure**: Organized theo feature và type
+- **Import/Export**: Consistent import patterns
+- **Error Handling**: Proper error boundaries và async error handling
+
+### Performance Optimization
+- **Lazy Loading**: Code splitting cho pages
+- **Caching**: API response caching
+- **Image Optimization**: Responsive images với WebP
+- **Bundle Optimization**: Vite build optimization
+
+## 🚦 Deployment
+
+### Build for Production
+```bash
+# Frontend build
+npm run build
+
+# Backend setup
+cd backend
+npm install --production
+```
+
+### Environment Setup
+1. Set production environment variables
+2. Configure database connection
+3. Set up HTTPS certificates
+4. Configure reverse proxy (nginx)
+
+### Docker Deployment (Optional)
+```dockerfile
+# Dockerfile example
+FROM node:16-alpine
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --production
+COPY . .
+EXPOSE 3000
+CMD ["npm", "start"]
+```
+
+## 🤝 Contributing
+
+### Development Workflow
+1. Fork repository
+2. Create feature branch: `git checkout -b feature/new-feature`
+3. Make changes và commit: `git commit -m 'Add new feature'`
+4. Push to branch: `git push origin feature/new-feature`
+5. Create Pull Request
+
+### Code Review Checklist
+- [ ] Code follows project conventions
+- [ ] Tests pass và coverage maintained
+- [ ] Documentation updated
+- [ ] No console.log trong production code
+- [ ] Responsive design tested
+- [ ] Accessibility checked
+
+## 📚 API Documentation
+
+### Authentication Endpoints
+```
+POST /api/auth/login
+POST /api/auth/register
+GET /api/auth/profile
+PUT /api/auth/profile
+POST /api/auth/logout
+```
+
+### Course Endpoints
+```
+GET /api/courses
+GET /api/courses/:id
+POST /api/courses
+PUT /api/courses/:id
+DELETE /api/courses/:id
+POST /api/courses/:id/enroll
+```
+
+### Exam Endpoints
+```
+GET /api/exams/:id
+POST /api/exams/:id/submit
+GET /api/exams/history
+```
+
+## 🐛 Troubleshooting
+
+### Common Issues
+
+**Database Connection Issues**
+```
+Error: Login failed for user 'username'
+Solution: Check database credentials trong .env file
+```
+
+**Build Errors**
+```
+Error: Module not found
+Solution: Delete node_modules và chạy npm install
+```
+
+**CORS Issues**
+```
+Error: Access to fetch blocked by CORS policy
+Solution: Configure CORS trong backend Express app
+```
+
+### Debug Mode
+```bash
+# Enable debug logging
+DEBUG=* npm run dev
+```
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🙏 Acknowledgments
+
+- **TailwindCSS Team** - For the amazing CSS framework
+- **React Team** - For the powerful UI library
+- **Vite Team** - For the fast build tool
+- **Lucide** - For the beautiful icon library
+
+## 📞 Support
+
+- **Email**: support@minicoursera.com
+- **Documentation**: [Wiki](wiki-url)
+- **Issues**: [GitHub Issues](issues-url)
+
+---
+
+**Made with ❤️ by the Mini Coursera Team**
