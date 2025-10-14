@@ -1,8 +1,8 @@
 import React from 'react';
 import { GraduationCap, Mail, Phone, MapPin, Facebook, Twitter, Instagram, Linkedin, Youtube } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { useNavigation } from '@/hooks/useNavigation';
+import { Button } from '../ui/button';
+import { Input } from '../ui/input';
+import { useNavigation } from '../../hooks/useNavigation';
 
 const Footer = () => {
   const navigate = useNavigation();

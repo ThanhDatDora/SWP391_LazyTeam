@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { Check, X, Star, Users, BookOpen, Award, Zap, Shield, Headphones } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { useNavigation } from '@/hooks/useNavigation';
+import { Button } from '../components/ui/button';
+import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
+import { Badge } from '../components/ui/badge';
+import { useNavigation } from '../hooks/useNavigation';
 
 const Pricing = () => {
   const navigate = useNavigation();

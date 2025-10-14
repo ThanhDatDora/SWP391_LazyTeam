@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/card';
+import { Button } from '../../components/ui/button';
+import { Badge } from '../../components/ui/badge';
+import { Input } from '../../components/ui/input';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs';
 import {
   Users,
   BookOpen,
@@ -19,8 +19,8 @@ import {
   DollarSign,
   Award
 } from 'lucide-react';
-import { api } from '@/services/api';
-import { useAuth } from '@/contexts/AuthContext';
+import { api } from '../../services/api';
+import { useAuth } from '../../contexts/AuthContext';
 
 const AdminPanel = () => {
   const { state: authState } = useAuth();

@@ -1,12 +1,17 @@
 import React, { useState } from 'react';
-import { Play, CheckCircle2, Clock, Users, Award, Star, BookOpen, Download, Share2, Heart, Globe, Calendar } from 'lucide-react';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { COURSES, MOOCS, CATEGORIES, TAGS } from '@/data/mockData';
-import { formatCurrency } from '@/utils/formatters';
+import { Play, CheckCircle2, Clock, Users, Award, Star, BookOpen, Download, Share2, Heart, Globe, Calendar, ArrowLeft } from 'lucide-react';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../ui/card';
+import { Button } from '../ui/button';
+import { Badge } from '../ui/badge';
+import { COURSES, MOOCS, CATEGORIES, TAGS } from '../../data/mockData';
+import { formatCurrency } from '../../utils/formatters';
+import { useNavigation } from '../../hooks/useNavigation';
+import { useAuth } from '../../contexts/AuthContext';
+import AppLayout from '../layout/AppLayout';
 
 const EnhancedCourseDetail = ({ courseId }) => {
+  const navigate = useNavigation();
+  const { state } = useAuth();
   const [activeTab, setActiveTab] = useState('overview');
   const [selectedLesson, setSelectedLesson] = useState(0);
 
@@ -139,7 +144,19 @@ const EnhancedCourseDetail = ({ courseId }) => {
   ];
 
   return (
-    <div className="max-w-7xl mx-auto grid lg:grid-cols-3 gap-8">
+    <AppLayout user={state.user}>
+      <div className="container mx-auto px-4 py-6">
+        {/* Back Button */}
+        <Button 
+          variant="outline" 
+          className="mb-6"
+          onClick={() => navigate('/catalog')}
+        >
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Back to Courses
+        </Button>
+
+        <div className="max-w-7xl mx-auto grid lg:grid-cols-3 gap-8">
       {/* Main Content */}
       <div className="lg:col-span-2 space-y-8">
         {/* Video Player */}
@@ -194,7 +211,11 @@ const EnhancedCourseDetail = ({ courseId }) => {
           </div>
 
           <div className="flex items-center gap-4">
-            <Button className="bg-teal-500 hover:bg-teal-600" size="lg">
+            <Button 
+              className="bg-teal-500 hover:bg-teal-600" 
+              size="lg"
+              onClick={() => navigate(`/checkout?course=${course.id}`)}
+            >
               Enroll Now - {formatCurrency(course.price)}
             </Button>
             <Button variant="outline" size="lg">
@@ -442,11 +463,19 @@ const EnhancedCourseDetail = ({ courseId }) => {
               </div>
             </div>
 
-            <Button className="w-full bg-teal-500 hover:bg-teal-600 mb-4" size="lg">
+            <Button 
+              className="w-full bg-teal-500 hover:bg-teal-600 mb-4" 
+              size="lg"
+              onClick={() => navigate(`/checkout?course=${course.id}`)}
+            >
               Enroll Now
             </Button>
             
-            <Button variant="outline" className="w-full mb-6">
+            <Button 
+              variant="outline" 
+              className="w-full mb-6"
+              onClick={() => navigate(`/checkout?course=${course.id}`)}
+            >
               Add to Cart
             </Button>
 
@@ -532,7 +561,9 @@ const EnhancedCourseDetail = ({ courseId }) => {
           </CardContent>
         </Card>
       </div>
-    </div>
+      </div>
+      </div>
+    </AppLayout>
   );
 };
 

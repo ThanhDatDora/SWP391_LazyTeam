@@ -1,6 +1,6 @@
 import React from 'react';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
-import { ROLES, isAdmin, isInstructor, isLearner } from '@/contexts/AuthContext';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../ui/card';
+import { ROLES, isAdmin, isInstructor, isLearner } from '../../contexts/AuthContext';
 
 const SideNav = ({ user }) => {
   const getMenuItems = (user) => {

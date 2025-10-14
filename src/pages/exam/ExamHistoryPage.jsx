@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Clock, Calendar, Award, TrendingUp, Eye } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
-import { api } from '@/services/api';
-import { useAuth } from '@/contexts/AuthContext';
-import { useNavigation } from '@/hooks/useNavigation';
+import { Button } from '../../components/ui/button';
+import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/card';
+import { Badge } from '../../components/ui/badge';
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '../../components/ui/table';
+import { api } from '../../services/api';
+import { useAuth } from '../../contexts/AuthContext';
+import { useNavigation } from '../../hooks/useNavigation';
 
 const ExamHistoryPage = () => {
   const navigate = useNavigation();

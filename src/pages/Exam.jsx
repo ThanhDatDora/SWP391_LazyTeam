@@ -1,8 +1,24 @@
 import React, { useState } from 'react';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { useLocalStorage } from '@/hooks/useLocalStorage';
-import { QUESTIONS } from '@/data/mockData';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/card';
+import { Button } from '../components/ui/button';
+import { useLocalStorage } from '../hooks/useLocalStorage';
+// Mock questions - should be replaced with API later
+const MOCK_QUESTIONS = [
+  {
+    id: 1,
+    question: 'What is React?',
+    options: ['A library', 'A framework', 'A language', 'A database'],
+    correctAnswer: 0,
+    type: 'multiple-choice'
+  },
+  {
+    id: 2,
+    question: 'Which hook is used for state management?',
+    options: ['useEffect', 'useState', 'useContext', 'useReducer'],
+    correctAnswer: 1,
+    type: 'multiple-choice'
+  }
+];
 
 const Exam = ({ moocId }) => {
   const examId = `exam_${moocId || 1}`;

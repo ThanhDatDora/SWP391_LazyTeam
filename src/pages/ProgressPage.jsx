@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { BookOpen, CheckCircle, Clock, TrendingUp, Award, Target, Calendar, BarChart3 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { api } from '@/services/api';
-import { useAuth } from '@/contexts/AuthContext';
-import { useNavigation } from '@/hooks/useNavigation';
+import { Button } from '../components/ui/button';
+import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
+import { Badge } from '../components/ui/badge';
+import { api } from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
+import { useNavigation } from '../hooks/useNavigation';
 
 const ProgressPage = () => {
   const navigate = useNavigation();

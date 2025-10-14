@@ -18,7 +18,7 @@ export const isTest = currentEnv === ENV.TEST;
 // Environment-specific configurations
 export const envConfig = {
   [ENV.DEVELOPMENT]: {
-    API_BASE_URL: 'http://localhost:5000/api',
+    API_BASE_URL: 'http://localhost:3001/api',
     DEBUG_MODE: true,
     LOG_LEVEL: 'debug',
     ENABLE_MOCK_DATA: false,

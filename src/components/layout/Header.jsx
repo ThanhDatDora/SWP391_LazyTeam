@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { GraduationCap, User, LogOut, Settings, BookOpen } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { useAuth, ROLES, isAdmin, isInstructor, isLearner } from '@/contexts/AuthContext';
-import { useNavigation } from '@/hooks/useNavigation';
+import { Button } from '../ui/button';
+import { Input } from '../ui/input';
+import { Badge } from '../ui/badge';
+import { useAuth, ROLES, isAdmin, isInstructor, isLearner } from '../../contexts/AuthContext';
+import { useNavigation } from '../../hooks/useNavigation';
 
 const Header = ({ user }) => {
   const navigate = useNavigation();

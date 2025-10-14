@@ -1,50 +1,174 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { ArrowRight, Users, BookOpen, Trophy, Play } from 'lucide-react';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import CourseCard from '@/components/course/CourseCard';
-import GuestHeader from '@/components/layout/GuestHeader';
-import Footer from '@/components/layout/Footer';
-import { COURSES } from '@/data/mockData';
-import { formatCurrency } from '@/utils/formatters';
-import { useNavigation } from '@/hooks/useNavigation';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/card';
+import { Button } from '../components/ui/button';
+import { Badge } from '../components/ui/badge';
+import CourseCard from '../components/course/CourseCard';
+import GuestHeader from '../components/layout/GuestHeader';
+import AppLayout from '../components/layout/AppLayout';
+import Footer from '../components/layout/Footer';
+import { COURSES } from '../data/mockData';
+import { api } from '../services/api';
+import { formatCurrency } from '../utils/formatters';
+import { useNavigation } from '../hooks/useNavigation';
+import { useAuth } from '../contexts/AuthContext';
 
 const Landing = () => {
   const navigate = useNavigation();
+  const { isAuthenticated, state } = useAuth();
+  const [courses, setCourses] = useState([]);
+  const [loading, setLoading] = useState(true);
+  
+  useEffect(() => {
+    loadCourses();
+  }, []);
+
+  const loadCourses = async () => {
+    try {
+      setLoading(true);
+      const response = await api.courses.getCourses({ limit: 3 });
+      if (response.success && response.data) {
+        setCourses(response.data);
+      } else {
+        setCourses(COURSES.slice(0, 3)); // Fallback to mock data
+      }
+    } catch (error) {
+      console.error('Error loading courses:', error);
+      setCourses(COURSES.slice(0, 3)); // Fallback to mock data
+    } finally {
+      setLoading(false);
+    }
+  };
+  
   const stats = [
     { value: '15K+', label: 'Students', icon: Users },
     { value: '75%', label: 'Success Rate', icon: Trophy },
-    { value: '35', label: 'Courses', icon: BookOpen },
-    { value: '26', label: 'Instructors', icon: Users },
-    { value: '16', label: 'Awards Won', icon: Trophy }
+    { value: '50+', label: 'Courses', icon: BookOpen }
   ];
 
-  const features = [
-    {
-      title: 'Online Billing, Invoicing & Contracts',
-      description: 'Simple and secure control of your organization\'s financial and legal transactions. Send customized invoices and contracts',
-      color: 'bg-blue-50 text-blue-600',
-      icon: '💳'
-    },
-    {
-      title: 'Easy Scheduling & Attendance Tracking',
-      description: 'Schedule and reserve classrooms at one school or multiple campuses. Keep detailed records of student attendance',
-      color: 'bg-teal-50 text-teal-600',
-      icon: '📅'
-    },
-    {
-      title: 'Customer Tracking',
-      description: 'Automate and track emails to individuals or groups. Skilline\'s built-in system helps organize your organization',
-      color: 'bg-purple-50 text-purple-600',
-      icon: '👥'
-    }
-  ];
+  // Render cho guest users (chưa đăng nhập)
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <GuestHeader />
+        
+        <main className="container mx-auto px-4 space-y-16 py-8">
+          {/* Hero Section for guests */}
+          <section className="relative bg-gradient-to-br from-teal-50 via-blue-50 to-purple-50 rounded-3xl p-8 lg:p-16 overflow-hidden">
+            <div className="grid lg:grid-cols-2 gap-12 items-center">
+              <div className="space-y-8">
+                <div className="flex items-center gap-2 text-teal-600 font-medium">
+                  <Trophy className="w-5 h-5" />
+                  <span>Trusted by 15,000+ students worldwide</span>
+                </div>
+                
+                <div className="space-y-6">
+                  <h1 className="text-4xl lg:text-6xl font-bold text-gray-900 leading-tight">
+                    Studying<br />
+                    <span className="text-transparent bg-gradient-to-r from-teal-500 to-blue-600 bg-clip-text">
+                      Online is now
+                    </span><br />
+                    <span className="text-transparent bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text">
+                      much easier
+                    </span>
+                  </h1>
+                  
+                  <p className="text-lg lg:text-xl text-gray-600 max-w-md">
+                    Skilline is an interesting platform that will teach you in more an interactive way
+                  </p>
+                </div>
 
+                <div className="flex flex-col sm:flex-row gap-4">
+                  <Button 
+                    onClick={() => navigate('/auth')}
+                    className="bg-gradient-to-r from-teal-500 to-blue-600 hover:from-teal-600 hover:to-blue-700 text-white px-8 py-3 text-lg"
+                  >
+                    Join for free
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    className="border-2 border-gray-300 hover:border-teal-500 px-8 py-3 text-lg"
+                  >
+                    <Play className="w-5 h-5 mr-2" />
+                    Watch how it works
+                  </Button>
+                </div>
+              </div>
+
+              {/* Right Content - Image/Illustration */}
+              <div className="relative">
+                <div className="aspect-square bg-gradient-to-br from-teal-400 to-blue-500 rounded-3xl p-8 text-white flex items-center justify-center">
+                  <div className="text-center">
+                    <BookOpen className="w-20 h-20 mx-auto mb-4" />
+                    <h3 className="text-2xl font-bold">Start Learning Today</h3>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* Stats Section */}
+          <section className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {stats.map((stat, index) => (
+              <Card key={index} className="text-center border-0 bg-white/80 backdrop-blur-sm">
+                <CardContent className="p-6">
+                  <stat.icon className="w-8 h-8 mx-auto mb-3 text-teal-600" />
+                  <div className="text-3xl font-bold text-gray-900 mb-2">{stat.value}</div>
+                  <div className="text-gray-600">{stat.label}</div>
+                </CardContent>
+              </Card>
+            ))}
+          </section>
+
+          {/* Course Preview */}
+          <section className="space-y-8">
+            <div className="text-center space-y-4">
+              <h2 className="text-3xl lg:text-4xl font-bold text-gray-900">
+                Popular Courses
+              </h2>
+              <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+                Discover our most popular courses and start your learning journey today
+              </p>
+            </div>
+            
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {loading ? (
+                // Loading skeleton
+                Array(3).fill(0).map((_, index) => (
+                  <div key={index} className="bg-white rounded-lg p-6 animate-pulse">
+                    <div className="h-4 bg-gray-200 rounded mb-4"></div>
+                    <div className="h-3 bg-gray-200 rounded mb-2"></div>
+                    <div className="h-3 bg-gray-200 rounded w-3/4"></div>
+                  </div>
+                ))
+              ) : (
+                courses.map((course) => (
+                  <CourseCard key={course.id} course={course} />
+                ))
+              )}
+            </div>
+            
+            <div className="text-center">
+              <Button 
+                onClick={() => navigate('/auth')}
+                size="lg" 
+                className="bg-gradient-to-r from-teal-500 to-blue-600 hover:from-teal-600 hover:to-blue-700"
+              >
+                Join to see all courses
+                <ArrowRight className="ml-2 w-4 h-4" />
+              </Button>
+            </div>
+          </section>
+        </main>
+        
+        <Footer />
+      </div>
+    );
+  }
+
+  // Render cho authenticated users
   return (
-    <div className="min-h-screen bg-gray-50">
-      <GuestHeader />
-      
+    <AppLayout user={state.user}>
       <main className="container mx-auto px-4 space-y-16 py-8">
         {/* Hero Section */}
         <section className="relative bg-gradient-to-br from-teal-50 via-blue-50 to-purple-50 rounded-3xl p-8 lg:p-16 overflow-hidden">
@@ -67,13 +191,21 @@ const Landing = () => {
               </p>
               
               <div className="flex flex-col sm:flex-row gap-4">
-                <Button size="lg" className="bg-teal-600 hover:bg-teal-700" onClick={() => navigate("/auth")}>
-                  Join for free
-                </Button>
-                <Button size="lg" variant="outline" className="gap-2" onClick={() => navigate("/auth")}>
-                  <Play className="h-4 w-4" />
-                  Watch how it works
-                </Button>
+                {isAuthenticated ? (
+                  <Button size="lg" className="bg-teal-600 hover:bg-teal-700" onClick={() => navigate("/dashboard")}>
+                    Go to Dashboard
+                  </Button>
+                ) : (
+                  <>
+                    <Button size="lg" className="bg-teal-600 hover:bg-teal-700" onClick={() => navigate("/auth")}>
+                      Join for free
+                    </Button>
+                    <Button size="lg" variant="outline" className="gap-2" onClick={() => navigate("/auth")}>
+                      <Play className="h-4 w-4" />
+                      Watch how it works
+                    </Button>
+                  </>
+                )}
               </div>
             </div>
             
@@ -223,9 +355,7 @@ const Landing = () => {
           </div>
         </section>
       </main>
-      
-      <Footer />
-    </div>
+    </AppLayout>
   );
 };
 

@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { Eye, EyeOff, AlertCircle } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { useAuth, ROLES } from '@/contexts/AuthContext';
+import { Button } from '../../components/ui/button';
+import { Input } from '../../components/ui/input';
+import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
 const AuthPage = () => {

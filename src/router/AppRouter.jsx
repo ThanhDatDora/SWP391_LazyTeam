@@ -1,52 +1,59 @@
 import React from 'react';
 import { Routes, Route, Navigate, useParams } from 'react-router-dom';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '../contexts/AuthContextSimple';
 
 // Auth Pages
-import AuthPage from '@/pages/auth/AuthPage';
+import AuthPage from '../pages/auth/AuthPage';
 
 // Main Pages  
-import HomePage from '@/pages/HomePage';
-import CoursePage from '@/pages/course/CoursePage';
-import CatalogPage from '@/pages/CatalogPage';
-import ExamPage from '@/pages/exam/ExamPage';
-import ExamHistoryPage from '@/pages/exam/ExamHistoryPage';
-import ProgressPage from '@/pages/ProgressPage';
+import LearnerDashboard from '../pages/learner/LearnerDashboard';
+import CoursePage from '../pages/course/CoursePage';
+import CatalogPage from '../pages/CatalogPage';
+import ExamPage from '../pages/exam/ExamPage';
+import ExamHistoryPage from '../pages/exam/ExamHistoryPage';
+import ProgressPage from '../pages/ProgressPage';
+import ProfilePage from '../pages/ProfilePage';
+import CoursePlayerPage from '../pages/CoursePlayerPage';
+import MyCoursesPage from '../pages/MyCoursesPage';
 
 // Guest Pages
-import AboutPage from '@/pages/AboutPage';
-import ContactPage from '@/pages/ContactPage';
+import AboutPage from '../pages/AboutPage';
+import ContactPage from '../pages/ContactPage';
 
 // Admin Pages
-import AdminPanel from '@/pages/admin/AdminPanel';
+import AdminPanel from '../pages/admin/AdminPanel';
 
 // Instructor Pages
-import InstructorDashboard from '@/pages/instructor/InstructorDashboard';
-import CourseManagement from '@/pages/instructor/CourseManagement';
+import InstructorDashboard from '../pages/instructor/InstructorDashboard';
+import CourseManagement from '../pages/instructor/CourseManagement';
 
 // Legacy Pages (keeping for compatibility)
-import Landing from '@/pages/Landing';
-import Catalog from '@/pages/Catalog';
-import BlogList from '@/pages/BlogList';
-import BlogDetail from '@/pages/BlogDetail';
-import Pricing from '@/pages/Pricing';
-import Checkout from '@/pages/Checkout';
-import Exam from '@/pages/Exam';
+import Landing from '../pages/Landing';
+import LandingFixed from '../pages/LandingFixed';
+import LandingSimple from '../pages/LandingSimple';
+import TestPage from '../pages/TestPage';
+import SuperSimple from '../pages/SuperSimple';
+import Catalog from '../pages/Catalog';
+import BlogList from '../pages/BlogList';
+import BlogDetail from '../pages/BlogDetail';
+import Pricing from '../pages/Pricing';
+import Checkout from '../pages/Checkout';
+import Exam from '../pages/Exam';
 
 // Course Components
-import CourseDetail from '@/components/course/CourseDetail';
-import EnhancedCourseDetail from '@/components/course/EnhancedCourseDetail';
-import CoursePlayer from '@/components/course/CoursePlayer';
+import CourseDetail from '../components/course/CourseDetail';
+import EnhancedCourseDetail from '../components/course/EnhancedCourseDetail';
+import CoursePlayer from '../components/course/CoursePlayer';
 
 // Protected Route Component
 const ProtectedRoute = ({ children, allowedRoles = [] }) => {
-  const { state, isAuthenticated, hasRole } = useAuth();
+  const { state, isAuthenticated } = useAuth();
 
-  if (!isAuthenticated()) {
+  if (!isAuthenticated) {
     return <Navigate to="/auth" replace />;
   }
 
-  if (allowedRoles.length > 0 && !allowedRoles.some(role => hasRole(role))) {
+  if (allowedRoles.length > 0 && !allowedRoles.includes(state.user?.role_id)) {
     return <Navigate to="/" replace />;
   }
 
@@ -57,7 +64,7 @@ const ProtectedRoute = ({ children, allowedRoles = [] }) => {
 const PublicRoute = ({ children }) => {
   const { isAuthenticated } = useAuth();
   
-  if (isAuthenticated()) {
+  if (isAuthenticated) {
     return <Navigate to="/" replace />;
   }
 
@@ -81,7 +88,24 @@ const LegacyExamPage = () => {
 };
 
 const AppRouter = () => {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, state } = useAuth();
+
+  // Get dashboard route based on user role
+  const getDashboardRoute = () => {
+    if (!isAuthenticated || !state.user) return '/';
+    
+    const roleId = state.user.role_id;
+    switch (roleId) {
+      case 1: // Admin
+        return '/admin';
+      case 2: // Instructor  
+        return '/instructor';
+      case 3: // Learner
+        return '/dashboard';
+      default:
+        return '/dashboard';
+    }
+  };
 
   return (
     <Routes>
@@ -103,29 +127,78 @@ const AppRouter = () => {
         element={<Navigate to="/auth" replace />} 
       />
 
-      {/* Home Route - Landing for guests, HomePage for authenticated users */}
+      {/* Home Route - Always show Landing, redirect logic removed for learners */}
       <Route 
         path="/" 
+        element={<LandingFixed />} 
+      />
+      
+      {/* Test Routes */}
+      <Route 
+        path="/test" 
+        element={<TestPage />} 
+      />
+      <Route 
+        path="/simpletest" 
+        element={<SimpleLandingTest />} 
+      />
+      <Route 
+        path="/landingfixed" 
+        element={<LandingFixed />} 
+      />
+      
+      {/* Dashboard Route - Learner specific dashboard */}
+      <Route 
+        path="/dashboard" 
         element={
-          isAuthenticated() ? <HomePage /> : <Landing />
+          <ProtectedRoute allowedRoles={[3]}>
+            <LearnerDashboard />
+          </ProtectedRoute>
         } 
       />
+      
+      {/* Profile Route */}
+      <Route 
+        path="/profile" 
+        element={
+          <ProtectedRoute>
+            <ProfilePage />
+          </ProtectedRoute>
+        } 
+      />
+      
+      {/* Course Player Route */}
+      <Route 
+        path="/course-player/:courseId" 
+        element={
+          <ProtectedRoute>
+            <CoursePlayerPage />
+          </ProtectedRoute>
+        } 
+      />
+      
+      {/* My Courses Route */}
+      <Route 
+        path="/my-courses" 
+        element={
+          <ProtectedRoute>
+            <MyCoursesPage />
+          </ProtectedRoute>
+        } 
+      />
+      
       <Route 
         path="/catalog" 
         element={
-          isAuthenticated() ? (
-            <ProtectedRoute>
-              <CatalogPage />
-            </ProtectedRoute>
-          ) : (
-            <Navigate to="/auth" replace />
-          )
+          <ProtectedRoute>
+            <CatalogPage />
+          </ProtectedRoute>
         } 
       />
       <Route 
         path="/course/:id" 
         element={
-          isAuthenticated() ? (
+          isAuthenticated ? (
             <ProtectedRoute>
               <CoursePage />
             </ProtectedRoute>
@@ -178,7 +251,7 @@ const AppRouter = () => {
       <Route 
         path="/admin" 
         element={
-          <ProtectedRoute allowedRoles={['admin']}>
+          <ProtectedRoute allowedRoles={[1]}>
             <AdminPanel />
           </ProtectedRoute>
         } 
@@ -188,7 +261,7 @@ const AppRouter = () => {
       <Route 
         path="/instructor" 
         element={
-          <ProtectedRoute allowedRoles={['instructor', 'admin']}>
+          <ProtectedRoute allowedRoles={[2, 1]}>
             <InstructorDashboard />
           </ProtectedRoute>
         } 
@@ -196,7 +269,7 @@ const AppRouter = () => {
       <Route 
         path="/instructor/courses/:id" 
         element={
-          <ProtectedRoute allowedRoles={['instructor', 'admin']}>
+          <ProtectedRoute allowedRoles={[2, 1]}>
             <CourseManagement />
           </ProtectedRoute>
         } 

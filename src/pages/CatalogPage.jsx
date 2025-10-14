@@ -1,19 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
+import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
+import { Button } from '../components/ui/button';
+import { Badge } from '../components/ui/badge';
+import { Input } from '../components/ui/input';
 import { BookOpen, Users, Clock, Star, Search, Filter, ChevronDown } from 'lucide-react';
-import { api } from '@/services/api';
-import { useAuth } from '@/contexts/AuthContext';
-import { useNavigation } from '@/hooks/useNavigation';
+import { api } from '../services/api';
+import { useAuth } from '../contexts/AuthContextSimple';
+import { useNavigation } from '../hooks/useNavigation';
+import AppLayout from '../components/layout/AppLayout';
 
 const CatalogPage = () => {
   const { goCourse } = useNavigation();
+  const navigate = useNavigation();
   const { state: authState } = useAuth();
-  const [courses, setCourses] = useState([]);
+  const [courses, setCourses] = useState([]); // Start with empty array
   const [filteredCourses, setFilteredCourses] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true); // Start with loading true
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedLevel, setSelectedLevel] = useState('all');
@@ -21,7 +23,7 @@ const CatalogPage = () => {
   const [showFilters, setShowFilters] = useState(false);
 
   useEffect(() => {
-    loadCourses();
+    loadCourses(); // Use API call instead of mock data
   }, []);
 
   useEffect(() => {
@@ -32,9 +34,15 @@ const CatalogPage = () => {
     try {
       setLoading(true);
       const response = await api.courses.getCourses();
-      setCourses(response.data);
+      if (response.success && response.data) {
+        setCourses(response.data);
+      } else {
+        console.error('Failed to load courses:', response.message);
+        setCourses([]);
+      }
     } catch (error) {
       console.error('Error loading courses:', error);
+      setCourses([]); // Empty array on error
     } finally {
       setLoading(false);
     }
@@ -64,6 +72,8 @@ const CatalogPage = () => {
             return title.includes('java') || title.includes('spring') || title.includes('servlet') || title.includes('database');
           case 'frontend':
             return title.includes('react') || title.includes('angular') || title.includes('vue') || title.includes('javascript');
+          case 'design':
+            return title.includes('design') || title.includes('adobe') || title.includes('xd') || title.includes('ui');
           default:
             return true;
         }
@@ -80,8 +90,8 @@ const CatalogPage = () => {
     // Price filter
     if (selectedPrice !== 'all') {
       filtered = filtered.filter(course => {
-        if (selectedPrice === 'free') return course.is_free;
-        if (selectedPrice === 'paid') return !course.is_free;
+        if (selectedPrice === 'free') return course.price === 0;
+        if (selectedPrice === 'paid') return course.price > 0;
         return true;
       });
     }
@@ -91,19 +101,20 @@ const CatalogPage = () => {
 
   const enrollInCourse = async (courseId) => {
     try {
-      await api.enrollments.enrollInCourse(courseId);
-      // Refresh courses to update enrollment status
-      loadCourses();
+      // await api.enrollments.enrollInCourse(courseId);
+      // For now, redirect to checkout
+      navigate(`/checkout?course=${courseId}`);
     } catch (error) {
       console.error('Error enrolling in course:', error);
     }
   };
 
   const formatPrice = (price) => {
+    if (price === 0) return 'Miễn phí';
     return new Intl.NumberFormat('vi-VN', {
       style: 'currency',
       currency: 'VND'
-    }).format(price);
+    }).format(price * 1000); // Convert to VND
   };
 
   const getCourseLevel = (level) => {
@@ -120,7 +131,8 @@ const CatalogPage = () => {
     { value: 'programming', label: 'Lập trình' },
     { value: 'web', label: 'Phát triển Web' },
     { value: 'backend', label: 'Backend' },
-    { value: 'frontend', label: 'Frontend' }
+    { value: 'frontend', label: 'Frontend' },
+    { value: 'design', label: 'Thiết kế' }
   ];
 
   const levels = [
@@ -148,7 +160,8 @@ const CatalogPage = () => {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <AppLayout user={authState.user}>
+      <div className="container mx-auto px-4 py-8">
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Danh mục khóa học</h1>
@@ -242,7 +255,11 @@ const CatalogPage = () => {
       {filteredCourses.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredCourses.map(course => (
-            <Card key={course.course_id} className="hover:shadow-lg transition-shadow">
+            <Card 
+              key={course.id} 
+              className="hover:shadow-lg transition-shadow cursor-pointer"
+              onClick={() => navigate(`/course/${course.id}`)}
+            >
               <CardContent className="p-0">
                 {/* Course Image */}
                 <div className="aspect-video bg-gradient-to-br from-teal-400 to-blue-500 rounded-t-lg flex items-center justify-center">
@@ -267,11 +284,11 @@ const CatalogPage = () => {
                     </Badge>
                     <div className="flex items-center text-xs text-gray-500">
                       <Users className="w-3 h-3 mr-1" />
-                      {course.enrolled_count || 0} học viên
+                      {course.enrolledCount || 0} học viên
                     </div>
                     <div className="flex items-center text-xs text-gray-500">
                       <Clock className="w-3 h-3 mr-1" />
-                      {course.duration_hours || 8}h
+                      {course.duration}
                     </div>
                   </div>
 
@@ -279,63 +296,34 @@ const CatalogPage = () => {
                   <div className="flex items-center mb-4">
                     <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center mr-2">
                       <span className="text-xs font-medium text-gray-600">
-                        {course.instructor?.full_name?.[0] || 'I'}
+                        {course.instructor?.[0] || 'I'}
                       </span>
                     </div>
                     <div>
                       <p className="text-sm font-medium text-gray-900">
-                        {course.instructor?.full_name || 'Instructor'}
+                        {course.instructor || 'Instructor'}
                       </p>
                       <div className="flex items-center">
                         <Star className="w-3 h-3 text-yellow-400 fill-current" />
                         <span className="text-xs text-gray-500 ml-1">
-                          {course.rating || 4.5} ({course.review_count || 0} đánh giá)
+                          {course.rating || 4.5} ({course.reviews || 0} đánh giá)
                         </span>
                       </div>
                     </div>
                   </div>
 
-                  {/* Price and Enroll */}
+                  {/* Price */}
                   <div className="flex items-center justify-between">
                     <div>
                       <span className="text-xl font-bold text-teal-600">
-                        {course.is_free ? 'Miễn phí' : formatPrice(course.price)}
+                        {formatPrice(course.price)}
                       </span>
-                      {course.original_price && course.original_price > course.price && (
+                      {course.originalPrice && course.originalPrice > course.price && (
                         <span className="text-sm text-gray-500 line-through ml-2">
-                          {formatPrice(course.original_price)}
+                          {formatPrice(course.originalPrice)}
                         </span>
                       )}
                     </div>
-                  </div>
-
-                  <div className="mt-4 space-y-2">
-                    <Button
-                      className="w-full"
-                      onClick={() => goCourse(course.course_id)}
-                    >
-                      Xem chi tiết
-                    </Button>
-                    
-                    {!course.is_enrolled && (
-                      <Button
-                        variant="outline"
-                        className="w-full"
-                        onClick={() => enrollInCourse(course.course_id)}
-                      >
-                        Đăng ký ngay
-                      </Button>
-                    )}
-                    
-                    {course.is_enrolled && (
-                      <Button
-                        variant="secondary"
-                        className="w-full"
-                        disabled
-                      >
-                        Đã đăng ký
-                      </Button>
-                    )}
                   </div>
                 </div>
               </CardContent>
@@ -372,7 +360,8 @@ const CatalogPage = () => {
           </Button>
         </div>
       )}
-    </div>
+      </div>
+    </AppLayout>
   );
 };
 

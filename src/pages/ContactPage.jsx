@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { Mail, Phone, MapPin, Clock, Send } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import GuestHeader from '@/components/layout/GuestHeader';
-import Footer from '@/components/layout/Footer';
+import { Card, CardContent } from '../components/ui/card';
+import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/input';
+import { Textarea } from '../components/ui/textarea';
+import GuestHeader from '../components/layout/GuestHeader';
+import Footer from '../components/layout/Footer';
 
 const ContactPage = () => {
   const [formData, setFormData] = useState({

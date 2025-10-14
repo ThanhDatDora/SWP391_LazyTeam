@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useNavigation } from '@/hooks/useNavigation';
+import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/card';
+import { Button } from '../../components/ui/button';
+import { Badge } from '../../components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs';
+import { useNavigation } from '../../hooks/useNavigation';
 import { 
   BookOpen, 
   Users, 
@@ -19,8 +19,8 @@ import {
   Calendar,
   Target
 } from 'lucide-react';
-import { api } from '@/services/api';
-import { useAuth } from '@/contexts/AuthContext';
+import { api } from '../../services/api';
+import { useAuth } from '../../contexts/AuthContext';
 
 const CoursePage = () => {
   const navigate = useNavigation();

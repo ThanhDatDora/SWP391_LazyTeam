@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { formatCurrency } from '@/utils/formatters';
-import { useNavigation } from '@/hooks/useNavigation';
+import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/card';
+import { Button } from '../../components/ui/button';
+import { Badge } from '../../components/ui/badge';
+import { Input } from '../../components/ui/input';
+import { Textarea } from '../../components/ui/textarea';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs';
+import { formatCurrency } from '../../utils/formatters';
+import { useNavigation } from '../../hooks/useNavigation';
 import { 
   BookOpen, 
   Plus,
@@ -22,8 +22,8 @@ import {
   Users,
   Eye
 } from 'lucide-react';
-import { api } from '@/services/api';
-import { useAuth } from '@/contexts/AuthContext';
+import { api } from '../../services/api';
+import { useAuth } from '../../contexts/AuthContext';
 
 const CourseManagement = () => {
   const navigate = useNavigation();

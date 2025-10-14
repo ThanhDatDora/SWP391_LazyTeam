@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import CourseCard from '@/components/course/CourseCard';
-import { COURSES, CATEGORIES, TAGS } from '@/data/mockData';
+import { COURSES, CATEGORIES, TAGS } from '../data/mockData';
 
 const Catalog = () => {
   const [searchTerm, setSearchTerm] = useState('');

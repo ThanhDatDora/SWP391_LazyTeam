@@ -1,15 +1,19 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Trash2, Plus, Minus, ShoppingCart, CreditCard, MapPin, User, Mail, Phone, Lock, ArrowLeft, Check } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { COURSES } from '@/data/mockData';
-import { formatCurrency } from '@/utils/formatters';
-import { useNavigation } from '@/hooks/useNavigation';
+import { Button } from '../components/ui/button';
+import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
+import { Badge } from '../components/ui/badge';
+import { Input } from '../components/ui/input';
+import { COURSES } from '../data/mockData';
+import { api } from '../services/api';
+import { formatCurrency } from '../utils/formatters';
+import { useNavigation } from '../hooks/useNavigation';
+import { useAuth } from '../contexts/AuthContext';
+import AppLayout from '../components/layout/AppLayout';
 
 const Checkout = () => {
   const navigate = useNavigation();
+  const { state } = useAuth();
   const [currentStep, setCurrentStep] = useState(1); // 1: Cart, 2: Billing, 3: Payment, 4: Confirmation
   const [cartItems, setCartItems] = useState([
     { 
@@ -81,11 +85,13 @@ const Checkout = () => {
   ];
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8">
-      {/* Progress Steps */}
-      <div className="flex items-center justify-center">
-        <div className="flex items-center space-x-8">
-          {steps.map((step, index) => (
+    <AppLayout user={state.user}>
+      <div className="container mx-auto px-4 py-8">
+        <div className="max-w-6xl mx-auto space-y-8">
+          {/* Progress Steps */}
+          <div className="flex items-center justify-center">
+            <div className="flex items-center space-x-8">
+              {steps.map((step, index) => (
             <div key={step.id} className="flex items-center">
               <div className={`flex items-center justify-center w-10 h-10 rounded-full ${
                 currentStep >= step.id 
@@ -106,10 +112,10 @@ const Checkout = () => {
               )}
             </div>
           ))}
-        </div>
-      </div>
+            </div>
+          </div>
 
-      <div className="grid lg:grid-cols-3 gap-8">
+          <div className="grid lg:grid-cols-3 gap-8">
         {/* Main Content */}
         <div className="lg:col-span-2">
           {/* Step 1: Cart */}
@@ -477,8 +483,8 @@ const Checkout = () => {
                   <div className="font-mono text-lg">#ORD-2023-001234</div>
                 </div>
                 <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                  <Button onClick={() => navigate('/dashboard')}>
-                    Go to Dashboard
+                  <Button onClick={() => navigate('/course-player/1')}>
+                    Start Learning
                   </Button>
                   <Button variant="outline" onClick={() => navigate("/catalog")}>
                     Continue Shopping
@@ -542,8 +548,10 @@ const Checkout = () => {
             </CardContent>
           </Card>
         </div>
+          </div>
+        </div>
       </div>
-    </div>
+    </AppLayout>
   );
 };
 

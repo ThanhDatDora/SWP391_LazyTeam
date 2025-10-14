@@ -400,6 +400,56 @@ export const adminAPI = {
   }
 };
 
+// Instructor API  
+export const instructorAPI = {
+  async getCourses() {
+    return await apiRequest('/instructor/courses');
+  },
+
+  async getStudents() {
+    return await apiRequest('/instructor/students');
+  },
+
+  async getDashboardStats() {
+    return await apiRequest('/instructor/stats');
+  },
+
+  async getSubmissions() {
+    return await apiRequest('/instructor/submissions');
+  },
+
+  async createCourse(courseData) {
+    return await courseAPI.createCourse(courseData);
+  },
+
+  async updateCourse(courseId, courseData) {
+    return await courseAPI.updateCourse(courseId, courseData);
+  }
+};
+
+// Learner API
+export const learnerAPI = {
+  async getEnrolledCourses() {
+    return await apiRequest('/learner/enrolled-courses');
+  },
+
+  async getRecommendedCourses() {
+    return await apiRequest('/learner/recommended-courses');
+  },
+
+  async getProgress() {
+    return await apiRequest('/learner/progress');
+  },
+
+  async getDashboardStats() {
+    return await apiRequest('/learner/stats');
+  },
+
+  async getExamHistory() {
+    return await apiRequest('/learner/exam-history');
+  }
+};
+
 // Main API object
 export const api = {
   auth: authAPI,
@@ -408,6 +458,8 @@ export const api = {
   exams: examAPI,
   enrollments: enrollmentAPI,
   admin: adminAPI,
+  instructor: instructorAPI,
+  learner: learnerAPI,
   users: userAPI
 };
 

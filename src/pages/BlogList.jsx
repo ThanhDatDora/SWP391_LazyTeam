@@ -1,10 +1,10 @@
 import React from 'react';
-import { BLOGS } from '@/data/mockData';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import GuestHeader from '@/components/layout/GuestHeader';
-import Footer from '@/components/layout/Footer';
-import { useNavigation } from '@/hooks/useNavigation';
+import { BLOGS } from '../data/mockData';
+import { Badge } from '../components/ui/badge';
+import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
+import GuestHeader from '../components/layout/GuestHeader';
+import Footer from '../components/layout/Footer';
+import { useNavigation } from '../hooks/useNavigation';
 
 const BlogList = () => {
   const { to } = useNavigation();
