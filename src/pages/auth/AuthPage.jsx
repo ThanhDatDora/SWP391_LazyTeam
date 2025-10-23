@@ -6,7 +6,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
 
 const AuthPage = () => {
-  const { state, login, register } = useAuth();
+  const { state, login } = useAuth();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('login');
   const [showPassword, setShowPassword] = useState(false);
@@ -53,7 +53,7 @@ const AuthPage = () => {
         const errorDetails = data.error?.details || '';
         setError(`${errorMessage}${errorDetails ? '\n' + errorDetails : ''}`);
       }
-    } catch (err) {
+    } catch {
       setError('Lỗi kết nối đến server. Vui lòng kiểm tra xem backend có đang chạy không.');
     }
   };
@@ -164,7 +164,7 @@ const AuthPage = () => {
       } else {
         setError(data.error?.message || 'Không thể gửi lại OTP');
       }
-    } catch (err) {
+    } catch {
       setError('Lỗi kết nối đến server');
     }
   };
@@ -176,10 +176,18 @@ const AuthPage = () => {
 
     try {
       if (activeTab === 'login') {
-        const result = await login({
+        console.log('🎯 AuthPage handleSubmit - Login tab');
+        console.log('🎯 formData:', { email: formData.email, password: formData.password ? '***' : undefined });
+        console.log('🎯 Calling login() with credentials...');
+        
+        const credentials = {
           email: formData.email,
           password: formData.password
-        });
+        };
+        console.log('🎯 Credentials object:', { email: credentials.email, password: credentials.password ? '***' : undefined });
+        
+        const result = await login(credentials);
+        console.log('🎯 Login result:', result);
         
         if (result.success) {
           // Navigate to home - HomePage component will handle role-based rendering

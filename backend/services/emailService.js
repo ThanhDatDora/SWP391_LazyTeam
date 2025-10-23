@@ -54,7 +54,7 @@ class EmailService {
           this.templates.set(templateName, templateContent);
         }
       }
-    } catch (error) {
+    } catch {
       console.warn('Email templates directory not found, using inline templates');
       this.createDefaultTemplates();
     }
@@ -208,7 +208,7 @@ class EmailService {
               <h3>Order Details</h3>
               <p><strong>Order ID:</strong> {{orderId}}</p>
               <p><strong>Course:</strong> {{courseTitle}}</p>
-              <p><strong>Amount:</strong> ${{amount}}</p>
+              <p><strong>Amount:</strong> $\${amount}</p>
               <p><strong>Payment Method:</strong> {{paymentMethod}}</p>
               <p><strong>Date:</strong> {{paymentDate}}</p>
             </div>
@@ -372,7 +372,7 @@ class EmailService {
   }
 
   async sendCourseReminder(userEmail, userName, courseTitle, courseUrl, daysInactive) {
-    const template = `
+    const _template = `
       <p>Hi {{userName}}!</p>
       <p>We noticed you haven't continued with "{{courseTitle}}" for {{daysInactive}} days.</p>
       <p>Don't lose momentum! Continue where you left off:</p>

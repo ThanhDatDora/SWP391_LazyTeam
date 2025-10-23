@@ -1,4 +1,3 @@
-import React from 'react';
 import { GraduationCap, Mail, Phone, MapPin, Facebook, Twitter, Instagram, Linkedin, Youtube } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';

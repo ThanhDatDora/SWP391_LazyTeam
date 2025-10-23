@@ -5,7 +5,6 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001
 import { 
   getMockCourse, 
   getMockCourses, 
-  getMockReviews,
   apiWithFallback 
 } from '../utils/fallbackData';
 
@@ -88,10 +87,16 @@ const apiRequest = async (endpoint, options = {}) => {
 // Auth API
 export const authAPI = {
   async login(email, password) {
+    console.log('🔑 authAPI.login called with:', { email, password: password ? '***' : undefined });
+    console.log('🔑 Creating request body:', { email, password });
+    const requestBody = JSON.stringify({ email, password });
+    console.log('🔑 Stringified body:', requestBody);
+    console.log('🔑 Body length:', requestBody.length);
+    
     // Always force fresh request for auth, never cache
     const result = await apiRequest('/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ email, password }),
+      body: requestBody,
       forceRefresh: true,
       headers: {
         'Cache-Control': 'no-cache'

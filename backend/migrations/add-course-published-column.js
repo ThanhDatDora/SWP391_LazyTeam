@@ -1,4 +1,4 @@
-import { getPool, sql } from '../config/database.js';
+import { getPool } from '../config/database.js';
 
 export async function addCoursePublishedColumn() {
   try {

@@ -3,7 +3,7 @@
  * This script adds columns for Google OAuth integration and email verification
  */
 
-import { getPool, sql } from '../config/database.js';
+import { getPool } from '../config/database.js';
 
 async function addGoogleOAuthColumns() {
   try {

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import { createContext, useContext, useState, useCallback } from 'react';
 import { X, CheckCircle, AlertCircle, AlertTriangle, Info } from 'lucide-react';
 
 /**
@@ -195,54 +195,53 @@ export const useToastNotifications = () => {
 
 /**
  * Custom Toast Variants
+ * Note: These are NOT hooks, they are helper functions to create toast configs
+ * Use with the toast object from useToast hook:
+ * const toast = useToast();
+ * toast.success(createSuccessToast('Message'));
  */
-export const showSuccessToast = (message, options = {}) => {
-  const toast = useToast();
-  return toast.success(message, {
-    title: 'Thành công!',
-    ...options
-  });
-};
+export const createSuccessToast = (message, options = {}) => ({
+  type: 'success',
+  title: 'Thành công!',
+  message,
+  ...options
+});
 
-export const showErrorToast = (message, options = {}) => {
-  const toast = useToast();
-  return toast.error(message, {
-    title: 'Đã xảy ra lỗi',
-    ...options
-  });
-};
+export const createErrorToast = (message, options = {}) => ({
+  type: 'error',
+  title: 'Đã xảy ra lỗi',
+  message,
+  ...options
+});
 
-export const showWarningToast = (message, options = {}) => {
-  const toast = useToast();
-  return toast.warning(message, {
-    title: 'Cảnh báo',
-    ...options
-  });
-};
+export const createWarningToast = (message, options = {}) => ({
+  type: 'warning',
+  title: 'Cảnh báo',
+  message,
+  ...options
+});
 
-export const showInfoToast = (message, options = {}) => {
-  const toast = useToast();
-  return toast.info(message, {
-    title: 'Thông báo',
-    ...options
-  });
-};
+export const createInfoToast = (message, options = {}) => ({
+  type: 'info',
+  title: 'Thông báo',
+  message,
+  ...options
+});
 
-export const showLoadingToast = (message, options = {}) => {
-  const toast = useToast();
-  return toast.loading(message, {
-    title: 'Đang xử lý...',
-    ...options
-  });
-};
+export const createLoadingToast = (message, options = {}) => ({
+  type: 'loading',
+  title: 'Đang xử lý...',
+  message,
+  ...options
+});
 
 export default {
   ToastProvider,
   useToast,
   useToastNotifications,
-  showSuccessToast,
-  showErrorToast,
-  showWarningToast,
-  showInfoToast,
-  showLoadingToast
+  createSuccessToast,
+  createErrorToast,
+  createWarningToast,
+  createInfoToast,
+  createLoadingToast
 };

@@ -3,7 +3,7 @@
  * This script creates instructors table for additional instructor information
  */
 
-import { getPool, sql } from '../config/database.js';
+import { getPool } from '../config/database.js';
 
 async function createInstructorTable() {
   try {

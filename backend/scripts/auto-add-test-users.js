@@ -1,11 +1,9 @@
 // Auto-add Test Users to Google OAuth Consent Screen
 // Requires Google Cloud SDK and proper authentication
 
-const { google } = require('googleapis');
-
 // Configuration
-const PROJECT_ID = 'your-google-cloud-project-id';
-const CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+const _PROJECT_ID = 'your-google-cloud-project-id';
+const _CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 
 async function addTestUsers(emails) {
   try {

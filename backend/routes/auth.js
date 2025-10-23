@@ -25,7 +25,7 @@ const generateToken = (userId, email, role) => {
 
 // Register new user
 router.post('/register', [
-  body('email').isEmail().normalizeEmail(),
+  body('email').isEmail().trim(),
   body('password').isLength({ min: 6 }),
   body('fullName').trim().isLength({ min: 2 }),
   body('role').optional().isIn(['learner', 'instructor'])
@@ -96,8 +96,8 @@ router.post('/register', [
 
 // Login user
 router.post('/login', [
-  body('email').isEmail().normalizeEmail(),
-  body('password').notEmpty()
+  body('email').isEmail().trim(),
+  body('password').notEmpty().trim()
 ], async (req, res) => {
   try {
     console.log('� === LOGIN REQUEST DEBUG ===');
@@ -297,7 +297,7 @@ router.get('/google', (req, res) => {
 // Google OAuth - Handle callback
 router.get('/google/callback', async (req, res) => {
   try {
-    const { code, error, state } = req.query;
+    const { code, error } = req.query;
 
     if (error) {
       return res.redirect(`${process.env.FRONTEND_URL}/auth?error=${encodeURIComponent(error)}`);

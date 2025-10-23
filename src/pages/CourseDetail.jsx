@@ -1,23 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { 
   Play, 
   Star, 
   Users, 
-  Clock, 
-  Download, 
   CheckCircle, 
-  Monitor, 
-  Smartphone, 
-  Trophy,
-  Share2,
-  Heart,
   BookOpen,
-  MessageCircle,
-  ChevronDown,
-  ChevronRight
+  ChevronDown
 } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
@@ -42,7 +33,7 @@ const CourseDetail = () => {
   const [activeTab, setActiveTab] = useState('overview');
   const [relatedCourses, setRelatedCourses] = useState([]);
   const [reviews, setReviews] = useState([]);
-  const [isOffline, setIsOffline] = useState(false);
+  const [isOffline] = useState(false);
   
   const loading = courseLoading || relatedLoading;
 
@@ -82,8 +73,6 @@ const CourseDetail = () => {
 
   const loadCourseDetail = async () => {
     try {
-      setLoading(true);
-      
       // Try to get real course data from API first
       try {
         const response = await api.courses.getCourses({ limit: 100 });
@@ -223,8 +212,6 @@ const CourseDetail = () => {
       setCourse(mockCourse);
     } catch (error) {
       console.error('Error loading course detail:', error);
-    } finally {
-      setLoading(false);
     }
   };
 

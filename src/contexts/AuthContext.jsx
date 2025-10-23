@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect } from 'react';
 import { api } from '../services/api';
 
 const AuthContext = createContext();
@@ -60,8 +60,8 @@ export const AuthProvider = ({ children }) => {
           console.log('❌ API login failed:', response.error);
           return { success: false, message: response.error || 'Đăng nhập thất bại' };
         }
-      } catch (error) {
-        console.warn('⚠️ API login failed, using mock login:', error);
+      } catch (_apiError) {
+        console.warn('⚠️ API login failed, using mock login:', _apiError);
         
         // Mock login for development
         let roleId = 3; // Default to learner
@@ -121,7 +121,7 @@ export const AuthProvider = ({ children }) => {
           
           return { success: true };
         }
-      } catch (apiError) {
+      } catch (_apiError) {
         console.warn('API register failed, using mock register');
         
         // Mock register for development
@@ -165,6 +165,7 @@ export const AuthProvider = ({ children }) => {
     console.log('✅ Logout complete');
   };
 
+  // Check authentication status (utility function)
   const checkAuth = () => {
     return isAuthenticated && user !== null;
   };
@@ -181,7 +182,8 @@ export const AuthProvider = ({ children }) => {
     login,
     register,
     logout,
-    checkAuthStatus
+    checkAuthStatus,
+    checkAuth
   };
 
   return (

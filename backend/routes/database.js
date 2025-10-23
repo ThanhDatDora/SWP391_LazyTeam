@@ -1,5 +1,5 @@
 import express from 'express';
-import { getPool, sql } from '../config/database.js';
+import { getPool } from '../config/database.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';

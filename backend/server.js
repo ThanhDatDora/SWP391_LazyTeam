@@ -142,6 +142,23 @@ app.use((req, res, next) => {
   next();
 });
 
+// Debug middleware for auth routes ONLY
+app.use('/api/auth', (req, res, next) => {
+  console.log('\n🔍 === AUTH ROUTE DEBUG ===');
+  console.log('🔍 Method:', req.method);
+  console.log('🔍 URL:', req.url);
+  console.log('🔍 Headers:', req.headers);
+  console.log('🔍 Body:', req.body);
+  console.log('🔍 Body type:', typeof req.body);
+  console.log('🔍 Body keys:', Object.keys(req.body || {}));
+  console.log('🔍 Raw body length:', req.rawBody ? req.rawBody.length : 'N/A');
+  if (req.rawBody) {
+    console.log('🔍 Raw body string:', req.rawBody.toString());
+  }
+  console.log('🔍 === END DEBUG ===\n');
+  next();
+});
+
 // Serve static files for testing
 app.use(express.static('.'));
 
@@ -219,7 +236,7 @@ const startServer = async () => {
     try {
       await connectDB();
       console.log('✅ Database connected successfully');
-    } catch (error) {
+    } catch {
       console.log('⚠️  Database connection failed, but server will still start');
       console.log('💡 You can fix database config later');
       console.log('🔧 Update backend/.env with your SQL Server details');

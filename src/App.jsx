@@ -1,5 +1,4 @@
-﻿import React from 'react';
-import { BrowserRouter } from 'react-router-dom';
+﻿import { BrowserRouter } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { ToastProvider } from './components/ui/toast';
 import AppRouter from './router/AppRouter';
