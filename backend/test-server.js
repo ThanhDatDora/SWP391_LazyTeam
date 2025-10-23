@@ -41,7 +41,7 @@ app.get('*', (req, res) => {
 const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Test server running on http://localhost:${PORT}`);
   console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
-  console.log(`🌐 Server listening on all interfaces`);
+  console.log('🌐 Server listening on all interfaces');
 });
 
 server.on('error', (error) => {

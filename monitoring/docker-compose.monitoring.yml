@@ -1,0 +1,132 @@
+version: "3.8"
+
+services:
+  # Prometheus for metrics collection
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: mini-coursera-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    networks:
+      - coursera-network
+    restart: unless-stopped
+
+  # Grafana for visualization
+  grafana:
+    image: grafana/grafana:latest
+    container_name: mini-coursera-grafana
+    ports:
+      - "3001:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin123}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SECURITY_ALLOW_EMBEDDING=true
+      - GF_AUTH_ANONYMOUS_ENABLED=false
+    networks:
+      - coursera-network
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+
+  # Node Exporter for system metrics
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: mini-coursera-node-exporter
+    ports:
+      - "9100:9100"
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.ignored-mount-points=^/(sys|proc|dev|host|etc)($$|/)'
+    networks:
+      - coursera-network
+    restart: unless-stopped
+
+  # cAdvisor for container metrics
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: mini-coursera-cadvisor
+    ports:
+      - "8080:8080"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    privileged: true
+    devices:
+      - /dev/kmsg
+    networks:
+      - coursera-network
+    restart: unless-stopped
+
+  # Redis Exporter for Redis metrics
+  redis-exporter:
+    image: oliver006/redis_exporter:latest
+    container_name: mini-coursera-redis-exporter
+    ports:
+      - "9121:9121"
+    environment:
+      - REDIS_ADDR=redis://redis:6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+    networks:
+      - coursera-network
+    restart: unless-stopped
+    depends_on:
+      - redis
+
+  # Loki for log aggregation
+  loki:
+    image: grafana/loki:latest
+    container_name: mini-coursera-loki
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./monitoring/loki-config.yml:/etc/loki/local-config.yaml
+      - loki_data:/tmp/loki
+    command: -config.file=/etc/loki/local-config.yaml
+    networks:
+      - coursera-network
+    restart: unless-stopped
+
+  # Promtail for log collection
+  promtail:
+    image: grafana/promtail:latest
+    container_name: mini-coursera-promtail
+    volumes:
+      - ./monitoring/promtail-config.yml:/etc/promtail/config.yml
+      - /var/log:/var/log:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    command: -config.file=/etc/promtail/config.yml
+    networks:
+      - coursera-network
+    restart: unless-stopped
+    depends_on:
+      - loki
+
+volumes:
+  prometheus_data:
+  grafana_data:
+  loki_data:
+
+networks:
+  coursera-network:
+    external: true

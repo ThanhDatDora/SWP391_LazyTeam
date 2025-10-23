@@ -71,7 +71,7 @@ const addIssue = (type, file, line, rule, message) => {
 // Rule implementations
 const rules = {
   checkConsoleLog: (content, filePath) => {
-    if (!config.rules.noConsoleLog) return;
+    if (!config.rules.noConsoleLog) {return;}
     
     const lines = content.split('\n');
     lines.forEach((line, index) => {
@@ -83,7 +83,7 @@ const rules = {
   },
 
   checkWindowLocation: (content, filePath) => {
-    if (!config.rules.noWindowLocation) return;
+    if (!config.rules.noWindowLocation) {return;}
     
     const lines = content.split('\n');
     lines.forEach((line, index) => {
@@ -95,7 +95,7 @@ const rules = {
   },
 
   checkKeyProps: (content, filePath) => {
-    if (!config.rules.requireKeyProps || !filePath.includes('.jsx')) return;
+    if (!config.rules.requireKeyProps || !filePath.includes('.jsx')) {return;}
     
     const lines = content.split('\n');
     lines.forEach((line, index) => {
@@ -110,7 +110,7 @@ const rules = {
   },
 
   checkHardcodedUrls: (content, filePath) => {
-    if (!config.rules.noHardcodedUrls) return;
+    if (!config.rules.noHardcodedUrls) {return;}
     
     const lines = content.split('\n');
     const urlRegex = /(https?:\/\/[^\s'"]+)/g;
@@ -129,7 +129,7 @@ const rules = {
   },
 
   checkEmptyFunctions: (content, filePath) => {
-    if (!config.rules.noEmptyFunctions) return;
+    if (!config.rules.noEmptyFunctions) {return;}
     
     const lines = content.split('\n');
     lines.forEach((line, index) => {
@@ -143,7 +143,7 @@ const rules = {
   },
 
   checkTodoComments: (content, filePath) => {
-    if (!config.rules.noTodoComments) return;
+    if (!config.rules.noTodoComments) {return;}
     
     const lines = content.split('\n');
     lines.forEach((line, index) => {
@@ -155,7 +155,7 @@ const rules = {
   },
 
   checkLineLength: (content, filePath) => {
-    if (!config.rules.maxLineLength) return;
+    if (!config.rules.maxLineLength) {return;}
     
     const lines = content.split('\n');
     lines.forEach((line, index) => {
@@ -167,7 +167,7 @@ const rules = {
   },
 
   checkInlineStyles: (content, filePath) => {
-    if (!config.rules.noInlineStyles || !filePath.includes('.jsx')) return;
+    if (!config.rules.noInlineStyles || !filePath.includes('.jsx')) {return;}
     
     const lines = content.split('\n');
     lines.forEach((line, index) => {

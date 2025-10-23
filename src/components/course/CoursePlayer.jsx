@@ -81,7 +81,7 @@ const CoursePlayer = ({ moocId }) => {
                     </div>
                   </div>
                   {lesson.id === currentLesson?.id && (
-                    <div className="w-2 h-2 bg-primary rounded-full"></div>
+                    <div className="w-2 h-2 bg-primary rounded-full" />
                   )}
                 </div>
               </div>

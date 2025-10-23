@@ -20,28 +20,28 @@ const CoursePlayerPage = () => {
   // Mock course data
   const courseData = {
     id: courseId,
-    title: "Learn about Adobe XD & Prototyping",
-    description: "Complete course on Adobe XD from basics to advanced prototyping",
-    instructor: "John Anderson",
-    duration: "9 lessons • 6h 30min",
+    title: 'Learn about Adobe XD & Prototyping',
+    description: 'Complete course on Adobe XD from basics to advanced prototyping',
+    instructor: 'John Anderson',
+    duration: '9 lessons • 6h 30min',
     rating: 4.8,
     students: 1524,
-    level: "Intermediate",
+    level: 'Intermediate',
     lessons: [
-      { id: 1, title: "Introduction about XD", duration: "30 mins", completed: true, locked: false },
-      { id: 2, title: "Introduction about XD", duration: "30 mins", completed: true, locked: false },
-      { id: 3, title: "Introduction about XD", duration: "30 mins", completed: false, locked: false },
-      { id: 4, title: "Introduction about XD", duration: "30 mins", completed: false, locked: false },
-      { id: 5, title: "Introduction about XD", duration: "30 mins", completed: false, locked: true },
-      { id: 6, title: "Introduction about XD", duration: "30 mins", completed: false, locked: true },
-      { id: 7, title: "Introduction about XD", duration: "30 mins", completed: false, locked: true },
-      { id: 8, title: "Introduction about XD", duration: "30 mins", completed: false, locked: true },
-      { id: 9, title: "Introduction about XD", duration: "30 mins", completed: false, locked: true },
+      { id: 1, title: 'Introduction about XD', duration: '30 mins', completed: true, locked: false },
+      { id: 2, title: 'Introduction about XD', duration: '30 mins', completed: true, locked: false },
+      { id: 3, title: 'Introduction about XD', duration: '30 mins', completed: false, locked: false },
+      { id: 4, title: 'Introduction about XD', duration: '30 mins', completed: false, locked: false },
+      { id: 5, title: 'Introduction about XD', duration: '30 mins', completed: false, locked: true },
+      { id: 6, title: 'Introduction about XD', duration: '30 mins', completed: false, locked: true },
+      { id: 7, title: 'Introduction about XD', duration: '30 mins', completed: false, locked: true },
+      { id: 8, title: 'Introduction about XD', duration: '30 mins', completed: false, locked: true },
+      { id: 9, title: 'Introduction about XD', duration: '30 mins', completed: false, locked: true }
     ],
     materials: [
-      { id: 1, title: "Course Slides.pdf", type: "pdf", size: "2.3 MB" },
-      { id: 2, title: "Exercise Files.zip", type: "zip", size: "15.7 MB" },
-      { id: 3, title: "Bonus Resources.pdf", type: "pdf", size: "1.8 MB" },
+      { id: 1, title: 'Course Slides.pdf', type: 'pdf', size: '2.3 MB' },
+      { id: 2, title: 'Exercise Files.zip', type: 'zip', size: '15.7 MB' },
+      { id: 3, title: 'Bonus Resources.pdf', type: 'pdf', size: '1.8 MB' }
     ]
   };
 
@@ -91,7 +91,7 @@ const CoursePlayerPage = () => {
                   <div 
                     className="bg-teal-600 h-2 rounded-full transition-all duration-300"
                     style={{ width: `${progress}%` }}
-                  ></div>
+                  />
                 </div>
               </CardHeader>
               <CardContent className="p-0">
@@ -219,7 +219,7 @@ const CoursePlayerPage = () => {
                         {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
                       </Button>
                       <div className="flex-1 bg-white/20 rounded-full h-1">
-                        <div className="bg-teal-500 h-1 rounded-full w-1/3"></div>
+                        <div className="bg-teal-500 h-1 rounded-full w-1/3" />
                       </div>
                       <Volume2 className="w-4 h-4" />
                       <Maximize className="w-4 h-4" />
@@ -372,14 +372,14 @@ const CoursePlayerPage = () => {
                               key={i}
                               className={`aspect-square p-2 text-center text-sm border rounded-lg transition-colors ${
                                 !isCurrentMonth ? 'text-gray-400 bg-gray-50' :
-                                isToday ? 'bg-teal-600 text-white font-semibold' :
-                                hasClass ? 'bg-blue-100 text-blue-900 font-medium' :
-                                'text-gray-700 hover:bg-gray-100'
+                                  isToday ? 'bg-teal-600 text-white font-semibold' :
+                                    hasClass ? 'bg-blue-100 text-blue-900 font-medium' :
+                                      'text-gray-700 hover:bg-gray-100'
                               }`}
                             >
                               {isCurrentMonth ? date : ''}
                               {hasClass && isCurrentMonth && (
-                                <div className="w-1 h-1 bg-blue-600 rounded-full mx-auto mt-1"></div>
+                                <div className="w-1 h-1 bg-blue-600 rounded-full mx-auto mt-1" />
                               )}
                             </div>
                           );
@@ -399,8 +399,8 @@ const CoursePlayerPage = () => {
                           <div key={index} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
                             <div className={`w-3 h-3 rounded-full ${
                               event.type === 'live' ? 'bg-red-500' :
-                              event.type === 'deadline' ? 'bg-orange-500' : 'bg-green-500'
-                            }`}></div>
+                                event.type === 'deadline' ? 'bg-orange-500' : 'bg-green-500'
+                            }`} />
                             <div className="flex-1">
                               <h6 className="text-sm font-medium text-gray-900">{event.title}</h6>
                               <p className="text-xs text-gray-500">{event.date} • {event.time}</p>
@@ -458,20 +458,20 @@ const CoursePlayerPage = () => {
                       {[
                         {
                           id: 1,
-                          user: "Sarah Chen",
-                          avatar: "SC",
-                          time: "2 hours ago",
-                          title: "Question about lesson 3 exercise",
+                          user: 'Sarah Chen',
+                          avatar: 'SC',
+                          time: '2 hours ago',
+                          title: 'Question about lesson 3 exercise',
                           content: "I'm having trouble with the prototyping exercise. Can someone help?",
                           replies: 3
                         },
                         {
                           id: 2,
-                          user: "Mike Johnson",
-                          avatar: "MJ",
-                          time: "1 day ago",
-                          title: "Sharing my first prototype",
-                          content: "Just finished my first Adobe XD prototype! Really excited to share it with everyone.",
+                          user: 'Mike Johnson',
+                          avatar: 'MJ',
+                          time: '1 day ago',
+                          title: 'Sharing my first prototype',
+                          content: 'Just finished my first Adobe XD prototype! Really excited to share it with everyone.',
                           replies: 8
                         }
                       ].map(discussion => (

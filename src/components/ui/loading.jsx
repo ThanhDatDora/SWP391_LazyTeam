@@ -1,17 +1,47 @@
 import React from 'react';
 
 /**
- * Standard loading spinner component
+ * Modern loading spinner with multiple variants
  */
-export const LoadingSpinner = ({ size = 'medium', className = '' }) => {
+export const LoadingSpinner = ({ 
+  size = 'medium', 
+  variant = 'spin', 
+  color = 'teal', 
+  className = '' 
+}) => {
   const sizeClasses = {
     small: 'w-4 h-4',
-    medium: 'w-8 h-8',
-    large: 'w-12 h-12'
+    medium: 'w-8 h-8', 
+    large: 'w-12 h-12',
+    xl: 'w-16 h-16'
   };
 
+  const colorClasses = {
+    teal: 'border-teal-600',
+    blue: 'border-blue-600',
+    purple: 'border-purple-600',
+    green: 'border-green-600'
+  };
+
+  if (variant === 'dots') {
+    return (
+      <div className={`flex space-x-1 ${className}`}>
+        <div className={`${sizeClasses[size]} bg-${color}-600 rounded-full animate-bounce`} />
+        <div className={`${sizeClasses[size]} bg-${color}-600 rounded-full animate-bounce`} style={{ animationDelay: '0.1s' }} />
+        <div className={`${sizeClasses[size]} bg-${color}-600 rounded-full animate-bounce`} style={{ animationDelay: '0.2s' }} />
+      </div>
+    );
+  }
+
+  if (variant === 'pulse') {
+    return (
+      <div className={`${sizeClasses[size]} bg-${color}-600 rounded-full animate-pulse ${className}`} />
+    );
+  }
+
+  // Default spin variant
   return (
-    <div className={`animate-spin rounded-full border-2 border-gray-300 border-t-teal-600 ${sizeClasses[size]} ${className}`} />
+    <div className={`animate-spin rounded-full border-2 border-gray-300 ${colorClasses[color]} ${sizeClasses[size]} ${className}`} />
   );
 };
 

@@ -26,12 +26,12 @@ router.get('/', [
     const offset = (page - 1) * limit;
 
     const pool = await getPool();
-    let whereConditions = ['c.isPublished = 1'];
-    let queryParams = [];
+    const whereConditions = [];
+    const queryParams = [];
 
     // Build dynamic query
     if (category) {
-      whereConditions.push('c.categoryId = @category');
+      whereConditions.push('c.category_id = @category');
       queryParams.push({ name: 'category', type: sql.Int, value: category });
     }
 
@@ -45,24 +45,27 @@ router.get('/', [
       queryParams.push({ name: 'search', type: sql.NVarChar, value: `%${search}%` });
     }
 
-    const whereClause = whereConditions.join(' AND ');
+    // Only show active courses
+    whereConditions.push("c.status = 'active'");
+
+    const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
 
     // Get total count
-    let countRequest = pool.request();
+    const countRequest = pool.request();
     queryParams.forEach(param => {
       countRequest.input(param.name, param.type, param.value);
     });
 
     const countResult = await countRequest.query(`
       SELECT COUNT(*) as total
-      FROM Courses c
-      WHERE ${whereClause}
+      FROM courses c
+      ${whereClause}
     `);
 
     const total = countResult.recordset[0].total;
 
     // Get courses with pagination
-    let coursesRequest = pool.request()
+    const coursesRequest = pool.request()
       .input('offset', sql.Int, offset)
       .input('limit', sql.Int, parseInt(limit));
 
@@ -72,16 +75,28 @@ router.get('/', [
 
     const coursesResult = await coursesRequest.query(`
       SELECT 
-        c.id, c.title, c.description, c.shortDescription, c.price, c.originalPrice,
-        c.thumbnail, c.level, c.duration, c.language, c.enrollmentCount, c.rating, c.reviewCount,
-        c.createdAt, c.updatedAt,
-        u.fullName as instructorName,
-        cat.name as categoryName
-      FROM Courses c
-      INNER JOIN Users u ON c.instructorId = u.id
-      INNER JOIN Categories cat ON c.categoryId = cat.id
-      WHERE ${whereClause}
-      ORDER BY c.createdAt DESC
+        c.course_id as id, 
+        c.title, 
+        c.description, 
+        c.price,
+        c.level, 
+        c.language_code as language,
+        c.created_at as createdAt, 
+        c.updated_at as updatedAt,
+        c.status,
+        c.owner_instructor_id as instructorId,
+        'Instructor' as instructorName,
+        cat.name as categoryName,
+        cat.category_id as categoryId,
+        'https://via.placeholder.com/300x200' as thumbnail,
+        '10 hours' as duration,
+        0 as enrollmentCount,
+        4.5 as rating,
+        0 as reviewCount
+      FROM courses c
+      LEFT JOIN categories cat ON c.category_id = cat.category_id
+      ${whereClause}
+      ORDER BY c.created_at DESC
       OFFSET @offset ROWS
       FETCH NEXT @limit ROWS ONLY
     `);
@@ -109,30 +124,52 @@ router.get('/:id', async (req, res) => {
     const pool = await getPool();
 
     const result = await pool.request()
-      .input('courseId', sql.Int, id)
+      .input('courseId', sql.BigInt, id)
       .query(`
         SELECT 
-          c.*, 
-          u.fullName as instructorName, u.bio as instructorBio,
-          cat.name as categoryName
-        FROM Courses c
-        INNER JOIN Users u ON c.instructorId = u.id
-        INNER JOIN Categories cat ON c.categoryId = cat.id
-        WHERE c.id = @courseId AND c.isPublished = 1
+          c.course_id as id,
+          c.title, 
+          c.description, 
+          c.price,
+          c.level, 
+          c.language_code as language,
+          c.created_at as createdAt, 
+          c.updated_at as updatedAt,
+          c.status,
+          c.owner_instructor_id as instructorId,
+          'Instructor' as instructorName,
+          cat.name as categoryName,
+          'https://via.placeholder.com/300x200' as thumbnail,
+          '10 hours' as duration,
+          0 as enrollmentCount,
+          4.5 as rating,
+          0 as reviewCount
+        FROM courses c
+        LEFT JOIN categories cat ON c.category_id = cat.category_id
+        WHERE c.course_id = @courseId AND c.status = 'active'
       `);
 
     if (result.recordset.length === 0) {
       return res.status(404).json({ message: 'Course not found' });
     }
 
-    // Get course lessons
+    // Get course lessons from moocs and lessons tables
     const lessonsResult = await pool.request()
-      .input('courseId', sql.Int, id)
+      .input('courseId', sql.BigInt, id)
       .query(`
-        SELECT id, title, description, duration, orderIndex
-        FROM CourseLessons
-        WHERE courseId = @courseId AND isPublished = 1
-        ORDER BY orderIndex
+        SELECT 
+          l.lesson_id as id, 
+          l.title, 
+          l.content_type as contentType,
+          l.content_url as contentUrl,
+          '15 mins' as duration,
+          l.order_no as orderIndex,
+          m.title as moocTitle,
+          l.is_preview as isPreview
+        FROM lessons l
+        INNER JOIN moocs m ON l.mooc_id = m.mooc_id
+        WHERE m.course_id = @courseId
+        ORDER BY m.order_no, l.order_no
       `);
 
     const course = result.recordset[0];
@@ -226,10 +263,13 @@ router.get('/categories/list', async (req, res) => {
     const pool = await getPool();
     
     const result = await pool.request().query(`
-      SELECT c.*, COUNT(co.id) as courseCount
-      FROM Categories c
-      LEFT JOIN Courses co ON c.id = co.categoryId AND co.isPublished = 1
-      GROUP BY c.id, c.name, c.description, c.createdAt
+      SELECT 
+        c.category_id as id,
+        c.name, 
+        COUNT(co.course_id) as courseCount
+      FROM categories c
+      LEFT JOIN courses co ON c.category_id = co.category_id AND co.status = 'active'
+      GROUP BY c.category_id, c.name
       ORDER BY c.name
     `);
 
@@ -250,7 +290,7 @@ router.post('/:id/enroll', authenticateToken, authorizeRoles('learner'), async (
     // Check if course exists and is published
     const courseResult = await pool.request()
       .input('courseId', sql.Int, id)
-      .query('SELECT id, title, price FROM Courses WHERE id = @courseId AND isPublished = 1');
+      .query('SELECT id, title, price FROM Courses WHERE id = @courseId');
 
     if (courseResult.recordset.length === 0) {
       return res.status(404).json({ message: 'Course not found or not available' });

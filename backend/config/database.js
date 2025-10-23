@@ -9,12 +9,12 @@ const config = {
   user: process.env.DB_USER || 'sa',
   password: process.env.DB_PASSWORD || '123456',
   server: process.env.DB_SERVER || 'localhost',
-  database: process.env.DB_NAME || 'MiniCourseraFPTU1',
+  database: process.env.DB_NAME || 'MiniCoursera_Primary',
   port: 1433,
   options: {
     encrypt: false, // Use encryption (set to false for local development)
     trustServerCertificate: true, // Trust self-signed certificates
-    enableArithAbort: true,
+    enableArithAbort: true
   },
   pool: {
     max: 10,

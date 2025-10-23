@@ -102,15 +102,15 @@ const ExamHistoryPage = () => {
 
   const getScoreColor = (score, maxScore) => {
     const percentage = (score / maxScore) * 100;
-    if (percentage >= 80) return 'text-green-600';
-    if (percentage >= 60) return 'text-yellow-600';
+    if (percentage >= 80) {return 'text-green-600';}
+    if (percentage >= 60) {return 'text-yellow-600';}
     return 'text-red-600';
   };
 
   const getScoreBadgeVariant = (score, maxScore) => {
     const percentage = (score / maxScore) * 100;
-    if (percentage >= 80) return 'default';
-    if (percentage >= 60) return 'secondary';
+    if (percentage >= 80) {return 'default';}
+    if (percentage >= 60) {return 'secondary';}
     return 'destructive';
   };
 
@@ -136,7 +136,7 @@ const ExamHistoryPage = () => {
   };
 
   const getOverallStats = (submissions) => {
-    if (submissions.length === 0) return { totalExams: 0, avgScore: 0, bestScores: 0 };
+    if (submissions.length === 0) {return { totalExams: 0, avgScore: 0, bestScores: 0 };}
     
     const examGroups = groupSubmissionsByExam(submissions);
     const bestScores = examGroups.map(group => group.bestScore);
@@ -155,7 +155,7 @@ const ExamHistoryPage = () => {
     return (
       <div className="container mx-auto px-4 py-8">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600 mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600 mx-auto mb-4" />
           <p className="text-gray-600">Đang tải lịch sử thi...</p>
         </div>
       </div>
@@ -277,54 +277,54 @@ const ExamHistoryPage = () => {
                       {examGroup.submissions
                         .sort((a, b) => new Date(b.submitted_at) - new Date(a.submitted_at))
                         .map((submission) => (
-                        <TableRow key={submission.submission_id}>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
+                          <TableRow key={submission.submission_id}>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
                               Lần {submission.attempt_no}
-                              {submission.is_best && (
-                                <Badge className="bg-yellow-100 text-yellow-800">
+                                {submission.is_best && (
+                                  <Badge className="bg-yellow-100 text-yellow-800">
                                   Tốt nhất
-                                </Badge>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              <Calendar className="w-4 h-4 text-gray-400" />
-                              {formatDate(submission.submitted_at)}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <span className={`font-medium ${getScoreColor(submission.score, submission.max_score)}`}>
-                              {submission.score}/{submission.max_score}
-                            </span>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant={getScoreBadgeVariant(submission.score, submission.max_score)}>
-                              {Math.round((submission.score / submission.max_score) * 100)}%
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant={
-                              (submission.score / submission.max_score) * 100 >= 60 
-                                ? 'default' : 'destructive'
-                            }>
-                              {(submission.score / submission.max_score) * 100 >= 60 ? 'Đạt' : 'Chưa đạt'}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setSelectedSubmission(submission)}
-                              className="flex items-center gap-1"
-                            >
-                              <Eye className="w-4 h-4" />
+                                  </Badge>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <Calendar className="w-4 h-4 text-gray-400" />
+                                {formatDate(submission.submitted_at)}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <span className={`font-medium ${getScoreColor(submission.score, submission.max_score)}`}>
+                                {submission.score}/{submission.max_score}
+                              </span>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={getScoreBadgeVariant(submission.score, submission.max_score)}>
+                                {Math.round((submission.score / submission.max_score) * 100)}%
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={
+                                (submission.score / submission.max_score) * 100 >= 60 
+                                  ? 'default' : 'destructive'
+                              }>
+                                {(submission.score / submission.max_score) * 100 >= 60 ? 'Đạt' : 'Chưa đạt'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setSelectedSubmission(submission)}
+                                className="flex items-center gap-1"
+                              >
+                                <Eye className="w-4 h-4" />
                               Chi tiết
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
                     </TableBody>
                   </Table>
                 </div>
@@ -352,7 +352,7 @@ const ExamHistoryPage = () => {
             <p className="text-gray-600 mb-4">
               Bạn chưa tham gia bài thi nào. Hãy tham gia một khóa học và làm bài thi đầu tiên!
             </p>
-            <Button onClick={() => navigate("/catalog")}>
+            <Button onClick={() => navigate('/catalog')}>
               Khám phá khóa học
             </Button>
           </CardContent>

@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { GraduationCap, Menu, X, ChevronDown } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { useNavigation } from '@/hooks/useNavigation';
+import { Button } from '../ui/button';
+import { useNavigation } from '../../hooks/useNavigation';
 
 const GuestHeader = () => {
-  const { to, goAuth } = useNavigation();
+  const navigate = useNavigation();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isCoursesOpen, setIsCoursesOpen] = useState(false);
 
@@ -90,7 +90,7 @@ const GuestHeader = () => {
                             className="block px-4 py-2 text-gray-700 hover:bg-gray-50 hover:text-teal-600"
                             onClick={(e) => {
                               e.preventDefault();
-                              goAuth();
+                              navigate('/auth');
                             }}
                           >
                             {dropItem.label}
@@ -105,7 +105,7 @@ const GuestHeader = () => {
                       onClick={(e) => {
                         if (item.href !== '/' && item.href !== '/blog' && item.href !== '/about' && item.href !== '/contact') {
                           e.preventDefault();
-                          goAuth();
+                          navigate('/auth');
                         }
                       }}
                     >
@@ -120,13 +120,13 @@ const GuestHeader = () => {
             <div className="hidden lg:flex items-center gap-3">
               <Button 
                 variant="ghost" 
-                onClick={() => goAuth()}
+                onClick={() => navigate('/auth')}
                 className="text-gray-700"
               >
                 Đăng nhập
               </Button>
               <Button 
-                onClick={() => goAuth()}
+                onClick={() => navigate('/auth')}
                 className="bg-teal-600 hover:bg-teal-700"
               >
                 Đăng ký miễn phí
@@ -172,7 +172,7 @@ const GuestHeader = () => {
                                 className="block text-gray-600 py-1 hover:text-teal-600"
                                 onClick={(e) => {
                                   e.preventDefault();
-                                  navigate("/auth");
+                                  navigate('/auth');
                                 }}
                               >
                                 {dropItem.label}
@@ -188,7 +188,7 @@ const GuestHeader = () => {
                         onClick={(e) => {
                           if (item.href !== '/' && item.href !== '/blog' && item.href !== '/about' && item.href !== '/contact') {
                             e.preventDefault();
-                            navigate("/auth");
+                            navigate('/auth');
                           }
                         }}
                       >
@@ -203,13 +203,13 @@ const GuestHeader = () => {
                   <Button 
                     variant="outline" 
                     className="w-full justify-center"
-                    onClick={() => goAuth()}
+                    onClick={() => navigate('/auth')}
                   >
                     Đăng nhập
                   </Button>
                   <Button 
                     className="w-full justify-center bg-teal-600 hover:bg-teal-700"
-                    onClick={() => goAuth()}
+                    onClick={() => navigate('/auth')}
                   >
                     Đăng ký miễn phí
                   </Button>

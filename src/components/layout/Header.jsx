@@ -3,7 +3,8 @@ import { GraduationCap, User, LogOut, Settings, BookOpen } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Badge } from '../ui/badge';
-import { useAuth, ROLES, isAdmin, isInstructor, isLearner } from '../../contexts/AuthContext';
+import { useAuth } from '../../contexts/AuthContext';
+import { ROLES, isAdmin, isInstructor, isLearner } from '../../lib/roles';
 import { useNavigation } from '../../hooks/useNavigation';
 
 const Header = ({ user }) => {
@@ -64,10 +65,10 @@ const Header = ({ user }) => {
               className="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-100"
             >
               <div className="w-8 h-8 rounded-full bg-teal-500 flex items-center justify-center text-white text-sm font-medium">
-                {user.full_name.charAt(0).toUpperCase()}
+                {(user?.full_name || user?.email || 'U').charAt(0).toUpperCase()}
               </div>
               <div className="text-left">
-                <div className="text-sm font-medium text-gray-900">{user.full_name}</div>
+                <div className="text-sm font-medium text-gray-900">{user?.full_name || user?.email || 'User'}</div>
                 <div className="text-xs text-gray-500">{getRoleName(user.role_id)}</div>
               </div>
             </button>
@@ -76,10 +77,10 @@ const Header = ({ user }) => {
             {showUserMenu && (
               <div className="absolute right-0 mt-2 w-64 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
                 <div className="p-3 border-b">
-                  <div className="font-medium text-gray-900">{user.full_name}</div>
-                  <div className="text-sm text-gray-500">{user.email}</div>
+                  <div className="font-medium text-gray-900">{user?.full_name || user?.email || 'User'}</div>
+                  <div className="text-sm text-gray-500">{user?.email || 'No email'}</div>
                   <Badge className="mt-1 bg-teal-100 text-teal-800 text-xs">
-                    {getRoleName(user.role_id)}
+                    {getRoleName(user?.role_id)}
                   </Badge>
                 </div>
 

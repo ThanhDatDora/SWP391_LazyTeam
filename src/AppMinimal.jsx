@@ -1,7 +1,7 @@
-import React from 'react'
-import { Routes, Route } from 'react-router-dom'
-import { AuthProvider } from './contexts/AuthContextSimple'
-import SuperSimple from './pages/SuperSimple'
+import React from 'react';
+import { Routes, Route } from 'react-router-dom';
+import { AuthProvider } from './contexts/AuthContextSimple';
+import SuperSimple from './pages/SuperSimple';
 
 function AppMinimal() {
   return (

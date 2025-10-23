@@ -109,15 +109,15 @@ const InstructorDashboard = () => {
 
   const getScoreColor = (score, maxScore) => {
     const percentage = (score / maxScore) * 100;
-    if (percentage >= 80) return 'text-green-600';
-    if (percentage >= 60) return 'text-yellow-600';
+    if (percentage >= 80) {return 'text-green-600';}
+    if (percentage >= 60) {return 'text-yellow-600';}
     return 'text-red-600';
   };
 
   const getScoreBadgeVariant = (score, maxScore) => {
     const percentage = (score / maxScore) * 100;
-    if (percentage >= 80) return 'default';
-    if (percentage >= 60) return 'secondary';
+    if (percentage >= 80) {return 'default';}
+    if (percentage >= 60) {return 'secondary';}
     return 'destructive';
   };
 
@@ -125,7 +125,7 @@ const InstructorDashboard = () => {
     return (
       <div className="container mx-auto px-4 py-8">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600 mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600 mx-auto mb-4" />
           <p className="text-gray-600">Đang tải dashboard...</p>
         </div>
       </div>

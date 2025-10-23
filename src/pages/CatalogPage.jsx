@@ -5,7 +5,7 @@ import { Badge } from '../components/ui/badge';
 import { Input } from '../components/ui/input';
 import { BookOpen, Users, Clock, Star, Search, Filter, ChevronDown } from 'lucide-react';
 import { api } from '../services/api';
-import { useAuth } from '../contexts/AuthContextSimple';
+import { useAuth } from '../contexts/AuthContext';
 import { useNavigation } from '../hooks/useNavigation';
 import AppLayout from '../components/layout/AppLayout';
 
@@ -90,8 +90,8 @@ const CatalogPage = () => {
     // Price filter
     if (selectedPrice !== 'all') {
       filtered = filtered.filter(course => {
-        if (selectedPrice === 'free') return course.price === 0;
-        if (selectedPrice === 'paid') return course.price > 0;
+        if (selectedPrice === 'free') {return course.price === 0;}
+        if (selectedPrice === 'paid') {return course.price > 0;}
         return true;
       });
     }
@@ -110,7 +110,7 @@ const CatalogPage = () => {
   };
 
   const formatPrice = (price) => {
-    if (price === 0) return 'Miễn phí';
+    if (price === 0) {return 'Miễn phí';}
     return new Intl.NumberFormat('vi-VN', {
       style: 'currency',
       currency: 'VND'
@@ -152,7 +152,7 @@ const CatalogPage = () => {
     return (
       <div className="container mx-auto px-4 py-8">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600 mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600 mx-auto mb-4" />
           <p className="text-gray-600">Đang tải danh mục khóa học...</p>
         </div>
       </div>
@@ -162,204 +162,204 @@ const CatalogPage = () => {
   return (
     <AppLayout user={authState.user}>
       <div className="container mx-auto px-4 py-8">
-      {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Danh mục khóa học</h1>
-        <p className="text-gray-600">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Danh mục khóa học</h1>
+          <p className="text-gray-600">
           Khám phá {courses.length} khóa học chất lượng cao với các chủ đề đa dạng
-        </p>
-      </div>
-
-      {/* Search and Filters */}
-      <div className="mb-8 space-y-4">
-        {/* Search */}
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-          <Input
-            type="text"
-            placeholder="Tìm kiếm khóa học..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
-          />
+          </p>
         </div>
 
-        {/* Filter Toggle */}
-        <div className="flex items-center justify-between">
-          <Button
-            variant="outline"
-            onClick={() => setShowFilters(!showFilters)}
-            className="flex items-center gap-2"
-          >
-            <Filter className="w-4 h-4" />
-            Bộ lọc
-            <ChevronDown className={`w-4 h-4 transition-transform ${showFilters ? 'rotate-180' : ''}`} />
-          </Button>
-          <div className="text-sm text-gray-600">
-            Hiển thị {filteredCourses.length} khóa học
+        {/* Search and Filters */}
+        <div className="mb-8 space-y-4">
+          {/* Search */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+            <Input
+              type="text"
+              placeholder="Tìm kiếm khóa học..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10"
+            />
           </div>
-        </div>
 
-        {/* Filters */}
-        {showFilters && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-gray-50 rounded-lg">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Danh mục</label>
-              <select
-                value={selectedCategory}
-                onChange={(e) => setSelectedCategory(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500"
-              >
-                {categories.map(category => (
-                  <option key={category.value} value={category.value}>
-                    {category.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Cấp độ</label>
-              <select
-                value={selectedLevel}
-                onChange={(e) => setSelectedLevel(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500"
-              >
-                {levels.map(level => (
-                  <option key={level.value} value={level.value}>
-                    {level.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Giá</label>
-              <select
-                value={selectedPrice}
-                onChange={(e) => setSelectedPrice(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500"
-              >
-                {priceOptions.map(price => (
-                  <option key={price.value} value={price.value}>
-                    {price.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Course Grid */}
-      {filteredCourses.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredCourses.map(course => (
-            <Card 
-              key={course.id} 
-              className="hover:shadow-lg transition-shadow cursor-pointer"
-              onClick={() => navigate(`/course/${course.id}`)}
+          {/* Filter Toggle */}
+          <div className="flex items-center justify-between">
+            <Button
+              variant="outline"
+              onClick={() => setShowFilters(!showFilters)}
+              className="flex items-center gap-2"
             >
-              <CardContent className="p-0">
-                {/* Course Image */}
-                <div className="aspect-video bg-gradient-to-br from-teal-400 to-blue-500 rounded-t-lg flex items-center justify-center">
-                  <BookOpen className="w-12 h-12 text-white" />
-                </div>
+              <Filter className="w-4 h-4" />
+            Bộ lọc
+              <ChevronDown className={`w-4 h-4 transition-transform ${showFilters ? 'rotate-180' : ''}`} />
+            </Button>
+            <div className="text-sm text-gray-600">
+            Hiển thị {filteredCourses.length} khóa học
+            </div>
+          </div>
 
-                <div className="p-6">
-                  {/* Course Title */}
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2 line-clamp-2">
-                    {course.title}
-                  </h3>
+          {/* Filters */}
+          {showFilters && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-gray-50 rounded-lg">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Danh mục</label>
+                <select
+                  value={selectedCategory}
+                  onChange={(e) => setSelectedCategory(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500"
+                >
+                  {categories.map(category => (
+                    <option key={category.value} value={category.value}>
+                      {category.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-                  {/* Course Description */}
-                  <p className="text-gray-600 text-sm mb-4 line-clamp-3">
-                    {course.description}
-                  </p>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Cấp độ</label>
+                <select
+                  value={selectedLevel}
+                  onChange={(e) => setSelectedLevel(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500"
+                >
+                  {levels.map(level => (
+                    <option key={level.value} value={level.value}>
+                      {level.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-                  {/* Course Meta */}
-                  <div className="flex items-center gap-2 mb-4">
-                    <Badge variant="secondary" className="text-xs">
-                      {getCourseLevel(course.level)}
-                    </Badge>
-                    <div className="flex items-center text-xs text-gray-500">
-                      <Users className="w-3 h-3 mr-1" />
-                      {course.enrolledCount || 0} học viên
-                    </div>
-                    <div className="flex items-center text-xs text-gray-500">
-                      <Clock className="w-3 h-3 mr-1" />
-                      {course.duration}
-                    </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Giá</label>
+                <select
+                  value={selectedPrice}
+                  onChange={(e) => setSelectedPrice(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500"
+                >
+                  {priceOptions.map(price => (
+                    <option key={price.value} value={price.value}>
+                      {price.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Course Grid */}
+        {filteredCourses.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredCourses.map(course => (
+              <Card 
+                key={course.id} 
+                className="hover:shadow-lg transition-shadow cursor-pointer"
+                onClick={() => navigate(`/course/${course.id}`)}
+              >
+                <CardContent className="p-0">
+                  {/* Course Image */}
+                  <div className="aspect-video bg-gradient-to-br from-teal-400 to-blue-500 rounded-t-lg flex items-center justify-center">
+                    <BookOpen className="w-12 h-12 text-white" />
                   </div>
 
-                  {/* Instructor */}
-                  <div className="flex items-center mb-4">
-                    <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center mr-2">
-                      <span className="text-xs font-medium text-gray-600">
-                        {course.instructor?.[0] || 'I'}
-                      </span>
+                  <div className="p-6">
+                    {/* Course Title */}
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2 line-clamp-2">
+                      {course.title}
+                    </h3>
+
+                    {/* Course Description */}
+                    <p className="text-gray-600 text-sm mb-4 line-clamp-3">
+                      {course.description}
+                    </p>
+
+                    {/* Course Meta */}
+                    <div className="flex items-center gap-2 mb-4">
+                      <Badge variant="secondary" className="text-xs">
+                        {getCourseLevel(course.level)}
+                      </Badge>
+                      <div className="flex items-center text-xs text-gray-500">
+                        <Users className="w-3 h-3 mr-1" />
+                        {course.enrolledCount || 0} học viên
+                      </div>
+                      <div className="flex items-center text-xs text-gray-500">
+                        <Clock className="w-3 h-3 mr-1" />
+                        {course.duration}
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">
-                        {course.instructor || 'Instructor'}
-                      </p>
-                      <div className="flex items-center">
-                        <Star className="w-3 h-3 text-yellow-400 fill-current" />
-                        <span className="text-xs text-gray-500 ml-1">
-                          {course.rating || 4.5} ({course.reviews || 0} đánh giá)
+
+                    {/* Instructor */}
+                    <div className="flex items-center mb-4">
+                      <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center mr-2">
+                        <span className="text-xs font-medium text-gray-600">
+                          {course.instructor?.[0] || 'I'}
                         </span>
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">
+                          {course.instructor || 'Instructor'}
+                        </p>
+                        <div className="flex items-center">
+                          <Star className="w-3 h-3 text-yellow-400 fill-current" />
+                          <span className="text-xs text-gray-500 ml-1">
+                            {course.rating || 4.5} ({course.reviews || 0} đánh giá)
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Price */}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="text-xl font-bold text-teal-600">
+                          {formatPrice(course.price)}
+                        </span>
+                        {course.originalPrice && course.originalPrice > course.price && (
+                          <span className="text-sm text-gray-500 line-through ml-2">
+                            {formatPrice(course.originalPrice)}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
-
-                  {/* Price */}
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="text-xl font-bold text-teal-600">
-                        {formatPrice(course.price)}
-                      </span>
-                      {course.originalPrice && course.originalPrice > course.price && (
-                        <span className="text-sm text-gray-500 line-through ml-2">
-                          {formatPrice(course.originalPrice)}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      ) : (
-        <div className="text-center py-12">
-          <BookOpen className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-xl font-medium text-gray-900 mb-2">
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-12">
+            <BookOpen className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-xl font-medium text-gray-900 mb-2">
             Không tìm thấy khóa học nào
-          </h3>
-          <p className="text-gray-600 mb-4">
+            </h3>
+            <p className="text-gray-600 mb-4">
             Thử thay đổi bộ lọc hoặc từ khóa tìm kiếm để xem thêm kết quả
-          </p>
-          <Button
-            onClick={() => {
-              setSearchTerm('');
-              setSelectedCategory('all');
-              setSelectedLevel('all');
-              setSelectedPrice('all');
-            }}
-          >
+            </p>
+            <Button
+              onClick={() => {
+                setSearchTerm('');
+                setSelectedCategory('all');
+                setSelectedLevel('all');
+                setSelectedPrice('all');
+              }}
+            >
             Xóa bộ lọc
-          </Button>
-        </div>
-      )}
+            </Button>
+          </div>
+        )}
 
-      {/* Load More (if needed) */}
-      {filteredCourses.length > 0 && filteredCourses.length === courses.length && courses.length >= 10 && (
-        <div className="text-center mt-8">
-          <Button variant="outline">
+        {/* Load More (if needed) */}
+        {filteredCourses.length > 0 && filteredCourses.length === courses.length && courses.length >= 10 && (
+          <div className="text-center mt-8">
+            <Button variant="outline">
             Tải thêm khóa học
-          </Button>
-        </div>
-      )}
+            </Button>
+          </div>
+        )}
       </div>
     </AppLayout>
   );

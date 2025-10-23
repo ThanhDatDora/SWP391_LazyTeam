@@ -103,7 +103,7 @@ const addNavigationImport = (content) => {
       // Check if this is the last import
       let isLastImport = true;
       for (let j = i + 1; j < lines.length; j++) {
-        if (lines[j].trim() === '') continue;
+        if (lines[j].trim() === '') {continue;}
         if (lines[j].includes('import') && lines[j].includes('from')) {
           isLastImport = false;
           break;
@@ -221,7 +221,7 @@ const main = () => {
     console.log(''); // Empty line between files
   });
   
-  console.log(`\n🎉 Fix Navigation Complete!`);
+  console.log('\n🎉 Fix Navigation Complete!');
   console.log(`📊 Summary: ${totalModified} files modified out of ${filesToFix.length} total`);
   
   if (totalModified > 0) {

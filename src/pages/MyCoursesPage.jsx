@@ -4,7 +4,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card'
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Input } from '../components/ui/input';
-import { useAuth } from '../contexts/AuthContextSimple';
+import { useAuth } from '../contexts/AuthContext';
 import { useNavigation } from '../hooks/useNavigation';
 import AppLayout from '../components/layout/AppLayout';
 import { api } from '../services/api';
@@ -219,7 +219,7 @@ const MyCoursesPage = () => {
                                 course.status === 'completed' ? 'bg-green-500' : 'bg-teal-500'
                               }`}
                               style={{ width: `${course.progress}%` }}
-                            ></div>
+                            />
                           </div>
                         </div>
                         
@@ -274,7 +274,7 @@ const MyCoursesPage = () => {
                                 course.status === 'completed' ? 'bg-green-500' : 'bg-teal-500'
                               }`}
                               style={{ width: `${course.progress}%` }}
-                            ></div>
+                            />
                           </div>
                         </div>
                       </div>
@@ -334,7 +334,7 @@ const MyCoursesPage = () => {
                             <div 
                               className="bg-teal-500 h-2 rounded-full transition-all duration-300"
                               style={{ width: `${course.progress}%` }}
-                            ></div>
+                            />
                           </div>
                           <div className="text-xs text-gray-500">
                             {formatProgress(course.progress)} complete

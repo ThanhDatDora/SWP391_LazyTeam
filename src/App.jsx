@@ -1,30 +1,21 @@
-import React from 'react'
-import { Routes, Route } from 'react-router-dom'
-import { AuthProvider } from './contexts/AuthContext'
-import Landing from './pages/Landing'
-import AuthPage from './pages/auth/AuthPage'
+﻿import React from 'react';
+import { BrowserRouter } from 'react-router-dom';
+import { AuthProvider } from './contexts/AuthContext';
+import { ToastProvider } from './components/ui/toast';
+import AppRouter from './router/AppRouter';
+import ApiDebugPanel from './components/debug/ApiDebugPanel';
 
 function App() {
   return (
-    <AuthProvider>
-      <Routes>
-        <Route path="/" element={<Landing />} />
-        <Route path="/auth" element={<AuthPage />} />
-        <Route path="*" element={
-          <div style={{
-            padding: '50px',
-            backgroundColor: 'lightpink',
-            color: 'black',
-            fontSize: '24px',
-            textAlign: 'center'
-          }}>
-            <h1>🚧 Route không tồn tại</h1>
-            <p>Đường dẫn này chưa được thiết lập</p>
-            <a href="/">← Về trang chủ</a>
-          </div>
-        } />
-      </Routes>
-    </AuthProvider>
+    <BrowserRouter>
+      <ToastProvider>
+        <AuthProvider>
+          <AppRouter />
+          {/* Show debug panel in development */}
+          {import.meta.env.DEV && <ApiDebugPanel />}
+        </AuthProvider>
+      </ToastProvider>
+    </BrowserRouter>
   );
 }
 

@@ -76,7 +76,7 @@ const ExamPage = () => {
     }
 
     return () => {
-      if (timer) clearInterval(timer);
+      if (timer) {clearInterval(timer);}
     };
   }, [examStarted, examSubmitted, timeRemaining]);
 
@@ -153,7 +153,7 @@ const ExamPage = () => {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600 mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600 mx-auto mb-4" />
           <p className="text-gray-600">Đang tải đề thi...</p>
         </div>
       </div>
@@ -315,8 +315,8 @@ const ExamPage = () => {
                         index === currentQuestion
                           ? 'bg-teal-600 text-white'
                           : answers[questions[index].question_id]
-                          ? 'bg-green-100 text-green-700 border border-green-300'
-                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            ? 'bg-green-100 text-green-700 border border-green-300'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                       }`}
                     >
                       {index + 1}
@@ -326,15 +326,15 @@ const ExamPage = () => {
 
                 <div className="mt-4 space-y-2 text-xs">
                   <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 bg-teal-600 rounded"></div>
+                    <div className="w-4 h-4 bg-teal-600 rounded" />
                     <span>Câu hiện tại</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 bg-green-100 border border-green-300 rounded"></div>
+                    <div className="w-4 h-4 bg-green-100 border border-green-300 rounded" />
                     <span>Đã trả lời</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 bg-gray-100 rounded"></div>
+                    <div className="w-4 h-4 bg-gray-100 rounded" />
                     <span>Chưa trả lời</span>
                   </div>
                 </div>
@@ -353,10 +353,10 @@ const ExamPage = () => {
                   {currentQ?.difficulty && (
                     <Badge variant={
                       currentQ.difficulty === 'easy' ? 'default' :
-                      currentQ.difficulty === 'medium' ? 'secondary' : 'destructive'
+                        currentQ.difficulty === 'medium' ? 'secondary' : 'destructive'
                     }>
                       {currentQ.difficulty === 'easy' ? 'Dễ' :
-                       currentQ.difficulty === 'medium' ? 'Trung bình' : 'Khó'}
+                        currentQ.difficulty === 'medium' ? 'Trung bình' : 'Khó'}
                     </Badge>
                   )}
                 </div>

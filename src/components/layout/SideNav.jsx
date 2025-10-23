@@ -1,6 +1,7 @@
 import React from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../ui/card';
-import { ROLES, isAdmin, isInstructor, isLearner } from '../../contexts/AuthContext';
+import { useAuth } from '../../contexts/AuthContext';
+import { ROLES, isAdmin, isInstructor, isLearner } from '../../lib/roles';
 
 const SideNav = ({ user }) => {
   const getMenuItems = (user) => {
@@ -47,7 +48,7 @@ const SideNav = ({ user }) => {
   const menuItems = getMenuItems(user);
   
   const getRoleName = (user) => {
-    if (!user) return 'Khách';
+    if (!user) {return 'Khách';}
     switch (user.role_id) {
       case ROLES.ADMIN: return 'Quản trị viên';
       case ROLES.INSTRUCTOR: return 'Giảng viên';

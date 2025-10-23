@@ -74,7 +74,7 @@ const Exam = ({ moocId }) => {
   };
 
   const getBestScore = () => {
-    if (attempts.length === 0) return 0;
+    if (attempts.length === 0) {return 0;}
     return Math.max(...attempts.map(a => a.scorePct));
   };
 

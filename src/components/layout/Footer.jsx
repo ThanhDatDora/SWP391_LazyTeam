@@ -116,7 +116,7 @@ const Footer = () => {
                     className="text-gray-400 hover:text-white transition-colors"
                     onClick={(e) => {
                       e.preventDefault();
-                      navigate("/auth");
+                      navigate('/auth');
                     }}
                   >
                     {category}

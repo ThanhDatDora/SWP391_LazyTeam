@@ -34,14 +34,18 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (credentials) => {
     try {
+      console.log('🔐 Login attempt with credentials:', { email: credentials.email, password: '***' });
       setIsLoading(true);
       
       // Try API login first
       try {
-        const response = await api.auth.login(credentials);
+        console.log('📡 Calling API login...');
+        const response = await api.auth.login(credentials.email, credentials.password);
+        console.log('📡 API response:', response);
         
         if (response.success && response.data) {
           const { user: userData, token } = response.data;
+          console.log('✅ Login successful, user data:', userData);
           
           // Store in localStorage
           localStorage.setItem('token', token);
@@ -53,17 +57,33 @@ export const AuthProvider = ({ children }) => {
           
           return { success: true };
         } else {
-          return { success: false, message: response.message || 'Đăng nhập thất bại' };
+          console.log('❌ API login failed:', response.error);
+          return { success: false, message: response.error || 'Đăng nhập thất bại' };
         }
       } catch (error) {
-        console.warn('API login failed, using mock login');
+        console.warn('⚠️ API login failed, using mock login:', error);
         
         // Mock login for development
+        let roleId = 3; // Default to learner
+        let fullName = credentials.email.split('@')[0];
+        
+        // Set role based on email for demo accounts
+        if (credentials.email === 'admin@example.com') {
+          roleId = 1; // Admin
+          fullName = 'Admin User';
+        } else if (credentials.email === 'instructor@example.com') {
+          roleId = 2; // Instructor  
+          fullName = 'Instructor User';
+        } else if (credentials.email === 'learner@example.com') {
+          roleId = 3; // Learner
+          fullName = 'Learner User';
+        }
+        
         const mockUser = {
           id: 1,
           email: credentials.email,
-          full_name: credentials.email.split('@')[0],
-          role_id: 3
+          full_name: fullName,
+          role_id: roleId
         };
         
         localStorage.setItem('user', JSON.stringify(mockUser));
@@ -72,10 +92,11 @@ export const AuthProvider = ({ children }) => {
         setUser(mockUser);
         setIsAuthenticated(true);
         
+        console.log('✅ Mock login successful, user:', mockUser);
         return { success: true };
       }
     } catch (error) {
-      console.error('Login failed:', error);
+      console.error('❌ Login failed:', error);
       return { success: false, message: 'Lỗi hệ thống' };
     } finally {
       setIsLoading(false);
@@ -130,13 +151,18 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = () => {
+    console.log('🚪 Logging out user...');
+    
     // Clear localStorage
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    localStorage.removeItem('cart');
     
     // Clear state
     setUser(null);
     setIsAuthenticated(false);
+    
+    console.log('✅ Logout complete');
   };
 
   const checkAuth = () => {

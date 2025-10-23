@@ -118,7 +118,7 @@ class StorageManager {
 
     try {
       let total = 0;
-      for (let key in this.storage) {
+      for (const key in this.storage) {
         if (this.storage.hasOwnProperty(key)) {
           total += this.storage[key].length + key.length;
         }

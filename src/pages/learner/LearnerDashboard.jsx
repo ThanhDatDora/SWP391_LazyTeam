@@ -4,7 +4,7 @@ import { Button } from '../../components/ui/button';
 import { Badge } from '../../components/ui/badge';
 import { BookOpen, Users, Clock, Star, ArrowRight, Calendar, TrendingUp } from 'lucide-react';
 import { api } from '../../services/api';
-import { useAuth } from '../../contexts/AuthContextSimple';
+import { useAuth } from '../../contexts/AuthContext';
 import { useNavigation } from '../../hooks/useNavigation';
 import AppLayout from '../../components/layout/AppLayout';
 
@@ -94,7 +94,7 @@ const LearnerDashboard = () => {
       <AppLayout user={authState.user}>
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600 mx-auto mb-4"></div>
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600 mx-auto mb-4" />
             <p className="text-gray-600">Đang tải...</p>
           </div>
         </div>
@@ -125,7 +125,7 @@ const LearnerDashboard = () => {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {enrolledCourses.map((course, index) => (
                   <Card key={course.id} className="cursor-pointer hover:shadow-lg transition-shadow overflow-hidden">
-                    <div className="aspect-video bg-gradient-to-br from-blue-400 to-purple-500"></div>
+                    <div className="aspect-video bg-gradient-to-br from-blue-400 to-purple-500" />
                     <CardContent className="p-6">
                       <Badge className="mb-3 bg-teal-100 text-teal-700">{course.category || 'AWS Certified solutions Architect'}</Badge>
                       <h3 className="font-semibold text-gray-900 mb-3 text-lg">{course.title || 'AWS Certified solutions Architect'}</h3>
@@ -137,7 +137,7 @@ const LearnerDashboard = () => {
                         <div 
                           className="bg-teal-600 h-2 rounded-full transition-all duration-300" 
                           style={{ width: `${course.progress || 25}%` }}
-                        ></div>
+                        />
                       </div>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-3">
@@ -191,7 +191,7 @@ const LearnerDashboard = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {recommendedCourses.map((course, index) => (
                 <Card key={course.id} className="cursor-pointer hover:shadow-lg transition-all duration-300 hover:-translate-y-1 overflow-hidden">
-                  <div className="aspect-video bg-gradient-to-br from-teal-400 to-blue-500"></div>
+                  <div className="aspect-video bg-gradient-to-br from-teal-400 to-blue-500" />
                   <CardContent className="p-6">
                     <h3 className="font-semibold text-gray-900 mb-3 text-lg">{course.title || 'AWS Certified solutions Architect'}</h3>
                     <p className="text-sm text-gray-600 mb-4 line-clamp-2 leading-relaxed">{course.description || 'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt'}</p>
@@ -222,7 +222,7 @@ const LearnerDashboard = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {recommendedCourses.map((course, index) => (
                 <Card key={`personal-${course.id}`} className="cursor-pointer hover:shadow-lg transition-all duration-300 hover:-translate-y-1 overflow-hidden">
-                  <div className="aspect-video bg-gradient-to-br from-green-400 to-teal-500"></div>
+                  <div className="aspect-video bg-gradient-to-br from-green-400 to-teal-500" />
                   <CardContent className="p-6">
                     <h3 className="font-semibold text-gray-900 mb-3 text-lg">{course.title || 'AWS Certified solutions Architect'}</h3>
                     <p className="text-sm text-gray-600 mb-4 line-clamp-2 leading-relaxed">{course.description || 'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt'}</p>
@@ -253,7 +253,7 @@ const LearnerDashboard = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {recommendedCourses.map((course, index) => (
                 <Card key={`viewing-${course.id}`} className="cursor-pointer hover:shadow-lg transition-all duration-300 hover:-translate-y-1 overflow-hidden">
-                  <div className="aspect-video bg-gradient-to-br from-purple-400 to-pink-500"></div>
+                  <div className="aspect-video bg-gradient-to-br from-purple-400 to-pink-500" />
                   <CardContent className="p-6">
                     <h3 className="font-semibold text-gray-900 mb-3 text-lg">{course.title || 'AWS Certified solutions Architect'}</h3>
                     <p className="text-sm text-gray-600 mb-4 line-clamp-2 leading-relaxed">{course.description || 'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt'}</p>

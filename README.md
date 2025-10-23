@@ -40,12 +40,31 @@ Mini Coursera là một nền tảng học trực tuyến được xây dựng v
 - **Vite**: Build tool và development server
 
 ### Backend
-- **Node.js**: Runtime environment
+- **Node.js**: Runtime environment (ESM modules)
 - **Express.js**: Web framework
-- **SQL Server**: Database
+- **SQL Server**: Database with connection pooling
 - **JWT**: Authentication
 - **bcryptjs**: Password hashing
 - **mssql**: SQL Server driver
+- **Redis + NodeCache**: Caching system (hybrid approach)
+- **Socket.io**: WebSocket support
+
+## 🔧 Recent Updates & Improvements
+
+### Module System Migration (October 2025)
+✅ **Completed migration from CommonJS to ESM modules**
+- Converted all backend services to ES modules (import/export)
+- Fixed database connection pool access patterns
+- Updated all middleware and route handlers
+- Enhanced caching service with Redis + in-memory fallback
+- Improved query optimizer with connection pooling
+
+### Key Technical Improvements:
+- **Database Connection**: Fixed connection pool access in `queryOptimizer.js`
+- **Cache System**: Hybrid Redis + NodeCache for better reliability
+- **Module Consistency**: All backend code now uses ESM imports
+- **Performance**: Enhanced query optimization and caching strategies
+- **Error Handling**: Improved async error handling patterns
 
 ### Development Tools
 - **Concurrently**: Run multiple npm scripts
@@ -334,6 +353,22 @@ Error: Login failed for user 'username'
 Solution: Check database credentials trong .env file
 ```
 
+**Module System Issues (After ESM Migration)**
+```
+Error: Cannot find module '../config/database' 
+Error: pool is not defined
+Solution: All backend files now use ESM imports. 
+- Use: import { getPool } from '../config/database.js'
+- Instead of: const { pool } = require('../config/database')
+```
+
+**Express Slow Down Warnings**
+```
+Warning: ExpressSlowDownWarning: The behaviour of the 'delayMs' option...
+Solution: These are warnings only - server still works. To fix, update middleware/optimization.js:
+- Change delayMs: 100 to delayMs: () => 100
+```
+
 **Build Errors**
 ```
 Error: Module not found
@@ -344,6 +379,12 @@ Solution: Delete node_modules và chạy npm install
 ```
 Error: Access to fetch blocked by CORS policy
 Solution: Configure CORS trong backend Express app
+```
+
+**Cache Service Issues**
+```
+Error: Redis connection failed but server continues
+Solution: Normal behavior - falls back to in-memory cache automatically
 ```
 
 ### Debug Mode

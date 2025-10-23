@@ -10,7 +10,7 @@ class HttpClient {
     this.baseURL = baseURL;
     this.timeout = API_CONFIG.TIMEOUT;
     this.defaultHeaders = {
-      'Content-Type': 'application/json',
+      'Content-Type': 'application/json'
     };
     this.interceptors = {
       request: [],

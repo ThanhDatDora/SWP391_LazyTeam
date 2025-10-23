@@ -1,51 +1,61 @@
-import React from 'react';
+import React, { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate, useParams } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContextSimple';
+import { useAuth } from '../contexts/AuthContext';
+import { LoadingSpinner } from '../components/ui/loading';
 
-// Auth Pages
+// Auth Pages - Keep immediately available
 import AuthPage from '../pages/auth/AuthPage';
+import AuthCallback from '../pages/auth/AuthCallback';
+import ForgotPasswordPage from '../pages/auth/ForgotPasswordPage';
+import ResetPasswordPage from '../pages/auth/ResetPasswordPage';
 
-// Main Pages  
-import LearnerDashboard from '../pages/learner/LearnerDashboard';
-import CoursePage from '../pages/course/CoursePage';
-import CatalogPage from '../pages/CatalogPage';
-import ExamPage from '../pages/exam/ExamPage';
-import ExamHistoryPage from '../pages/exam/ExamHistoryPage';
-import ProgressPage from '../pages/ProgressPage';
-import ProfilePage from '../pages/ProfilePage';
-import CoursePlayerPage from '../pages/CoursePlayerPage';
-import MyCoursesPage from '../pages/MyCoursesPage';
+// Critical Pages - Keep immediately available
+import Landing from '../pages/Landing';
+import LandingSimple from '../pages/LandingSimple';
+import LandingLearner from '../pages/LandingLearner';
+import AuthDebug from '../pages/AuthDebug';
+
+// Lazy Load Main Pages for Performance
+const LearnerDashboard = lazy(() => import('../pages/learner/LearnerDashboard'));
+const CoursePage = lazy(() => import('../pages/course/CoursePage'));
+const CoursesPage = lazy(() => import('../pages/CoursesPage'));
+const CourseDetailPage = lazy(() => import('../pages/CourseDetail'));
+const CatalogPage = lazy(() => import('../pages/CatalogPage'));
+const ExamPage = lazy(() => import('../pages/exam/ExamPage'));
+const ExamHistoryPage = lazy(() => import('../pages/exam/ExamHistoryPage'));
+const ProgressPage = lazy(() => import('../pages/ProgressPage'));
+const ProfilePage = lazy(() => import('../pages/ProfilePage'));
+const MyProfilePage = lazy(() => import('../pages/MyProfilePage'));
+const CoursePlayerPage = lazy(() => import('../pages/CoursePlayerPage'));
+const MyCoursesPage = lazy(() => import('../pages/MyCoursesPage'));
+const CartPage = lazy(() => import('../pages/CartPage'));
 
 // Guest Pages
-import AboutPage from '../pages/AboutPage';
-import ContactPage from '../pages/ContactPage';
+const AboutPage = lazy(() => import('../pages/AboutPage'));
+const ContactPage = lazy(() => import('../pages/ContactPage'));
 
-// Admin Pages
-import AdminPanel from '../pages/admin/AdminPanel';
+// Admin Pages - Heavy components, lazy load
+const AdminPanel = lazy(() => import('../pages/admin/AdminPanel'));
 
 // Instructor Pages
-import InstructorDashboard from '../pages/instructor/InstructorDashboard';
-import CourseManagement from '../pages/instructor/CourseManagement';
+const InstructorDashboard = lazy(() => import('../pages/instructor/InstructorDashboard'));
+const CourseManagement = lazy(() => import('../pages/instructor/CourseManagement'));
 
-// Legacy Pages (keeping for compatibility)
-import Landing from '../pages/Landing';
-import LandingFixed from '../pages/LandingFixed';
-import LandingSimple from '../pages/LandingSimple';
-import TestPage from '../pages/TestPage';
-import SuperSimple from '../pages/SuperSimple';
-import Catalog from '../pages/Catalog';
-import BlogList from '../pages/BlogList';
-import BlogDetail from '../pages/BlogDetail';
-import Pricing from '../pages/Pricing';
-import Checkout from '../pages/Checkout';
-import Exam from '../pages/Exam';
+// Legacy Pages (keeping for compatibility) - Lazy load these
+const TestPage = lazy(() => import('../pages/TestPage'));
+const Catalog = lazy(() => import('../pages/Catalog'));
+const BlogList = lazy(() => import('../pages/BlogList'));
+const BlogDetail = lazy(() => import('../pages/BlogDetail'));
+const Pricing = lazy(() => import('../pages/Pricing'));
+const Checkout = lazy(() => import('../pages/Checkout'));
+const Exam = lazy(() => import('../pages/Exam'));
 
-// Course Components
-import CourseDetail from '../components/course/CourseDetail';
-import EnhancedCourseDetail from '../components/course/EnhancedCourseDetail';
-import CoursePlayer from '../components/course/CoursePlayer';
+// Course Components - Lazy load
+const CourseDetail = lazy(() => import('../components/course/CourseDetail'));
+const EnhancedCourseDetail = lazy(() => import('../components/course/EnhancedCourseDetail'));
+const CoursePlayer = lazy(() => import('../components/course/CoursePlayer'));
 
-// Protected Route Component
+// Protected Route Component with Lazy Loading Support
 const ProtectedRoute = ({ children, allowedRoles = [] }) => {
   const { state, isAuthenticated } = useAuth();
 
@@ -57,10 +67,14 @@ const ProtectedRoute = ({ children, allowedRoles = [] }) => {
     return <Navigate to="/" replace />;
   }
 
-  return children;
+  return (
+    <Suspense fallback={<LoadingSpinner />}>
+      {children}
+    </Suspense>
+  );
 };
 
-// Public Route Component
+// Public Route Component with Lazy Loading Support  
 const PublicRoute = ({ children }) => {
   const { isAuthenticated } = useAuth();
   
@@ -68,11 +82,15 @@ const PublicRoute = ({ children }) => {
     return <Navigate to="/" replace />;
   }
 
-  return children;
+  return (
+    <Suspense fallback={<LoadingSpinner />}>
+      {children}
+    </Suspense>
+  );
 };
 
 // Wrapper components to handle URL parameters
-const CourseDetailPage = () => {
+const LegacyCourseDetailPage = () => {
   const { courseId } = useParams();
   return <EnhancedCourseDetail courseId={courseId} />;
 };
@@ -87,12 +105,29 @@ const LegacyExamPage = () => {
   return <Exam moocId={moocId} />;
 };
 
+// Component to conditionally render home page based on user role
+const HomePage = () => {
+  const { isAuthenticated, state } = useAuth();
+  
+  if (isAuthenticated && state.user) {
+    const roleId = state.user.role_id;
+    if (roleId === 3) { // Learner
+      return <LandingLearner />;
+    }
+    // For admin and instructor, show simple landing for now
+    return <LandingSimple />;
+  }
+  
+  // Guest users see main landing page
+  return <Landing />;
+};
+
 const AppRouter = () => {
   const { isAuthenticated, state } = useAuth();
 
   // Get dashboard route based on user role
   const getDashboardRoute = () => {
-    if (!isAuthenticated || !state.user) return '/';
+    if (!isAuthenticated || !state.user) {return '/';}
     
     const roleId = state.user.role_id;
     switch (roleId) {
@@ -101,7 +136,7 @@ const AppRouter = () => {
       case 2: // Instructor  
         return '/instructor';
       case 3: // Learner
-        return '/dashboard';
+        return '/';
       default:
         return '/dashboard';
     }
@@ -119,6 +154,26 @@ const AppRouter = () => {
         } 
       />
       <Route 
+        path="/auth/callback" 
+        element={<AuthCallback />} 
+      />
+      <Route 
+        path="/forgot-password" 
+        element={
+          <PublicRoute>
+            <ForgotPasswordPage />
+          </PublicRoute>
+        } 
+      />
+      <Route 
+        path="/reset-password" 
+        element={
+          <PublicRoute>
+            <ResetPasswordPage />
+          </PublicRoute>
+        } 
+      />
+      <Route 
         path="/login" 
         element={<Navigate to="/auth" replace />} 
       />
@@ -127,10 +182,16 @@ const AppRouter = () => {
         element={<Navigate to="/auth" replace />} 
       />
 
-      {/* Home Route - Always show Landing, redirect logic removed for learners */}
+      {/* Home Route - Show appropriate landing based on user role */}
       <Route 
         path="/" 
-        element={<LandingFixed />} 
+        element={<HomePage />} 
+      />
+      
+      {/* Test original landing */}
+      <Route 
+        path="/landing-original" 
+        element={<Landing />} 
       />
       
       {/* Test Routes */}
@@ -139,20 +200,20 @@ const AppRouter = () => {
         element={<TestPage />} 
       />
       <Route 
-        path="/simpletest" 
-        element={<SimpleLandingTest />} 
+        path="/auth-debug" 
+        element={<AuthDebug />} 
       />
       <Route 
         path="/landingfixed" 
-        element={<LandingFixed />} 
+        element={<Landing />} 
       />
       
-      {/* Dashboard Route - Learner specific dashboard */}
+      {/* Dashboard Route - Redirect learners to home for LandingLearner experience */}
       <Route 
         path="/dashboard" 
         element={
           <ProtectedRoute allowedRoles={[3]}>
-            <LearnerDashboard />
+            <Navigate to="/" replace />
           </ProtectedRoute>
         } 
       />
@@ -163,6 +224,16 @@ const AppRouter = () => {
         element={
           <ProtectedRoute>
             <ProfilePage />
+          </ProtectedRoute>
+        } 
+      />
+      
+      {/* My Profile Route */}
+      <Route 
+        path="/my-profile" 
+        element={
+          <ProtectedRoute>
+            <MyProfilePage />
           </ProtectedRoute>
         } 
       />
@@ -187,11 +258,37 @@ const AppRouter = () => {
         } 
       />
       
+      {/* Cart Route */}
+      <Route 
+        path="/cart" 
+        element={
+          <ProtectedRoute>
+            <CartPage />
+          </ProtectedRoute>
+        } 
+      />
+      
       <Route 
         path="/catalog" 
         element={
           <ProtectedRoute>
             <CatalogPage />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/courses" 
+        element={
+          <ProtectedRoute>
+            <CoursesPage />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/course/:courseId" 
+        element={
+          <ProtectedRoute>
+            <CourseDetailPage />
           </ProtectedRoute>
         } 
       />
@@ -243,7 +340,7 @@ const AppRouter = () => {
       <Route path="/blog/:slug" element={<BlogDetail />} />
       <Route path="/pricing" element={<Pricing />} />
       <Route path="/checkout" element={<Checkout />} />
-      <Route path="/course/:courseId/detail" element={<CourseDetailPage />} />
+      <Route path="/course/:courseId/detail" element={<LegacyCourseDetailPage />} />
       <Route path="/player/:moocId" element={<PlayerPage />} />
       <Route path="/legacy-exam/:moocId" element={<LegacyExamPage />} />
       

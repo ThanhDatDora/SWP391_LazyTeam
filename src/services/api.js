@@ -1,36 +1,83 @@
 // Real API implementation for production
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api';
 
+// Import fallback utilities
+import { 
+  getMockCourse, 
+  getMockCourses, 
+  getMockReviews,
+  apiWithFallback 
+} from '../utils/fallbackData';
+
 // Token management
 const getToken = () => localStorage.getItem('authToken');
 const setToken = (token) => localStorage.setItem('authToken', token);
 const removeToken = () => localStorage.removeItem('authToken');
 
-// API request helper
+// Simple in-memory cache for API responses
+const apiCache = new Map();
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+// API request helper with improved caching and rate limiting
 const apiRequest = async (endpoint, options = {}) => {
   const url = `${API_BASE_URL}${endpoint}`;
   const token = getToken();
   
+  // Check cache for GET requests (unless forced refresh or auth endpoint)
+  const cacheKey = `${endpoint}_${JSON.stringify(options.body || {})}`;
+  const isAuthEndpoint = endpoint.includes('/auth/');
+  if ((!options.method || options.method === 'GET') && !options.forceRefresh && !isAuthEndpoint) {
+    const cached = apiCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+      console.log(`🎯 Cache hit for ${endpoint}`);
+      return cached.data;
+    }
+  }
+  
   const config = {
+    ...options,
     headers: {
       'Content-Type': 'application/json',
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0',
       ...(token && { Authorization: `Bearer ${token}` }),
-      ...options.headers,
-    },
-    ...options,
+      ...options.headers
+    }
   };
 
   try {
+    console.log(`📡 API Request: ${endpoint}`);
+    console.log(`📤 Request config:`, { method: config.method, headers: config.headers, body: config.body });
     const response = await fetch(url, config);
     const data = await response.json();
     
     if (!response.ok) {
+      // Handle validation errors specifically
+      if (response.status === 400 && data.errors) {
+        console.log('🔍 Validation errors detected:', data.errors);
+        return {
+          success: false,
+          error: data.message || 'Validation failed',
+          validationErrors: data.errors
+        };
+      }
       throw new Error(data.message || 'API request failed');
     }
     
-    return { success: true, data };
+    const result = { success: true, data };
+    
+    // Cache successful GET requests (but not auth endpoints)
+    if ((!options.method || options.method === 'GET') && !isAuthEndpoint) {
+      apiCache.set(cacheKey, {
+        data: result,
+        timestamp: Date.now()
+      });
+    }
+    
+    return result;
   } catch (error) {
-    console.error(`API Error [${endpoint}]:`, error);
+    console.error(`❌ API Error [${endpoint}]:`, error);
     return { 
       success: false, 
       error: error.message || 'Network error occurred'
@@ -41,12 +88,17 @@ const apiRequest = async (endpoint, options = {}) => {
 // Auth API
 export const authAPI = {
   async login(email, password) {
+    // Always force fresh request for auth, never cache
     const result = await apiRequest('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
+      forceRefresh: true,
+      headers: {
+        'Cache-Control': 'no-cache'
+      }
     });
     
-    if (result.success && result.data.token) {
+    if (result.success && result.data && result.data.token) {
       setToken(result.data.token);
     }
     
@@ -56,7 +108,7 @@ export const authAPI = {
   async register(userData) {
     const result = await apiRequest('/auth/register', {
       method: 'POST',
-      body: JSON.stringify(userData),
+      body: JSON.stringify(userData)
     });
     
     if (result.success && result.data.token) {
@@ -78,7 +130,7 @@ export const authAPI = {
   async updateProfile(profileData) {
     return await apiRequest('/auth/profile', {
       method: 'PUT',
-      body: JSON.stringify(profileData),
+      body: JSON.stringify(profileData)
     });
   },
 
@@ -94,7 +146,24 @@ export const courseAPI = {
     const queryString = new URLSearchParams(params).toString();
     const endpoint = `/courses${queryString ? `?${queryString}` : ''}`;
     
-    const result = await apiRequest(endpoint);
+    // Use fallback wrapper
+    const result = await apiWithFallback(
+      async () => await apiRequest(endpoint),
+      () => {
+        const courses = getMockCourses(params);
+        return {
+          data: {
+            courses: courses,
+            pagination: {
+              total: courses.length,
+              page: 1,
+              limit: params.limit || 10,
+              totalPages: 1
+            }
+          }
+        };
+      }
+    );
     
     if (result.success) {
       return {
@@ -105,7 +174,8 @@ export const courseAPI = {
           page: result.data.pagination?.page || 1,
           per_page: result.data.pagination?.limit || 10,
           total_pages: result.data.pagination?.totalPages || 1
-        }
+        },
+        offline: result.offline
       };
     }
     
@@ -113,12 +183,21 @@ export const courseAPI = {
   },
 
   async getCourseById(courseId) {
-    const result = await apiRequest(`/courses/${courseId}`);
+    // Use fallback wrapper
+    const result = await apiWithFallback(
+      async () => await apiRequest(`/courses/${courseId}`),
+      () => ({
+        data: {
+          course: getMockCourse(courseId)
+        }
+      })
+    );
     
     if (result.success) {
       return {
         success: true,
-        data: result.data.course
+        data: result.data.course,
+        offline: result.offline
       };
     }
     
@@ -128,20 +207,20 @@ export const courseAPI = {
   async createCourse(courseData) {
     return await apiRequest('/courses', {
       method: 'POST',
-      body: JSON.stringify(courseData),
+      body: JSON.stringify(courseData)
     });
   },
 
   async updateCourse(courseId, courseData) {
     return await apiRequest(`/courses/${courseId}`, {
       method: 'PUT',
-      body: JSON.stringify(courseData),
+      body: JSON.stringify(courseData)
     });
   },
 
   async deleteCourse(courseId) {
     return await apiRequest(`/courses/${courseId}`, {
-      method: 'DELETE',
+      method: 'DELETE'
     });
   },
 
@@ -151,7 +230,7 @@ export const courseAPI = {
 
   async enrollInCourse(courseId) {
     return await apiRequest(`/courses/${courseId}/enroll`, {
-      method: 'POST',
+      method: 'POST'
     });
   },
 
@@ -176,14 +255,14 @@ export const courseAPI = {
   async approveCourse(courseId, feedback) {
     return await apiRequest(`/courses/admin/${courseId}/approve`, {
       method: 'POST',
-      body: JSON.stringify({ feedback }),
+      body: JSON.stringify({ feedback })
     });
   },
 
   async rejectCourse(courseId, feedback) {
     return await apiRequest(`/courses/admin/${courseId}/reject`, {
       method: 'POST',
-      body: JSON.stringify({ feedback }),
+      body: JSON.stringify({ feedback })
     });
   }
 };
@@ -208,7 +287,7 @@ export const enrollmentAPI = {
 
   async markLessonComplete(lessonId) {
     return await apiRequest(`/enrollments/lesson/${lessonId}/complete`, {
-      method: 'POST',
+      method: 'POST'
     });
   },
 
@@ -226,20 +305,20 @@ export const contentAPI = {
   async createMooc(moocData) {
     return await apiRequest('/content/moocs', {
       method: 'POST',
-      body: JSON.stringify(moocData),
+      body: JSON.stringify(moocData)
     });
   },
 
   async updateMooc(moocId, moocData) {
     return await apiRequest(`/content/moocs/${moocId}`, {
       method: 'PUT',
-      body: JSON.stringify(moocData),
+      body: JSON.stringify(moocData)
     });
   },
 
   async deleteMooc(moocId) {
     return await apiRequest(`/content/moocs/${moocId}`, {
-      method: 'DELETE',
+      method: 'DELETE'
     });
   },
 
@@ -254,20 +333,20 @@ export const contentAPI = {
   async createLesson(lessonData) {
     return await apiRequest('/content/lessons', {
       method: 'POST',
-      body: JSON.stringify(lessonData),
+      body: JSON.stringify(lessonData)
     });
   },
 
   async updateLesson(lessonId, lessonData) {
     return await apiRequest(`/content/lessons/${lessonId}`, {
       method: 'PUT',
-      body: JSON.stringify(lessonData),
+      body: JSON.stringify(lessonData)
     });
   },
 
   async deleteLesson(lessonId) {
     return await apiRequest(`/content/lessons/${lessonId}`, {
-      method: 'DELETE',
+      method: 'DELETE'
     });
   }
 };
@@ -281,14 +360,14 @@ export const examAPI = {
   async createExam(examData) {
     return await apiRequest('/exams', {
       method: 'POST',
-      body: JSON.stringify(examData),
+      body: JSON.stringify(examData)
     });
   },
 
   async updateExam(examId, examData) {
     return await apiRequest(`/exams/${examId}`, {
       method: 'PUT',
-      body: JSON.stringify(examData),
+      body: JSON.stringify(examData)
     });
   },
 
@@ -299,33 +378,33 @@ export const examAPI = {
   async createQuestion(questionData) {
     return await apiRequest('/exams/questions', {
       method: 'POST',
-      body: JSON.stringify(questionData),
+      body: JSON.stringify(questionData)
     });
   },
 
   async updateQuestion(questionId, questionData) {
     return await apiRequest(`/exams/questions/${questionId}`, {
       method: 'PUT',
-      body: JSON.stringify(questionData),
+      body: JSON.stringify(questionData)
     });
   },
 
   async deleteQuestion(questionId) {
     return await apiRequest(`/exams/questions/${questionId}`, {
-      method: 'DELETE',
+      method: 'DELETE'
     });
   },
 
   async startExam(examId) {
     return await apiRequest(`/exams/${examId}/start`, {
-      method: 'POST',
+      method: 'POST'
     });
   },
 
   async submitExam(examId, attemptData) {
     return await apiRequest(`/exams/${examId}/submit`, {
       method: 'POST',
-      body: JSON.stringify(attemptData),
+      body: JSON.stringify(attemptData)
     });
   },
 
@@ -349,14 +428,14 @@ export const userAPI = {
   async updateUserStatus(userId, status) {
     return await apiRequest(`/users/${userId}/status`, {
       method: 'PUT',
-      body: JSON.stringify({ status }),
+      body: JSON.stringify({ status })
     });
   },
 
   async updateUserRole(userId, roleId) {
     return await apiRequest(`/users/${userId}/role`, {
       method: 'PUT',
-      body: JSON.stringify({ roleId }),
+      body: JSON.stringify({ roleId })
     });
   }
 };
@@ -450,6 +529,29 @@ export const learnerAPI = {
   }
 };
 
+// Cache utilities
+export const cacheUtils = {
+  clear: () => {
+    apiCache.clear();
+    console.log('🗑️ API cache cleared');
+  },
+  
+  clearPattern: (pattern) => {
+    const keysToDelete = [];
+    for (const key of apiCache.keys()) {
+      if (key.includes(pattern)) {
+        keysToDelete.push(key);
+      }
+    }
+    keysToDelete.forEach(key => apiCache.delete(key));
+    console.log(`🗑️ Cleared ${keysToDelete.length} cached entries matching "${pattern}"`);
+  },
+  
+  forceRefresh: async (endpoint, options = {}) => {
+    return await apiRequest(endpoint, { ...options, forceRefresh: true });
+  }
+};
+
 // Main API object
 export const api = {
   auth: authAPI,
@@ -460,7 +562,8 @@ export const api = {
   admin: adminAPI,
   instructor: instructorAPI,
   learner: learnerAPI,
-  users: userAPI
+  users: userAPI,
+  cache: cacheUtils
 };
 
 export default api;

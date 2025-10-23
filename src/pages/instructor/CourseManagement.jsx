@@ -73,7 +73,7 @@ const CourseManagement = () => {
       
       // Check if instructor owns this course
       if (courseData.instructor_id !== authState.user.user_id) {
-        navigate("/instructor");
+        navigate('/instructor');
         return;
       }
 
@@ -165,7 +165,7 @@ const CourseManagement = () => {
     return (
       <div className="container mx-auto px-4 py-8">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600 mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600 mx-auto mb-4" />
           <p className="text-gray-600">Đang tải thông tin khóa học...</p>
         </div>
       </div>
@@ -181,7 +181,7 @@ const CourseManagement = () => {
         <div className="flex items-center gap-4">
           <Button 
             variant="outline" 
-            onClick={() => navigate("/instructor")}
+            onClick={() => navigate('/instructor')}
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
             Quay lại
@@ -219,7 +219,7 @@ const CourseManagement = () => {
                 variant="outline" 
                 onClick={() => {
                   if (isCreateMode) {
-                    navigate("/instructor");
+                    navigate('/instructor');
                   } else {
                     setIsEditing(false);
                     setFormData({

@@ -11,114 +11,114 @@ const Pricing = () => {
 
   const plans = [
     {
-      name: "Free",
-      description: "Perfect for getting started",
+      name: 'Free',
+      description: 'Perfect for getting started',
       price: billingCycle === 'monthly' ? 0 : 0,
       originalPrice: null,
       popular: false,
-      color: "border-gray-200",
-      buttonClass: "bg-gray-600 hover:bg-gray-700 text-white",
+      color: 'border-gray-200',
+      buttonClass: 'bg-gray-600 hover:bg-gray-700 text-white',
       features: [
-        { name: "Access to free courses", included: true },
-        { name: "Basic video quality", included: true },
-        { name: "Community forum access", included: true },
-        { name: "Mobile app access", included: true },
-        { name: "Certificate of completion", included: false },
-        { name: "HD video quality", included: false },
-        { name: "Priority support", included: false },
-        { name: "Advanced analytics", included: false },
-        { name: "Custom learning paths", included: false },
-        { name: "Offline downloads", included: false }
+        { name: 'Access to free courses', included: true },
+        { name: 'Basic video quality', included: true },
+        { name: 'Community forum access', included: true },
+        { name: 'Mobile app access', included: true },
+        { name: 'Certificate of completion', included: false },
+        { name: 'HD video quality', included: false },
+        { name: 'Priority support', included: false },
+        { name: 'Advanced analytics', included: false },
+        { name: 'Custom learning paths', included: false },
+        { name: 'Offline downloads', included: false }
       ]
     },
     {
-      name: "Premium",
-      description: "Best for individual learners",
+      name: 'Premium',
+      description: 'Best for individual learners',
       price: billingCycle === 'monthly' ? 29 : 290,
       originalPrice: billingCycle === 'monthly' ? 39 : 390,
       popular: true,
-      color: "border-teal-500 ring-2 ring-teal-500",
-      buttonClass: "bg-teal-500 hover:bg-teal-600 text-white",
+      color: 'border-teal-500 ring-2 ring-teal-500',
+      buttonClass: 'bg-teal-500 hover:bg-teal-600 text-white',
       features: [
-        { name: "Access to all courses", included: true },
-        { name: "HD video quality", included: true },
-        { name: "Certificate of completion", included: true },
-        { name: "Mobile app access", included: true },
-        { name: "Community forum access", included: true },
-        { name: "Priority email support", included: true },
-        { name: "Offline downloads", included: true },
-        { name: "Advanced analytics", included: false },
-        { name: "Custom learning paths", included: false },
-        { name: "Team management tools", included: false }
+        { name: 'Access to all courses', included: true },
+        { name: 'HD video quality', included: true },
+        { name: 'Certificate of completion', included: true },
+        { name: 'Mobile app access', included: true },
+        { name: 'Community forum access', included: true },
+        { name: 'Priority email support', included: true },
+        { name: 'Offline downloads', included: true },
+        { name: 'Advanced analytics', included: false },
+        { name: 'Custom learning paths', included: false },
+        { name: 'Team management tools', included: false }
       ]
     },
     {
-      name: "Business",
-      description: "Perfect for teams and organizations",
+      name: 'Business',
+      description: 'Perfect for teams and organizations',
       price: billingCycle === 'monthly' ? 99 : 990,
       originalPrice: billingCycle === 'monthly' ? 129 : 1290,
       popular: false,
-      color: "border-blue-500",
-      buttonClass: "bg-blue-600 hover:bg-blue-700 text-white",
+      color: 'border-blue-500',
+      buttonClass: 'bg-blue-600 hover:bg-blue-700 text-white',
       features: [
-        { name: "Everything in Premium", included: true },
-        { name: "Team management tools", included: true },
-        { name: "Custom learning paths", included: true },
-        { name: "Advanced analytics & reporting", included: true },
-        { name: "Priority phone support", included: true },
-        { name: "Custom integrations", included: true },
-        { name: "Dedicated account manager", included: true },
-        { name: "Bulk user management", included: true },
-        { name: "SSO integration", included: true },
-        { name: "Custom branding", included: true }
+        { name: 'Everything in Premium', included: true },
+        { name: 'Team management tools', included: true },
+        { name: 'Custom learning paths', included: true },
+        { name: 'Advanced analytics & reporting', included: true },
+        { name: 'Priority phone support', included: true },
+        { name: 'Custom integrations', included: true },
+        { name: 'Dedicated account manager', included: true },
+        { name: 'Bulk user management', included: true },
+        { name: 'SSO integration', included: true },
+        { name: 'Custom branding', included: true }
       ]
     }
   ];
 
   const testimonials = [
     {
-      name: "Sarah Johnson",
-      role: "Software Engineer at Google",
-      image: "https://images.unsplash.com/photo-1494790108755-2616b612b786?q=80&w=150&auto=format&fit=crop",
-      content: "The courses are incredibly well-structured and practical. I was able to land my dream job after completing the Full Stack Development track.",
+      name: 'Sarah Johnson',
+      role: 'Software Engineer at Google',
+      image: 'https://images.unsplash.com/photo-1494790108755-2616b612b786?q=80&w=150&auto=format&fit=crop',
+      content: 'The courses are incredibly well-structured and practical. I was able to land my dream job after completing the Full Stack Development track.',
       rating: 5
     },
     {
-      name: "Michael Chen",
-      role: "Product Manager at Microsoft",
-      image: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?q=80&w=150&auto=format&fit=crop",
-      content: "As a busy professional, the flexibility to learn at my own pace was crucial. The mobile app made it easy to study during my commute.",
+      name: 'Michael Chen',
+      role: 'Product Manager at Microsoft',
+      image: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?q=80&w=150&auto=format&fit=crop',
+      content: 'As a busy professional, the flexibility to learn at my own pace was crucial. The mobile app made it easy to study during my commute.',
       rating: 5
     },
     {
-      name: "Emily Rodriguez",
-      role: "UX Designer at Adobe",
-      image: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?q=80&w=150&auto=format&fit=crop",
-      content: "The design courses completely transformed my career. The instructors are industry experts who provide real-world insights.",
+      name: 'Emily Rodriguez',
+      role: 'UX Designer at Adobe',
+      image: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?q=80&w=150&auto=format&fit=crop',
+      content: 'The design courses completely transformed my career. The instructors are industry experts who provide real-world insights.',
       rating: 5
     }
   ];
 
   const faqs = [
     {
-      question: "Can I switch plans anytime?",
-      answer: "Yes, you can upgrade or downgrade your plan at any time. Changes will be reflected in your next billing cycle."
+      question: 'Can I switch plans anytime?',
+      answer: 'Yes, you can upgrade or downgrade your plan at any time. Changes will be reflected in your next billing cycle.'
     },
     {
-      question: "Is there a free trial available?",
-      answer: "Yes, we offer a 14-day free trial for our Premium and Business plans. No credit card required."
+      question: 'Is there a free trial available?',
+      answer: 'Yes, we offer a 14-day free trial for our Premium and Business plans. No credit card required.'
     },
     {
-      question: "What payment methods do you accept?",
-      answer: "We accept all major credit cards (Visa, MasterCard, American Express) and PayPal."
+      question: 'What payment methods do you accept?',
+      answer: 'We accept all major credit cards (Visa, MasterCard, American Express) and PayPal.'
     },
     {
-      question: "Do you offer refunds?",
+      question: 'Do you offer refunds?',
       answer: "Yes, we offer a 30-day money-back guarantee. If you're not satisfied, contact us for a full refund."
     },
     {
-      question: "Can I cancel my subscription anytime?",
-      answer: "Absolutely. You can cancel your subscription at any time from your account settings. Your access will continue until the end of your billing period."
+      question: 'Can I cancel my subscription anytime?',
+      answer: 'Absolutely. You can cancel your subscription at any time from your account settings. Your access will continue until the end of your billing period.'
     }
   ];
 
@@ -185,13 +185,13 @@ const Pricing = () => {
             </CardHeader>
 
             <CardContent className="space-y-6">
-            <Button 
-              className={`w-full ${plan.buttonClass}`} 
-              size="lg"
-              onClick={() => window.location.href = plan.name === 'Free' ? '/auth' : '/checkout'}
-            >
-              {plan.name === 'Free' ? 'Get Started Free' : 'Start Free Trial'}
-            </Button>              <div className="space-y-3">
+              <Button 
+                className={`w-full ${plan.buttonClass}`} 
+                size="lg"
+                onClick={() => window.location.href = plan.name === 'Free' ? '/auth' : '/checkout'}
+              >
+                {plan.name === 'Free' ? 'Get Started Free' : 'Start Free Trial'}
+              </Button>              <div className="space-y-3">
                 {plan.features.map((feature, index) => (
                   <div key={index} className="flex items-center gap-3">
                     {feature.included ? (
@@ -346,7 +346,7 @@ const Pricing = () => {
             size="lg" 
             variant="outline" 
             className="border-white text-white hover:bg-white/10"
-            onClick={() => navigate("/catalog")}
+            onClick={() => navigate('/catalog')}
           >
             View All Courses
           </Button>

@@ -1,7 +1,21 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import helmet from 'helmet';
+import compression from 'compression';
+import rateLimit from 'express-rate-limit';
 import { connectDB } from './config/database.js';
+import { createServer } from 'http';
+
+// Import enhanced middleware
+import { 
+  globalErrorHandler, 
+  notFoundHandler, 
+  asyncHandler 
+} from './middleware/errorHandler.js';
+
+// Import WebSocket service
+import WebSocketService from './services/websocketService.js';
 
 // Import routes
 import authRoutes from './routes/auth.js';
@@ -23,49 +37,179 @@ console.log('🕒 Server start time:', new Date().toISOString());
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Middleware
+// Security middleware
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'"],
+      imgSrc: ["'self'", 'data:', 'https:']
+    }
+  },
+  crossOriginEmbedderPolicy: false
+}));
+
+// Compression middleware
+app.use(compression());
+
+// Rate limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per windowMs
+  message: {
+    success: false,
+    error: {
+      type: 'RATE_LIMIT_ERROR',
+      code: 9003,
+      message: 'Too many requests from this IP, please try again later'
+    }
+  },
+  standardHeaders: true,
+  legacyHeaders: false
+});
+
+// Apply rate limiting
+app.use('/api/', limiter);
+
+// Stricter rate limiting for auth endpoints
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Temporarily increase limit for testing
+  message: {
+    success: false,
+    error: {
+      type: 'RATE_LIMIT_ERROR',
+      code: 9003,
+      message: 'Too many authentication attempts, please try again later'
+    }
+  }
+});
+
+app.use('/api/auth/', authLimiter);
+
+// CORS configuration
 app.use(cors({
   origin: [
     process.env.FRONTEND_URL || 'http://localhost:5173',
     'http://localhost:5174', // Alternative port
-    'http://localhost:5175'  // Another alternative
+    'http://localhost:5175', // Another alternative
+    'http://localhost:5176'  // Another alternative
   ],
-  credentials: true
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Cache-Control', 'Pragma', 'Expires'],
+  optionsSuccessStatus: 200 // Some legacy browsers choke on 204
 }));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+
+// Handle preflight requests explicitly
+app.options('*', (req, res) => {
+  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,PATCH,OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Cache-Control, Pragma, Expires');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.sendStatus(200);
+});
+
+// Body parsing middleware with size limits
+app.use(express.json({ 
+  limit: '10mb',
+  verify: (req, res, buf) => {
+    req.rawBody = buf;
+  }
+}));
+app.use(express.urlencoded({ 
+  extended: true, 
+  limit: '10mb' 
+}));
+
+// Request logging middleware
+app.use((req, res, next) => {
+  const start = Date.now();
+  req.id = Math.random().toString(36).substring(7);
+  
+  // Log request
+  console.log(`📥 [${req.id}] ${req.method} ${req.originalUrl} - ${req.ip}`);
+  
+  // Log response time
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    const status = res.statusCode;
+    const statusEmoji = status >= 400 ? '❌' : status >= 300 ? '⚠️' : '✅';
+    console.log(`📤 [${req.id}] ${statusEmoji} ${status} - ${duration}ms`);
+  });
+  
+  next();
+});
 
 // Serve static files for testing
 app.use(express.static('.'));
 
-// Test route
-app.get('/api/health', (req, res) => {
+// Health check route
+app.get('/api/health', asyncHandler(async (req, res) => {
+  const dbStatus = await connectDB().then(() => 'connected').catch(() => 'disconnected');
+  
   res.json({ 
-    message: 'Mini Coursera Backend is running!', 
-    timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development'
+    success: true,
+    data: {
+      message: 'Mini Coursera Backend is running!', 
+      timestamp: new Date().toISOString(),
+      environment: process.env.NODE_ENV || 'development',
+      version: '1.0.0',
+      database: dbStatus,
+      uptime: process.uptime(),
+      memory: process.memoryUsage()
+    }
   });
-});
+}));
+
+// API status endpoint
+app.get('/api/status', asyncHandler(async (req, res) => {
+  res.json({
+    success: true,
+    data: {
+      server: 'online',
+      timestamp: new Date().toISOString(),
+      routes: [
+        '/api/health',
+        '/api/status', 
+        '/api/auth/*',
+        '/api/courses/*',
+        '/api/database/*'
+      ]
+    }
+  });
+}));
 
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/courses', courseRoutes);
 app.use('/api/database', databaseRoutes);
+
+
+// TODO: Add more routes as needed
 // app.use('/api/users', userRoutes);
 // app.use('/api/exams', examRoutes);
+// app.use('/api/enrollments', enrollmentRoutes);
+// app.use('/api/payments', paymentRoutes);
 
-// Error handling middleware
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({ 
-    message: 'Something went wrong!', 
-    error: process.env.NODE_ENV === 'development' ? err.message : undefined 
-  });
-});
+// 404 handler for API routes (must be before global error handler)
+app.use('/api/*', notFoundHandler);
 
-// 404 handler
+// Global error handler (must be last middleware)
+app.use(globalErrorHandler);
+
+// Catch-all 404 handler for non-API routes
 app.use('*', (req, res) => {
-  res.status(404).json({ message: 'Route not found' });
+  res.status(404).json({ 
+    success: false,
+    error: {
+      type: 'NOT_FOUND_ERROR',
+      code: 3001,
+      message: `Route ${req.originalUrl} not found`
+    },
+    timestamp: new Date().toISOString()
+  });
 });
 
 // Start server
@@ -84,15 +228,25 @@ const startServer = async () => {
     console.log(`🔧 Starting server on PORT: ${PORT}`);
     console.log(`🔧 PORT type: ${typeof PORT}`);
     
-    const server = app.listen(PORT, '0.0.0.0', (error) => {
+    // Create HTTP server for both Express and Socket.IO
+    const server = createServer(app);
+    
+    // Initialize WebSocket service
+    const wsService = new WebSocketService(server);
+    
+    // Make WebSocket service available to routes
+    app.locals.wsService = wsService;
+    
+    server.listen(PORT, '127.0.0.1', (error) => {
       if (error) {
         console.error('❌ Failed to bind port:', error);
         return;
       }
       console.log(`🚀 Server is running on http://localhost:${PORT}`);
-      console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
+      console.log(`� WebSocket server is running on ws://localhost:${PORT}`);
+      console.log(`�📊 Health check: http://localhost:${PORT}/api/health`);
       console.log(`🔧 Environment: ${process.env.NODE_ENV || 'development'}`);
-      console.log(`✅ Server listening on all interfaces (0.0.0.0:${PORT})`);
+      console.log(`✅ Server listening on localhost (127.0.0.1:${PORT})`);
     });
     
     server.on('error', (error) => {

@@ -4,7 +4,7 @@
 
 // Price formatting
 export const formatPrice = (price) => {
-  if (price === 0 || price === '0' || !price) return 'Miễn phí';
+  if (price === 0 || price === '0' || !price) {return 'Miễn phí';}
   return new Intl.NumberFormat('vi-VN', {
     style: 'currency',
     currency: 'VND'
@@ -12,7 +12,7 @@ export const formatPrice = (price) => {
 };
 
 export const formatPriceShort = (price) => {
-  if (price === 0 || price === '0' || !price) return 'Miễn phí';
+  if (price === 0 || price === '0' || !price) {return 'Miễn phí';}
   
   if (price >= 1000000) {
     return `${(price / 1000000).toFixed(1)}M VND`;
@@ -28,10 +28,10 @@ export const formatCurrency = formatPrice;
 
 // Date formatting
 export const formatDate = (dateString, options = {}) => {
-  if (!dateString) return '';
+  if (!dateString) {return '';}
   
   const date = new Date(dateString);
-  if (isNaN(date.getTime())) return '';
+  if (isNaN(date.getTime())) {return '';}
   
   const defaultOptions = {
     year: 'numeric',
@@ -43,10 +43,10 @@ export const formatDate = (dateString, options = {}) => {
 };
 
 export const formatDateTime = (dateString, options = {}) => {
-  if (!dateString) return '';
+  if (!dateString) {return '';}
   
   const date = new Date(dateString);
-  if (isNaN(date.getTime())) return '';
+  if (isNaN(date.getTime())) {return '';}
   
   const defaultOptions = {
     year: 'numeric',
@@ -67,10 +67,10 @@ export const formatDateShort = (dateString) => {
 };
 
 export const formatRelativeTime = (dateString) => {
-  if (!dateString) return '';
+  if (!dateString) {return '';}
   
   const date = new Date(dateString);
-  if (isNaN(date.getTime())) return '';
+  if (isNaN(date.getTime())) {return '';}
   
   const now = new Date();
   const diffInMs = now - date;
@@ -81,18 +81,18 @@ export const formatRelativeTime = (dateString) => {
   const diffInMonths = Math.floor(diffInDays / 30);
   const diffInYears = Math.floor(diffInDays / 365);
 
-  if (diffInMinutes < 1) return 'Vừa xong';
-  if (diffInMinutes < 60) return `${diffInMinutes} phút trước`;
-  if (diffInHours < 24) return `${diffInHours} giờ trước`;
-  if (diffInDays < 7) return `${diffInDays} ngày trước`;
-  if (diffInWeeks < 4) return `${diffInWeeks} tuần trước`;
-  if (diffInMonths < 12) return `${diffInMonths} tháng trước`;
+  if (diffInMinutes < 1) {return 'Vừa xong';}
+  if (diffInMinutes < 60) {return `${diffInMinutes} phút trước`;}
+  if (diffInHours < 24) {return `${diffInHours} giờ trước`;}
+  if (diffInDays < 7) {return `${diffInDays} ngày trước`;}
+  if (diffInWeeks < 4) {return `${diffInWeeks} tuần trước`;}
+  if (diffInMonths < 12) {return `${diffInMonths} tháng trước`;}
   return `${diffInYears} năm trước`;
 };
 
 // Duration formatting
 export const formatDuration = (minutes) => {
-  if (!minutes || minutes <= 0) return '0 phút';
+  if (!minutes || minutes <= 0) {return '0 phút';}
   
   const hours = Math.floor(minutes / 60);
   const mins = minutes % 60;
@@ -107,7 +107,7 @@ export const formatDuration = (minutes) => {
 };
 
 export const formatDurationShort = (minutes) => {
-  if (!minutes || minutes <= 0) return '0m';
+  if (!minutes || minutes <= 0) {return '0m';}
   
   const hours = Math.floor(minutes / 60);
   const mins = minutes % 60;
@@ -123,25 +123,25 @@ export const formatDurationShort = (minutes) => {
 
 // Text formatting
 export const truncateText = (text, maxLength = 100, suffix = '...') => {
-  if (!text) return '';
-  if (text.length <= maxLength) return text;
+  if (!text) {return '';}
+  if (text.length <= maxLength) {return text;}
   return text.substring(0, maxLength).trim() + suffix;
 };
 
 export const capitalizeFirst = (text) => {
-  if (!text) return '';
+  if (!text) {return '';}
   return text.charAt(0).toUpperCase() + text.slice(1).toLowerCase();
 };
 
 export const capitalizeWords = (text) => {
-  if (!text) return '';
+  if (!text) {return '';}
   return text.split(' ')
     .map(word => capitalizeFirst(word))
     .join(' ');
 };
 
 export const slugify = (text) => {
-  if (!text) return '';
+  if (!text) {return '';}
   return text
     .toLowerCase()
     .trim()
@@ -151,8 +151,8 @@ export const slugify = (text) => {
 
 // File size formatting
 export const formatFileSize = (bytes) => {
-  if (bytes === 0) return '0 Bytes';
-  if (!bytes) return '';
+  if (bytes === 0) {return '0 Bytes';}
+  if (!bytes) {return '';}
   
   const k = 1024;
   const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
@@ -163,7 +163,7 @@ export const formatFileSize = (bytes) => {
 
 // Number formatting
 export const formatNumber = (number, options = {}) => {
-  if (number === null || number === undefined) return '';
+  if (number === null || number === undefined) {return '';}
   
   const defaultOptions = {
     minimumFractionDigits: 0,
@@ -174,7 +174,7 @@ export const formatNumber = (number, options = {}) => {
 };
 
 export const formatPercentage = (decimal, decimals = 1) => {
-  if (decimal === null || decimal === undefined) return '';
+  if (decimal === null || decimal === undefined) {return '';}
   return `${(decimal * 100).toFixed(decimals)}%`;
 };
 

@@ -121,14 +121,14 @@ const ProgressPage = () => {
   };
 
   const getProgressColor = (percentage) => {
-    if (percentage >= 80) return 'bg-green-500';
-    if (percentage >= 60) return 'bg-yellow-500';
+    if (percentage >= 80) {return 'bg-green-500';}
+    if (percentage >= 60) {return 'bg-yellow-500';}
     return 'bg-red-500';
   };
 
   const getProgressBadgeVariant = (percentage) => {
-    if (percentage >= 80) return 'default';
-    if (percentage >= 60) return 'secondary';
+    if (percentage >= 80) {return 'default';}
+    if (percentage >= 60) {return 'secondary';}
     return 'destructive';
   };
 
@@ -148,10 +148,10 @@ const ProgressPage = () => {
     const diffMs = now - date;
     const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
     
-    if (diffDays === 0) return 'Hôm nay';
-    if (diffDays === 1) return 'Hôm qua';
-    if (diffDays < 7) return `${diffDays} ngày trước`;
-    if (diffDays < 30) return `${Math.floor(diffDays / 7)} tuần trước`;
+    if (diffDays === 0) {return 'Hôm nay';}
+    if (diffDays === 1) {return 'Hôm qua';}
+    if (diffDays < 7) {return `${diffDays} ngày trước`;}
+    if (diffDays < 30) {return `${Math.floor(diffDays / 7)} tuần trước`;}
     return `${Math.floor(diffDays / 30)} tháng trước`;
   };
 
@@ -159,7 +159,7 @@ const ProgressPage = () => {
     return (
       <div className="container mx-auto px-4 py-8">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600 mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600 mx-auto mb-4" />
           <p className="text-gray-600">Đang tải tiến độ học tập...</p>
         </div>
       </div>
@@ -267,7 +267,7 @@ const ProgressPage = () => {
                 <div 
                   className={`h-2 rounded-full transition-all duration-300 ${getProgressColor(stats.overallProgress)}`}
                   style={{ width: `${stats.overallProgress}%` }}
-                ></div>
+                />
               </div>
               <div className="grid grid-cols-3 gap-4 pt-2">
                 <div className="text-center">
@@ -336,7 +336,7 @@ const ProgressPage = () => {
                       <div 
                         className={`h-2 rounded-full transition-all duration-300 ${getProgressColor(courseProgress)}`}
                         style={{ width: `${courseProgress}%` }}
-                      ></div>
+                      />
                     </div>
                   </div>
 
@@ -355,7 +355,7 @@ const ProgressPage = () => {
                       <div 
                         className={`h-2 rounded-full transition-all duration-300 ${getProgressColor(lessonProgress)}`}
                         style={{ width: `${lessonProgress}%` }}
-                      ></div>
+                      />
                     </div>
                   </div>
 
@@ -380,7 +380,7 @@ const ProgressPage = () => {
                                 <div 
                                   className={`h-1 rounded-full ${getProgressColor((exam.best_score / exam.max_score) * 100)}`}
                                   style={{ width: `${(exam.best_score / exam.max_score) * 100}%` }}
-                                ></div>
+                                />
                               </div>
                             </div>
                           </div>
@@ -429,7 +429,7 @@ const ProgressPage = () => {
             <p className="text-gray-600 mb-4">
               Bắt đầu hành trình học tập của bạn bằng cách tham gia một khóa học!
             </p>
-            <Button onClick={() => navigate("/catalog")}>
+            <Button onClick={() => navigate('/catalog')}>
               Khám phá khóa học
             </Button>
           </CardContent>
