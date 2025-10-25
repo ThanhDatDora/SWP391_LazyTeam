@@ -6,7 +6,8 @@ import {
   Users, 
   CheckCircle, 
   BookOpen,
-  ChevronDown
+  ChevronDown,
+  ShoppingCart
 } from 'lucide-react';
 import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -18,12 +19,19 @@ import OfflineIndicator from '../components/common/OfflineIndicator';
 import { api } from '../services/api';
 import { useNavigation } from '../hooks/useNavigation';
 import { useAuth } from '../contexts/AuthContext';
+import { useCart } from '../contexts/CartContext';
+import { useToast } from '../hooks/useToast';
 import { useCourse, useCourses } from '../hooks/useOptimizedFetch';
 
 const CourseDetail = () => {
-  const { courseId } = useParams();
+  const { id: courseId } = useParams();
   const navigate = useNavigation();
   const { state } = useAuth();
+  const { addToCart, isInCart } = useCart();
+  const { toast } = useToast();
+  
+  // DEBUG: Log courseId
+  console.log('🔍 CourseDetail - courseId from useParams:', courseId);
   
   // Use optimized hooks
   const { data: courseData, loading: courseLoading } = useCourse(courseId);
@@ -46,7 +54,57 @@ const CourseDetail = () => {
   // Process course data
   useEffect(() => {
     if (courseData) {
-      setCourse(courseData);
+      console.log('📦 Raw courseData from API:', courseData);
+      
+      // Transform backend data to match frontend expectations
+      const transformedCourse = {
+        ...courseData,
+        course_id: courseData.id,
+        instructor: {
+          name: courseData.instructorName || 'Instructor',
+          avatar: `https://ui-avatars.com/api/?name=${courseData.instructorName || 'Instructor'}&background=6366f1&color=fff`,
+          bio: `Expert instructor with years of experience`
+        },
+        rating: courseData.rating || 4.5,
+        totalRatings: courseData.reviewCount || 100,
+        studentsCount: courseData.enrollmentCount || 500,
+        // Transform flat lessons array into curriculum structure
+        curriculum: courseData.lessons && courseData.lessons.length > 0
+          ? [
+              {
+                title: "Course Content",
+                lessons: courseData.lessons.map(lesson => ({
+                  title: lesson.title,
+                  duration: lesson.duration || "15 mins",
+                  isPreview: lesson.isPreview || false
+                }))
+              }
+            ]
+          : [
+              {
+                title: "Introduction to the Course",
+                lessons: [
+                  { title: "Course Overview", duration: "5:30", isPreview: true },
+                  { title: "Getting Started", duration: "8:15" }
+                ]
+              }
+            ],
+        features: [
+          "Access on all devices",
+          "Certificate of completion", 
+          "30 Money back guarantee"
+        ],
+        includes: [
+          `${courseData.duration || "10 hours"} on-demand video`,
+          `${courseData.lessons?.length || 0} lessons`,
+          "Full lifetime access", 
+          "Access on mobile and TV",
+          "Certificate of completion"
+        ]
+      };
+      
+      console.log('✅ Transformed course:', transformedCourse);
+      setCourse(transformedCourse);
     } else if (!courseLoading && courseId) {
       // If no course data from API, generate mock data
       loadCourseDetail();
@@ -238,15 +296,49 @@ const CourseDetail = () => {
 
   const formatCurrency = (price) => {
     if (!price || price === 0) return 'Free';
-    return new Intl.NumberFormat('en-US', {
+    return new Intl.NumberFormat('vi-VN', {
       style: 'currency',
-      currency: 'USD'
+      currency: 'VND'
     }).format(price);
   };
 
+  const handleEnrollNow = async () => {
+    if (!state.isAuthenticated) {
+      toast.error('Vui lòng đăng nhập để ghi danh khóa học');
+      navigate('/login');
+      return;
+    }
+
+    // Navigate to checkout with enroll now flag
+    navigate(`/checkout?courseId=${courseId}&enrollNow=true`);
+  };
+
+  const handleAddToCart = () => {
+    if (!state.isAuthenticated) {
+      toast.error('Vui lòng đăng nhập để thêm vào giỏ hàng');
+      navigate('/login');
+      return;
+    }
+
+    if (isInCart(parseInt(courseId))) {
+      toast.info('Khóa học đã có trong giỏ hàng');
+      return;
+    }
+
+    addToCart({
+      id: parseInt(courseId),
+      title: course.title,
+      price: course.price,
+      instructorName: course.instructor?.name || course.instructorName,
+      thumbnail: course.thumbnail,
+      level: course.level,
+      duration: course.duration
+    });
+  };
+
   const handleEnroll = () => {
-    // Handle enrollment logic
-    console.log('Enrolling in course:', courseId);
+    // Redirect to old handler
+    handleEnrollNow();
   };
 
   const ReviewCard = ({ review }) => (
@@ -529,19 +621,33 @@ const CourseDetail = () => {
                 <div className="text-center mb-6">
                   <div className="flex items-center justify-center gap-2 mb-2">
                     <span className="text-3xl font-bold text-blue-600">{formatCurrency(course.price)}</span>
-                    <span className="text-lg text-gray-500 line-through">{formatCurrency(course.originalPrice)}</span>
+                    {course.originalPrice && course.originalPrice > course.price && (
+                      <span className="text-lg text-gray-500 line-through">{formatCurrency(course.originalPrice)}</span>
+                    )}
                   </div>
-                  <Badge className="bg-red-100 text-red-600 mb-4">{course.discount}% OFF</Badge>
-                  <p className="text-sm text-gray-600 mb-4">11 hour left at this price!</p>
+                  {course.discount && (
+                    <Badge className="bg-red-100 text-red-600 mb-4">{course.discount}% OFF</Badge>
+                  )}
+                  <p className="text-sm text-gray-600 mb-4">Ưu đãi có hạn!</p>
                   
                   <Button 
                     className="w-full bg-teal-500 hover:bg-teal-600 text-white mb-3"
-                    onClick={handleEnroll}
+                    onClick={handleEnrollNow}
                   >
-                    Buy Now
+                    Ghi danh ngay
                   </Button>
                   
-                  <p className="text-xs text-gray-500">30-Day Money-Back Guarantee</p>
+                  <Button 
+                    variant="outline" 
+                    className="w-full mb-3"
+                    onClick={handleAddToCart}
+                    disabled={isInCart(parseInt(courseId))}
+                  >
+                    <ShoppingCart className="w-4 h-4 mr-2" />
+                    {isInCart(parseInt(courseId)) ? 'Đã có trong giỏ' : 'Thêm vào giỏ hàng'}
+                  </Button>
+                  
+                  <p className="text-xs text-gray-500">Đảm bảo hoàn tiền trong 30 ngày</p>
                 </div>
 
                 <div className="space-y-4">

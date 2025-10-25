@@ -6,7 +6,8 @@ import { Badge } from '../components/ui/badge';
 import { useNavigation } from '../hooks/useNavigation';
 import { useAuth } from '../contexts/AuthContext';
 import { useParams } from 'react-router-dom';
-import AppLayout from '../components/layout/AppLayout';
+import LearnerNavbar from '../components/layout/LearnerNavbar';
+import Footer from '../components/layout/Footer';
 
 const CoursePlayerPage = () => {
   const { courseId } = useParams();
@@ -66,22 +67,24 @@ const CoursePlayerPage = () => {
   };
 
   return (
-    <AppLayout user={state.user}>
+    <div className="min-h-screen bg-gray-50">
+      <LearnerNavbar />
+      
       <div className="container mx-auto px-4 py-6">
         {/* Back Button */}
         <Button 
           variant="outline" 
           className="mb-6"
-          onClick={() => navigate('/')}
+          onClick={() => navigate('/my-courses')}
         >
           <ArrowLeft className="h-4 w-4 mr-2" />
-          Back to Home
+          Back to My Courses
         </Button>
 
         <div className="grid lg:grid-cols-4 gap-6">
           {/* Sidebar - Course Content */}
           <div className="lg:col-span-1 order-2 lg:order-1">
-            <Card className="sticky top-6">
+            <Card>
               <CardHeader>
                 <CardTitle className="text-lg">Course Content</CardTitle>
                 <div className="text-sm text-gray-600">
@@ -508,7 +511,9 @@ const CoursePlayerPage = () => {
           </div>
         </div>
       </div>
-    </AppLayout>
+      
+      <Footer />
+    </div>
   );
 };
 

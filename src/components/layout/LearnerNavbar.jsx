@@ -11,6 +11,7 @@ import {
   ChevronDown,
   Bell
 } from 'lucide-react';
+import NotificationDropdown from '../notifications/NotificationDropdown';
 
 const LearnerNavbar = () => {
   const { state, logout } = useAuth();
@@ -117,12 +118,7 @@ const LearnerNavbar = () => {
           {/* Right side - Cart, Notifications, Profile */}
           <div className="flex items-center space-x-4">
             {/* Notifications */}
-            <button className="relative p-2 text-gray-600 hover:text-blue-600 transition-colors">
-              <Bell className="w-5 h-5" />
-              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center">
-                2
-              </span>
-            </button>
+            <NotificationDropdown />
 
             {/* Shopping Cart */}
             <Link 

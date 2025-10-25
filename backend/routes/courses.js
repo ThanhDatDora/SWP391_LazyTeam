@@ -123,6 +123,7 @@ router.get('/:id', async (req, res) => {
     const { id } = req.params;
     const pool = await getPool();
 
+    // Get course details with instructor info
     const result = await pool.request()
       .input('courseId', sql.BigInt, id)
       .query(`
@@ -137,14 +138,20 @@ router.get('/:id', async (req, res) => {
           c.updated_at as updatedAt,
           c.status,
           c.owner_instructor_id as instructorId,
-          'Instructor' as instructorName,
+          COALESCE(u.full_name, u.email, 'Instructor') as instructorName,
+          u.avatar_url as instructorAvatar,
+          u.bio as instructorBio,
           cat.name as categoryName,
-          'https://via.placeholder.com/300x200' as thumbnail,
-          '10 hours' as duration,
-          0 as enrollmentCount,
-          4.5 as rating,
-          0 as reviewCount
+          cat.category_id as categoryId,
+          'https://via.placeholder.com/800x450' as thumbnail,
+          (SELECT COUNT(*) FROM enrollments WHERE course_id = c.course_id) as enrollmentCount,
+          (SELECT AVG(CAST(rating as FLOAT)) FROM reviews WHERE course_id = c.course_id) as rating,
+          (SELECT COUNT(*) FROM reviews WHERE course_id = c.course_id) as reviewCount,
+          (SELECT COUNT(*) FROM lessons l 
+           INNER JOIN moocs m ON l.mooc_id = m.mooc_id 
+           WHERE m.course_id = c.course_id) as totalLessons
         FROM courses c
+        LEFT JOIN users u ON c.owner_instructor_id = u.user_id
         LEFT JOIN categories cat ON c.category_id = cat.category_id
         WHERE c.course_id = @courseId AND c.status = 'active'
       `);
@@ -153,7 +160,30 @@ router.get('/:id', async (req, res) => {
       return res.status(404).json({ message: 'Course not found' });
     }
 
-    // Get course lessons from moocs and lessons tables
+    const course = result.recordset[0];
+    
+    // Calculate duration based on lesson count (assume 15 min per lesson)
+    const totalLessons = course.totalLessons || 0;
+    const durationMinutes = totalLessons * 15; // 15 minutes per lesson average
+    const hours = Math.floor(durationMinutes / 60);
+    const minutes = durationMinutes % 60;
+    course.duration = `${hours}h ${minutes > 0 ? minutes + 'm' : ''}`.trim();
+
+    // Get course curriculum (moocs and lessons)
+    const moocsResult = await pool.request()
+      .input('courseId', sql.BigInt, id)
+      .query(`
+        SELECT 
+          m.mooc_id as id,
+          m.title,
+          m.order_no as orderIndex,
+          (SELECT COUNT(*) FROM lessons WHERE mooc_id = m.mooc_id) as lessonCount
+        FROM moocs m
+        WHERE m.course_id = @courseId
+        ORDER BY m.order_no
+      `);
+
+    // Get lessons for each mooc
     const lessonsResult = await pool.request()
       .input('courseId', sql.BigInt, id)
       .query(`
@@ -162,24 +192,78 @@ router.get('/:id', async (req, res) => {
           l.title, 
           l.content_type as contentType,
           l.content_url as contentUrl,
-          '15 mins' as duration,
+          '00:15:00' as duration,
           l.order_no as orderIndex,
-          m.title as moocTitle,
-          l.is_preview as isPreview
+          l.mooc_id as moocId,
+          ISNULL(l.is_preview, 0) as isPreview
         FROM lessons l
         INNER JOIN moocs m ON l.mooc_id = m.mooc_id
         WHERE m.course_id = @courseId
-        ORDER BY m.order_no, l.order_no
+        ORDER BY l.order_no
       `);
 
-    const course = result.recordset[0];
-    course.lessons = lessonsResult.recordset;
+    // Build curriculum structure
+    course.curriculum = moocsResult.recordset.map(mooc => ({
+      id: mooc.id,
+      title: mooc.title,
+      lessonCount: mooc.lessonCount,
+      lessons: lessonsResult.recordset
+        .filter(lesson => lesson.moocId === mooc.id)
+        .map(lesson => ({
+          id: lesson.id,
+          title: lesson.title,
+          duration: lesson.duration,
+          contentType: lesson.contentType,
+          contentUrl: lesson.contentUrl,
+          isPreview: lesson.isPreview
+        }))
+    }));
 
-    res.json({ course });
+    // Get course reviews
+    const reviewsResult = await pool.request()
+      .input('courseId', sql.BigInt, id)
+      .query(`
+        SELECT TOP 5
+          r.review_id as id,
+          r.rating,
+          r.comment,
+          r.created_at as createdAt,
+          COALESCE(u.full_name, u.email, 'Student') as studentName,
+          u.avatar_url as studentAvatar
+        FROM reviews r
+        LEFT JOIN users u ON r.user_id = u.user_id
+        WHERE r.course_id = @courseId
+        ORDER BY r.created_at DESC
+      `);
+
+    course.reviews = reviewsResult.recordset;
+
+    // Get what you'll learn points (if stored in database)
+    // For now, use structured data if available
+    course.whatYouWillLearn = [
+      'Master the fundamentals and advanced concepts',
+      'Build real-world projects from scratch',
+      'Best practices and industry standards',
+      'Problem-solving and critical thinking skills'
+    ];
+
+    course.requirements = [
+      'Basic computer skills',
+      'Willingness to learn',
+      'No prior experience required'
+    ];
+
+    res.json({ 
+      success: true,
+      course 
+    });
 
   } catch (error) {
     console.error('Get course error:', error);
-    res.status(500).json({ message: 'Internal server error' });
+    res.status(500).json({ 
+      success: false,
+      message: 'Internal server error' 
+    });
   }
 });
 
@@ -328,6 +412,110 @@ router.post('/:id/enroll', authenticateToken, authorizeRoles('learner'), async (
 
   } catch (error) {
     console.error('Enrollment error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// Get learner's enrolled courses (My Courses)
+router.get('/my-enrolled', authenticateToken, authorizeRoles('learner'), async (req, res) => {
+  try {
+    const pool = await getPool();
+    
+    const result = await pool.request()
+      .input('userId', sql.BigInt, req.user.user_id)
+      .query(`
+        SELECT 
+          c.course_id as id,
+          c.title,
+          c.description,
+          c.price,
+          c.level,
+          u.full_name as instructor,
+          e.enrollment_date as enrolledAt,
+          e.status as enrollmentStatus,
+          cat.name as category,
+          'https://via.placeholder.com/400x250' as thumbnail,
+          '10 hours' as duration,
+          
+          -- Calculate progress
+          CAST(COALESCE(
+            (SELECT COUNT(*) FROM lesson_completions lc
+             INNER JOIN lessons l ON lc.lesson_id = l.lesson_id
+             INNER JOIN moocs m ON l.mooc_id = m.mooc_id
+             WHERE m.course_id = c.course_id AND lc.student_id = @userId) * 100.0 /
+            NULLIF((SELECT COUNT(*) FROM lessons l
+                    INNER JOIN moocs m ON l.mooc_id = m.mooc_id
+                    WHERE m.course_id = c.course_id), 0),
+            0
+          ) AS INT) as progress,
+          
+          -- Total lessons
+          (SELECT COUNT(*) FROM lessons l
+           INNER JOIN moocs m ON l.mooc_id = m.mooc_id
+           WHERE m.course_id = c.course_id) as totalLessons,
+          
+          -- Completed lessons
+          (SELECT COUNT(*) FROM lesson_completions lc
+           INNER JOIN lessons l ON lc.lesson_id = l.lesson_id
+           INNER JOIN moocs m ON l.mooc_id = m.mooc_id
+           WHERE m.course_id = c.course_id AND lc.student_id = @userId) as completedLessons,
+          
+          -- Last accessed (use latest completion date or enrollment date)
+          COALESCE(
+            (SELECT MAX(completed_at) FROM lesson_completions lc
+             INNER JOIN lessons l ON lc.lesson_id = l.lesson_id
+             INNER JOIN moocs m ON l.mooc_id = m.mooc_id
+             WHERE m.course_id = c.course_id AND lc.student_id = @userId),
+            e.enrollment_date
+          ) as lastAccessed,
+          
+          -- Next lesson title
+          (SELECT TOP 1 l.title
+           FROM lessons l
+           INNER JOIN moocs m ON l.mooc_id = m.mooc_id
+           LEFT JOIN lesson_completions lc ON l.lesson_id = lc.lesson_id AND lc.student_id = @userId
+           WHERE m.course_id = c.course_id AND lc.completion_id IS NULL
+           ORDER BY m.order_no, l.order_no) as nextLesson,
+          
+          -- Status based on completion
+          CASE 
+            WHEN CAST(COALESCE(
+              (SELECT COUNT(*) FROM lesson_completions lc
+               INNER JOIN lessons l ON lc.lesson_id = l.lesson_id
+               INNER JOIN moocs m ON l.mooc_id = m.mooc_id
+               WHERE m.course_id = c.course_id AND lc.student_id = @userId) * 100.0 /
+              NULLIF((SELECT COUNT(*) FROM lessons l
+                      INNER JOIN moocs m ON l.mooc_id = m.mooc_id
+                      WHERE m.course_id = c.course_id), 0),
+              0
+            ) AS INT) >= 100 THEN 'completed'
+            ELSE 'in-progress'
+          END as status,
+          
+          -- Check if certificate exists
+          CASE 
+            WHEN EXISTS (
+              SELECT 1 FROM certificates 
+              WHERE student_id = @userId AND course_id = c.course_id
+            ) THEN 1
+            ELSE 0
+          END as certificate
+          
+        FROM enrollments e
+        INNER JOIN courses c ON e.course_id = c.course_id
+        INNER JOIN users u ON c.owner_instructor_id = u.user_id
+        LEFT JOIN categories cat ON c.category_id = cat.category_id
+        WHERE e.student_id = @userId AND c.status = 'active'
+        ORDER BY e.enrollment_date DESC
+      `);
+
+    res.json({ 
+      success: true,
+      data: result.recordset 
+    });
+
+  } catch (error) {
+    console.error('Get enrolled courses error:', error);
     res.status(500).json({ message: 'Internal server error' });
   }
 });

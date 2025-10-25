@@ -7,12 +7,43 @@ import { authenticateToken } from '../middleware/auth.js';
 import crypto from 'crypto';
 import GoogleAuthService from '../services/googleAuthService.js';
 import OTPService from '../services/otpService.js';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
 
 const router = express.Router();
 
 // Initialize services
 const googleAuthService = new GoogleAuthService();
 const otpService = new OTPService();
+
+// Multer configuration for avatar upload
+const uploadDir = './uploads/avatars';
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueName = `${req.user.userId}-${Date.now()}${path.extname(file.originalname)}`;
+    cb(null, uniqueName);
+  }
+});
+
+const upload = multer({
+  storage: storage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed'));
+    }
+  }
+});
 
 // Helper function to generate JWT token
 const generateToken = (userId, email, role) => {
@@ -189,7 +220,10 @@ router.get('/profile', authenticateToken, async (req, res) => {
     const result = await pool.request()
       .input('userId', sql.BigInt, req.user.userId)
       .query(`
-        SELECT u.user_id, u.email, u.full_name, r.role_name, u.created_at
+        SELECT 
+          u.user_id, u.email, u.full_name, u.phone, u.address, u.bio,
+          u.avatar_url, u.date_of_birth, u.gender,
+          r.role_name, u.created_at
         FROM users u
         JOIN roles r ON u.role_id = r.role_id
         WHERE u.user_id = @userId
@@ -205,6 +239,12 @@ router.get('/profile', authenticateToken, async (req, res) => {
         id: user.user_id,
         email: user.email,
         fullName: user.full_name,
+        phone: user.phone,
+        address: user.address,
+        bio: user.bio,
+        avatarUrl: user.avatar_url,
+        dateOfBirth: user.date_of_birth,
+        gender: user.gender,
         role: user.role_name,
         createdAt: user.created_at
       }
@@ -218,7 +258,12 @@ router.get('/profile', authenticateToken, async (req, res) => {
 
 // Update user profile
 router.put('/profile', authenticateToken, [
-  body('fullName').optional().trim().isLength({ min: 2 })
+  body('fullName').optional({ checkFalsy: true }).trim().isLength({ min: 2 }),
+  body('phone').optional({ checkFalsy: true }).trim().isMobilePhone('any'),
+  body('address').optional({ checkFalsy: true }).trim().isLength({ max: 500 }),
+  body('bio').optional({ checkFalsy: true }).trim().isLength({ max: 2000 }),
+  body('gender').optional({ checkFalsy: true }).isIn(['male', 'female', 'other']),
+  body('dateOfBirth').optional({ checkFalsy: true }).isISO8601()
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -229,21 +274,63 @@ router.put('/profile', authenticateToken, [
       });
     }
 
-    const { fullName } = req.body;
+    const { fullName, phone, address, bio, gender, dateOfBirth } = req.body;
     const pool = await getPool();
 
-    const result = await pool.request()
+    // Update user profile (removed OUTPUT because table has triggers)
+    await pool.request()
       .input('userId', sql.BigInt, req.user.userId)
-      .input('fullName', sql.NVarChar, fullName)
+      .input('fullName', sql.NVarChar(200), fullName || null)
+      .input('phone', sql.NVarChar(20), phone || null)
+      .input('address', sql.NVarChar(500), address || null)
+      .input('bio', sql.NVarChar(sql.MAX), bio || null)
+      .input('gender', sql.NVarChar(10), gender || null)
+      .input('dateOfBirth', sql.Date, dateOfBirth || null)
       .query(`
         UPDATE users 
-        SET full_name = COALESCE(@fullName, full_name)
-        OUTPUT INSERTED.user_id, INSERTED.email, INSERTED.full_name
+        SET 
+          full_name = COALESCE(@fullName, full_name),
+          phone = COALESCE(@phone, phone),
+          address = COALESCE(@address, address),
+          bio = COALESCE(@bio, bio),
+          gender = COALESCE(@gender, gender),
+          date_of_birth = COALESCE(@dateOfBirth, date_of_birth),
+          updated_at = GETDATE()
+        WHERE user_id = @userId
+      `);
+
+    // Query updated user data separately
+    const result = await pool.request()
+      .input('userId', sql.BigInt, req.user.userId)
+      .query(`
+        SELECT user_id, email, full_name, phone, address, bio, 
+               avatar_url, date_of_birth, gender
+        FROM users 
         WHERE user_id = @userId
       `);
 
     if (result.recordset.length === 0) {
       return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Create notification after successful profile update
+    try {
+      await pool.request()
+        .input('userId', sql.BigInt, req.user.userId)
+        .query(`
+          INSERT INTO notifications (user_id, title, message, type, icon, link)
+          VALUES (
+            @userId,
+            N'Cập nhật thông tin thành công',
+            N'Thông tin cá nhân của bạn đã được cập nhật. Cảm ơn bạn đã hoàn thiện profile!',
+            'success',
+            'CheckCircle',
+            '/my-profile'
+          )
+        `);
+    } catch (notifError) {
+      // Don't fail the request if notification creation fails
+      console.warn('Failed to create notification:', notifError.message);
     }
 
     const updatedUser = result.recordset[0];
@@ -252,13 +339,67 @@ router.put('/profile', authenticateToken, [
       user: {
         id: updatedUser.user_id,
         email: updatedUser.email,
-        fullName: updatedUser.full_name
+        fullName: updatedUser.full_name,
+        phone: updatedUser.phone,
+        address: updatedUser.address,
+        bio: updatedUser.bio,
+        avatarUrl: updatedUser.avatar_url,
+        dateOfBirth: updatedUser.date_of_birth,
+        gender: updatedUser.gender
       }
     });
 
   } catch (error) {
     console.error('Profile update error:', error);
-    res.status(500).json({ message: 'Internal server error' });
+    console.error('Error details:', {
+      message: error.message,
+      code: error.code,
+      number: error.number,
+      state: error.state,
+      class: error.class,
+      lineNumber: error.lineNumber,
+      serverName: error.serverName,
+      procName: error.procName
+    });
+    res.status(500).json({ 
+      message: 'Internal server error',
+      error: error.message 
+    });
+  }
+});
+
+// Upload avatar
+router.put('/avatar', authenticateToken, upload.single('avatar'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    const avatarUrl = `/uploads/avatars/${req.file.filename}`;
+    const pool = await getPool();
+
+    // Update user's avatar_url in database
+    await pool.request()
+      .input('userId', sql.BigInt, req.user.userId)
+      .input('avatarUrl', sql.NVarChar, avatarUrl)
+      .query('UPDATE users SET avatar_url = @avatarUrl, updated_at = GETDATE() WHERE user_id = @userId');
+
+    res.json({ 
+      success: true, 
+      data: { avatarUrl } 
+    });
+
+  } catch (error) {
+    console.error('Avatar upload error:', error);
+    // If error occurs, delete uploaded file
+    if (req.file) {
+      try {
+        fs.unlinkSync(req.file.path);
+      } catch (unlinkError) {
+        console.error('Failed to delete file:', unlinkError);
+      }
+    }
+    res.status(500).json({ error: error.message });
   }
 });
 

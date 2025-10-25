@@ -19,13 +19,14 @@ import AuthDebug from '../pages/AuthDebug';
 const LearnerDashboard = lazy(() => import('../pages/learner/LearnerDashboard'));
 const CoursePage = lazy(() => import('../pages/course/CoursePage'));
 const CoursesPage = lazy(() => import('../pages/CoursesPage'));
-const CourseDetailPage = lazy(() => import('../pages/CourseDetail'));
+const CourseDetailPage = lazy(() => import('../pages/CourseDetailPageNew'));
 const CatalogPage = lazy(() => import('../pages/CatalogPage'));
 const ExamPage = lazy(() => import('../pages/exam/ExamPage'));
 const ExamHistoryPage = lazy(() => import('../pages/exam/ExamHistoryPage'));
 const ProgressPage = lazy(() => import('../pages/ProgressPage'));
 const ProfilePage = lazy(() => import('../pages/ProfilePage'));
 const MyProfilePage = lazy(() => import('../pages/MyProfilePage'));
+const NotificationsPage = lazy(() => import('../pages/NotificationsPage'));
 const CoursePlayerPage = lazy(() => import('../pages/CoursePlayerPage'));
 const MyCoursesPage = lazy(() => import('../pages/MyCoursesPage'));
 const CartPage = lazy(() => import('../pages/CartPage'));
@@ -238,6 +239,16 @@ const AppRouter = () => {
         } 
       />
       
+      {/* Notifications Route */}
+      <Route 
+        path="/notifications" 
+        element={
+          <ProtectedRoute>
+            <NotificationsPage />
+          </ProtectedRoute>
+        } 
+      />
+      
       {/* Course Player Route */}
       <Route 
         path="/course-player/:courseId" 
@@ -285,7 +296,7 @@ const AppRouter = () => {
         } 
       />
       <Route 
-        path="/course/:courseId" 
+        path="/courses/:id" 
         element={
           <ProtectedRoute>
             <CourseDetailPage />

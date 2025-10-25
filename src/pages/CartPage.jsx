@@ -1,58 +1,16 @@
-import React, { useState, useEffect } from 'react';
-import { Trash2, Plus, Minus, ShoppingBag, ArrowLeft } from 'lucide-react';
+import React from 'react';
+import { Trash2, ShoppingBag, ArrowLeft, ArrowRight } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import LearnerNavbar from '../components/layout/LearnerNavbar';
 import Footer from '../components/layout/Footer';
 import { useNavigation } from '../hooks/useNavigation';
+import { useCart } from '../contexts/CartContext';
 
 const CartPage = () => {
   const navigate = useNavigation();
-  const [cartItems, setCartItems] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  // Load cart items from localStorage on component mount
-  useEffect(() => {
-    try {
-      const savedCart = localStorage.getItem('cart');
-      if (savedCart) {
-        const parsedCart = JSON.parse(savedCart);
-        setCartItems(parsedCart);
-      } else {
-        // Default cart items for demo purposes
-        const defaultCart = [
-          {
-            id: 1,
-            title: 'AWS Certified Solutions Architect',
-            instructor: 'John Doe',
-            price: 89000,
-            originalPrice: 149000,
-            thumbnail: 'https://picsum.photos/200/120?random=1',
-            rating: 4.8,
-            duration: '12h 30m'
-          },
-          {
-            id: 2,
-            title: 'React Complete Guide 2024',
-            instructor: 'Jane Smith',
-            price: 69000,
-            originalPrice: 99000,
-            thumbnail: 'https://picsum.photos/200/120?random=2',
-            rating: 4.9,
-            duration: '18h 45m'
-          }
-        ];
-        setCartItems(defaultCart);
-        localStorage.setItem('cart', JSON.stringify(defaultCart));
-      }
-    } catch (error) {
-      console.error('Error loading cart:', error);
-      setCartItems([]);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const { cartItems, removeFromCart, getTotalPrice, getItemCount } = useCart();
 
   const formatCurrency = (price) => {
     return new Intl.NumberFormat('vi-VN', {
@@ -61,26 +19,15 @@ const CartPage = () => {
     }).format(price);
   };
 
-  const removeFromCart = (itemId) => {
-    const updatedCart = cartItems.filter(item => item.id !== itemId);
-    setCartItems(updatedCart);
-    localStorage.setItem('cart', JSON.stringify(updatedCart));
-  };
+  const totalPrice = getTotalPrice();
+  const tax = totalPrice * 0.1; // VAT 10%
+  const total = totalPrice + tax;
 
-  const updateCartInStorage = (updatedCart) => {
-    localStorage.setItem('cart', JSON.stringify(updatedCart));
-  };
-
-  const getTotalPrice = () => {
-    return cartItems.reduce((total, item) => total + item.price, 0);
-  };
-
-  const getTotalOriginalPrice = () => {
-    return cartItems.reduce((total, item) => total + item.originalPrice, 0);
-  };
-
-  const getSavings = () => {
-    return getTotalOriginalPrice() - getTotalPrice();
+  const handleCheckout = () => {
+    if (cartItems.length === 0) {
+      return;
+    }
+    navigate('/checkout');
   };
 
   return (
@@ -95,21 +42,21 @@ const CartPage = () => {
             className="mb-4"
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
-            Back
+            Quay lại
           </Button>
-          <h1 className="text-3xl font-bold text-gray-900">Shopping Cart</h1>
+          <h1 className="text-3xl font-bold text-gray-900">Giỏ hàng của bạn</h1>
           <p className="text-gray-600 mt-2">
-            {cartItems.length} course{cartItems.length !== 1 ? 's' : ''} in your cart
+            {getItemCount()} khóa học trong giỏ hàng
           </p>
         </div>
 
         {cartItems.length === 0 ? (
           <div className="text-center py-16">
             <ShoppingBag className="w-24 h-24 text-gray-300 mx-auto mb-4" />
-            <h2 className="text-2xl font-semibold text-gray-900 mb-2">Your cart is empty</h2>
-            <p className="text-gray-600 mb-6">Discover courses and add them to your cart to get started.</p>
-            <Button onClick={() => navigate('/catalog')}>
-              Browse Courses
+            <h2 className="text-2xl font-semibold text-gray-900 mb-2">Giỏ hàng của bạn đang trống</h2>
+            <p className="text-gray-600 mb-6">Khám phá các khóa học và thêm vào giỏ hàng để bắt đầu học.</p>
+            <Button onClick={() => navigate('/catalog')} className="bg-teal-500 hover:bg-teal-600">
+              Khám phá khóa học
             </Button>
           </div>
         ) : (
@@ -135,25 +82,20 @@ const CartPage = () => {
                             size="sm"
                             onClick={() => removeFromCart(item.id)}
                             className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                            title="Xóa khỏi giỏ hàng"
                           >
                             <Trash2 className="w-4 h-4" />
                           </Button>
                         </div>
-                        <p className="text-gray-600 text-sm mb-2">By {item.instructor}</p>
+                        <p className="text-gray-600 text-sm mb-2">Giảng viên: {item.instructor || item.instructorName}</p>
                         <div className="flex items-center gap-4 text-sm text-gray-500 mb-3">
-                          <span>{item.duration}</span>
-                          <span>⭐ {item.rating}</span>
+                          <span>{item.duration || '10h 30m'}</span>
+                          {item.rating && <span>⭐ {item.rating}</span>}
                         </div>
                         <div className="flex items-center gap-3">
-                          <span className="text-xl font-bold text-blue-600">
+                          <span className="text-xl font-bold text-teal-600">
                             {formatCurrency(item.price)}
                           </span>
-                          <span className="text-gray-500 line-through">
-                            {formatCurrency(item.originalPrice)}
-                          </span>
-                          <Badge variant="secondary" className="bg-green-100 text-green-700">
-                            {Math.round((1 - item.price / item.originalPrice) * 100)}% off
-                          </Badge>
                         </div>
                       </div>
                     </div>
@@ -166,31 +108,57 @@ const CartPage = () => {
             <div className="lg:col-span-1">
               <Card className="sticky top-24">
                 <CardHeader>
-                  <CardTitle>Order Summary</CardTitle>
+                  <CardTitle>Tóm tắt đơn hàng</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="flex justify-between text-sm">
-                    <span>Original Price:</span>
-                    <span className="line-through text-gray-500">
-                      {formatCurrency(getTotalOriginalPrice())}
-                    </span>
+                    <span>Tạm tính:</span>
+                    <span>{formatCurrency(totalPrice)}</span>
                   </div>
-                  <div className="flex justify-between text-sm text-green-600">
-                    <span>Discount:</span>
-                    <span>-{formatCurrency(getSavings())}</span>
+                  <div className="flex justify-between text-sm">
+                    <span>VAT (10%):</span>
+                    <span>{formatCurrency(tax)}</span>
                   </div>
                   <hr />
                   <div className="flex justify-between font-bold text-lg">
-                    <span>Total:</span>
-                    <span className="text-blue-600">{formatCurrency(getTotalPrice())}</span>
+                    <span>Tổng cộng:</span>
+                    <span className="text-teal-600">{formatCurrency(total)}</span>
                   </div>
-                  <Button className="w-full" size="lg">
-                    Checkout
+                  <Button 
+                    className="w-full bg-teal-500 hover:bg-teal-600" 
+                    size="lg"
+                    onClick={handleCheckout}
+                  >
+                    Tiến hành thanh toán
+                    <ArrowRight className="w-4 h-4 ml-2" />
                   </Button>
-                  <div className="text-center">
-                    <p className="text-sm text-gray-500">
-                      30-Day Money-Back Guarantee
-                    </p>
+                  <Button 
+                    variant="outline"
+                    className="w-full" 
+                    size="lg"
+                    onClick={() => navigate('/catalog')}
+                  >
+                    Tiếp tục mua sắm
+                  </Button>
+                  <div className="space-y-2 text-sm text-gray-600 mt-4">
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 rounded-full bg-green-500 flex items-center justify-center">
+                        <span className="text-white text-xs">✓</span>
+                      </div>
+                      <span>Đảm bảo hoàn tiền 30 ngày</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 rounded-full bg-green-500 flex items-center justify-center">
+                        <span className="text-white text-xs">✓</span>
+                      </div>
+                      <span>Truy cập trọn đời</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 rounded-full bg-green-500 flex items-center justify-center">
+                        <span className="text-white text-xs">✓</span>
+                      </div>
+                      <span>Chứng chỉ hoàn thành</span>
+                    </div>
                   </div>
                 </CardContent>
               </Card>

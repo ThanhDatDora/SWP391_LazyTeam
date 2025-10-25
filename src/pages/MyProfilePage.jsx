@@ -19,13 +19,17 @@ import {
 import LearnerNavbar from '../components/layout/LearnerNavbar';
 import Footer from '../components/layout/Footer';
 import { useAuth } from '../contexts/AuthContext';
-import { api } from '../services/api';
+import { authAPI } from '../services/api';
+import { useToast } from '../components/ui/Toast';
 
 const MyProfilePage = () => {
-  const { state } = useAuth();
+  const { state, updateProfile: updateAuthProfile } = useAuth();
+  const toast = useToast();
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [fetchingProfile, setFetchingProfile] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [userStats, setUserStats] = useState({
     totalCourses: 0,
     completedCourses: 0,
@@ -35,19 +39,75 @@ const MyProfilePage = () => {
   });
 
   const [profileData, setProfileData] = useState({
-    full_name: state.user?.full_name || '',
-    email: state.user?.email || '',
-    phone: state.user?.phone || '',
-    bio: state.user?.bio || '',
-    location: state.user?.location || '',
-    joined_date: state.user?.created_at || new Date().toISOString()
+    fullName: '',
+    email: '',
+    phone: '',
+    bio: '',
+    address: '',
+    gender: '',
+    dateOfBirth: '',
+    avatarUrl: '',
+    joined_date: new Date().toISOString()
   });
 
   const [editData, setEditData] = useState({ ...profileData });
 
+  // Fetch profile from API on mount
   useEffect(() => {
+    loadUserProfile();
     loadUserStats();
   }, []);
+
+  const loadUserProfile = async () => {
+    try {
+      setFetchingProfile(true);
+      console.log('🔍 Fetching profile from API...');
+      
+      const response = await authAPI.getCurrentUser();
+      console.log('📦 Profile response:', response);
+      
+      if (response.success && response.data?.user) {
+        const user = response.data.user;
+        console.log('✅ Profile data received:', user);
+        
+        // Use camelCase property names to match API and form inputs
+        const newProfileData = {
+          fullName: user.fullName || '',
+          email: user.email || '',
+          phone: user.phone || '',
+          bio: user.bio || '',
+          address: user.address || '',
+          gender: user.gender || '',
+          dateOfBirth: user.dateOfBirth || '',
+          avatarUrl: user.avatarUrl || user.avatar_url || '',
+          joined_date: user.createdAt || new Date().toISOString()
+        };
+        
+        setProfileData(newProfileData);
+        setEditData(newProfileData);
+      }
+    } catch (error) {
+      console.error('❌ Failed to fetch profile:', error);
+      // Fallback to localStorage if API fails
+      if (state.user) {
+        const fallbackData = {
+          fullName: state.user.full_name || state.user.fullName || '',
+          email: state.user.email || '',
+          phone: state.user.phone || '',
+          bio: state.user.bio || '',
+          address: state.user.address || '',
+          gender: state.user.gender || '',
+          dateOfBirth: state.user.dateOfBirth || '',
+          avatarUrl: state.user.avatarUrl || state.user.avatar_url || '',
+          joined_date: state.user.created_at || new Date().toISOString()
+        };
+        setProfileData(fallbackData);
+        setEditData(fallbackData);
+      }
+    } finally {
+      setFetchingProfile(false);
+    }
+  };
 
   const loadUserStats = async () => {
     try {
@@ -77,12 +137,57 @@ const MyProfilePage = () => {
   const handleSave = async () => {
     setLoading(true);
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      setProfileData({ ...editData });
-      setIsEditing(false);
+      console.log('💾 Saving profile...', editData);
+      
+      // Only send fields that have values (avoid validation errors for empty strings)
+      const updateData = {};
+      
+      if (editData.fullName) updateData.fullName = editData.fullName;
+      if (editData.phone) updateData.phone = editData.phone;
+      if (editData.address) updateData.address = editData.address;
+      if (editData.bio) updateData.bio = editData.bio;
+      if (editData.gender) updateData.gender = editData.gender;
+      if (editData.dateOfBirth) updateData.dateOfBirth = editData.dateOfBirth;
+      
+      console.log('📤 Sending to API:', updateData);
+      
+      const response = await authAPI.updateProfile(updateData);
+
+      console.log('📦 Update response:', response);
+
+      if (response.success) {
+        // Update local state with new data
+        const updatedData = response.data?.user || response.user || editData;
+        setProfileData({ ...profileData, ...updatedData });
+        setEditData({ ...profileData, ...updatedData });
+        setIsEditing(false);
+        
+        // Update AuthContext with new user data
+        updateAuthProfile(updatedData);
+        
+        // Show beautiful success toast
+        toast.success('Cập nhật thông tin cá nhân thành công!', {
+          title: '✅ Thành công',
+          duration: 4000
+        });
+      } else {
+        // Show validation errors if available
+        if (response.validationErrors) {
+          const errorMessages = response.validationErrors.map(err => err.msg).join('\n');
+          toast.error(errorMessages, {
+            title: '❌ Lỗi xác thực',
+            duration: 5000
+          });
+          throw new Error(`Validation errors:\n${errorMessages}`);
+        }
+        throw new Error(response.error || 'Update failed');
+      }
     } catch (error) {
-      console.error('Error updating profile:', error);
+      console.error('❌ Error updating profile:', error);
+      toast.error(error.message || 'Không thể cập nhật thông tin. Vui lòng thử lại sau.', {
+        title: '❌ Lỗi',
+        duration: 5000
+      });
     } finally {
       setLoading(false);
     }
@@ -93,6 +198,99 @@ const MyProfilePage = () => {
       ...prev,
       [e.target.name]: e.target.value
     }));
+  };
+
+  const handleAvatarClick = () => {
+    document.getElementById('avatar-upload').click();
+  };
+
+  const handleAvatarChange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast.error('Vui lòng chọn file ảnh hợp lệ', {
+        title: '❌ Lỗi',
+        duration: 3000
+      });
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Kích thước ảnh không được vượt quá 5MB', {
+        title: '❌ Lỗi',
+        duration: 3000
+      });
+      return;
+    }
+
+    try {
+      setUploadingAvatar(true);
+      
+      // Convert to base64 for preview
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64String = reader.result;
+        
+        // Update avatar immediately for preview
+        setProfileData(prev => ({
+          ...prev,
+          avatarUrl: base64String
+        }));
+        setEditData(prev => ({
+          ...prev,
+          avatarUrl: base64String
+        }));
+      };
+      reader.readAsDataURL(file);
+
+      // Create FormData to send file
+      const formData = new FormData();
+      formData.append('avatar', file);
+
+      // Upload to server
+      const response = await authAPI.updateAvatar(formData);
+
+      if (response.success) {
+        const avatarUrl = response.data?.avatarUrl || response.avatarUrl;
+        
+        // Update with server URL
+        setProfileData(prev => ({
+          ...prev,
+          avatarUrl: avatarUrl
+        }));
+        setEditData(prev => ({
+          ...prev,
+          avatarUrl: avatarUrl
+        }));
+
+        // Update auth context
+        updateAuthProfile({ avatarUrl });
+
+        toast.success('Cập nhật ảnh đại diện thành công!', {
+          title: '✅ Thành công',
+          duration: 3000
+        });
+      } else {
+        throw new Error(response.error || 'Upload failed');
+      }
+    } catch (error) {
+      console.error('❌ Error uploading avatar:', error);
+      toast.error('Không thể tải ảnh lên. Vui lòng thử lại sau.', {
+        title: '❌ Lỗi',
+        duration: 4000
+      });
+      
+      // Revert to original avatar
+      setProfileData(prev => ({
+        ...prev,
+        avatarUrl: profileData.avatarUrl
+      }));
+    } finally {
+      setUploadingAvatar(false);
+    }
   };
 
   const formatDate = (dateString) => {
@@ -135,11 +333,39 @@ const MyProfilePage = () => {
             <div className="flex flex-col sm:flex-row sm:items-end sm:space-x-6">
               {/* Avatar */}
               <div className="relative -mt-16 mb-4 sm:mb-0">
-                <div className="w-32 h-32 rounded-full bg-gradient-to-br from-blue-400 to-purple-600 flex items-center justify-center text-white text-4xl font-bold border-4 border-white shadow-lg">
-                  {(profileData.full_name || 'U').charAt(0).toUpperCase()}
-                </div>
-                <button className="absolute bottom-2 right-2 w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white hover:bg-blue-700 transition-colors shadow-lg">
-                  <Camera className="h-5 w-5" />
+                {profileData.avatarUrl ? (
+                  <img
+                    src={profileData.avatarUrl}
+                    alt="Avatar"
+                    className="w-32 h-32 rounded-full object-cover border-4 border-white shadow-lg"
+                  />
+                ) : (
+                  <div className="w-32 h-32 rounded-full bg-gradient-to-br from-blue-400 to-purple-600 flex items-center justify-center text-white text-4xl font-bold border-4 border-white shadow-lg">
+                    {(profileData.fullName || 'U').charAt(0).toUpperCase()}
+                  </div>
+                )}
+                
+                {/* Hidden file input */}
+                <input
+                  type="file"
+                  id="avatar-upload"
+                  accept="image/*"
+                  onChange={handleAvatarChange}
+                  className="hidden"
+                />
+                
+                {/* Camera button */}
+                <button
+                  onClick={handleAvatarClick}
+                  disabled={uploadingAvatar}
+                  className="absolute bottom-2 right-2 w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white hover:bg-blue-700 transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Thay đổi ảnh đại diện"
+                >
+                  {uploadingAvatar ? (
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white" />
+                  ) : (
+                    <Camera className="h-5 w-5" />
+                  )}
                 </button>
               </div>
 
@@ -147,21 +373,39 @@ const MyProfilePage = () => {
               <div className="flex-1">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <h1 className="text-3xl font-bold text-gray-900">{profileData.full_name}</h1>
-                    <p className="text-gray-600 flex items-center mt-1">
-                      <Mail className="h-4 w-4 mr-2" />
-                      {profileData.email}
-                    </p>
-                    {profileData.location && (
-                      <p className="text-gray-600 flex items-center mt-1">
-                        <MapPin className="h-4 w-4 mr-2" />
-                        {profileData.location}
-                      </p>
+                    {fetchingProfile ? (
+                      <>
+                        <div className="h-8 w-48 bg-gray-200 animate-pulse rounded mb-2" />
+                        <div className="h-4 w-64 bg-gray-200 animate-pulse rounded mb-2" />
+                        <div className="h-4 w-40 bg-gray-200 animate-pulse rounded" />
+                      </>
+                    ) : (
+                      <>
+                        <h1 className="text-3xl font-bold text-gray-900">
+                          {profileData.fullName || 'Người dùng'}
+                        </h1>
+                        <p className="text-gray-600 flex items-center mt-1">
+                          <Mail className="h-4 w-4 mr-2" />
+                          {profileData.email}
+                        </p>
+                        {profileData.phone && (
+                          <p className="text-gray-600 flex items-center mt-1">
+                            <Phone className="h-4 w-4 mr-2" />
+                            {profileData.phone}
+                          </p>
+                        )}
+                        {profileData.address && (
+                          <p className="text-gray-600 flex items-center mt-1">
+                            <MapPin className="h-4 w-4 mr-2" />
+                            {profileData.address}
+                          </p>
+                        )}
+                        <p className="text-gray-500 flex items-center mt-1">
+                          <Calendar className="h-4 w-4 mr-2" />
+                          Tham gia từ {formatDate(profileData.joined_date)}
+                        </p>
+                      </>
                     )}
-                    <p className="text-gray-500 flex items-center mt-1">
-                      <Calendar className="h-4 w-4 mr-2" />
-                      Tham gia từ {formatDate(profileData.joined_date)}
-                    </p>
                   </div>
                   
                   <div className="mt-4 sm:mt-0">
@@ -280,13 +524,13 @@ const MyProfilePage = () => {
                       {isEditing ? (
                         <input
                           type="text"
-                          name="full_name"
-                          value={editData.full_name}
+                          name="fullName"
+                          value={editData.fullName || editData.full_name || ''}
                           onChange={handleInputChange}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                         />
                       ) : (
-                        <p className="text-gray-900">{profileData.full_name}</p>
+                        <p className="text-gray-900">{profileData.fullName || profileData.full_name}</p>
                       )}
                     </div>
 
@@ -332,14 +576,14 @@ const MyProfilePage = () => {
                       {isEditing ? (
                         <input
                           type="text"
-                          name="location"
-                          value={editData.location}
+                          name="address"
+                          value={editData.address}
                           onChange={handleInputChange}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                           placeholder="Nhập địa chỉ"
                         />
                       ) : (
-                        <p className="text-gray-900">{profileData.location || 'Chưa cập nhật'}</p>
+                        <p className="text-gray-900">{profileData.address || 'Chưa cập nhật'}</p>
                       )}
                     </div>
 

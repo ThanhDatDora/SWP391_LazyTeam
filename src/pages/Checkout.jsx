@@ -4,29 +4,35 @@ import { Button } from '../components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { Input } from '../components/ui/input';
-import { COURSES } from '../data/mockData';
 import { api } from '../services/api';
 import { formatCurrency } from '../utils/formatters';
 import { useNavigation } from '../hooks/useNavigation';
 import { useAuth } from '../contexts/AuthContext';
+import { useCart } from '../contexts/CartContext';
+import { useToast } from '../hooks/useToast';
 import AppLayout from '../components/layout/AppLayout';
 
 const Checkout = () => {
   const navigate = useNavigation();
   const { state } = useAuth();
+  const { cartItems, removeFromCart, clearCart, getTotalPrice } = useCart();
+  const { toast } = useToast();
   const [currentStep, setCurrentStep] = useState(1); // 1: Cart, 2: Billing, 3: Payment, 4: Confirmation
-  const [cartItems, setCartItems] = useState([
-    { 
-      courseId: 1, 
-      quantity: 1, 
-      course: COURSES[0]
-    },
-    { 
-      courseId: 2, 
-      quantity: 1, 
-      course: COURSES[1]
+  const [loading, setLoading] = useState(false);
+  const [transactionRef, setTransactionRef] = useState('');
+  const [paymentId, setPaymentId] = useState(null);
+
+  // Check for enrollNow query parameter
+  const searchParams = new URLSearchParams(window.location.search);
+  const enrollNow = searchParams.get('enrollNow') === 'true';
+  const courseIdParam = searchParams.get('courseId');
+
+  useEffect(() => {
+    // If enrollNow mode, skip to billing step
+    if (enrollNow && courseIdParam) {
+      setCurrentStep(2);
     }
-  ]);
+  }, [enrollNow, courseIdParam]);
 
   const [billingInfo, setBillingInfo] = useState({
     firstName: '',
@@ -47,41 +53,64 @@ const Checkout = () => {
     paymentMethod: 'card'
   });
 
-  const subtotal = cartItems.reduce((sum, item) => sum + (item.course.price * item.quantity), 0);
-  const tax = subtotal * 0.1; // 10% tax
+  const subtotal = getTotalPrice();
+  const tax = subtotal * 0.1; // 10% VAT
   const total = subtotal + tax;
 
-  const updateQuantity = (courseId, newQuantity) => {
-    if (newQuantity === 0) {
-      removeFromCart(courseId);
-    } else {
-      setCartItems(items =>
-        items.map(item =>
-          item.courseId === courseId ? { ...item, quantity: newQuantity } : item
-        )
-      );
-    }
-  };
-
-  const removeFromCart = (courseId) => {
-    setCartItems(items => items.filter(item => item.courseId !== courseId));
-  };
-
-  const handleBillingSubmit = (e) => {
+  const handleBillingSubmit = async (e) => {
     e.preventDefault();
     setCurrentStep(3);
   };
 
-  const handlePaymentSubmit = (e) => {
+  const handlePaymentSubmit = async (e) => {
     e.preventDefault();
-    setCurrentStep(4);
+    setLoading(true);
+    
+    try {
+      if (enrollNow && courseIdParam) {
+        // Enroll Now flow - instant enrollment
+        const response = await api.checkout.enrollNow({
+          courseId: parseInt(courseIdParam),
+          billingInfo,
+          paymentMethod: paymentInfo.paymentMethod
+        });
+        setTransactionRef(response.data.transactionRef);
+        toast.success('Đăng ký khóa học thành công!');
+      } else {
+        // Cart flow - multiple courses
+        const courses = cartItems.map(item => ({ courseId: item.id }));
+        const orderResponse = await api.checkout.createOrder({
+          courses,
+          billingInfo,
+          paymentMethod: paymentInfo.paymentMethod
+        });
+        
+        setPaymentId(orderResponse.data.paymentId);
+        
+        // Complete payment
+        const paymentResponse = await api.checkout.completePayment({
+          paymentId: orderResponse.data.paymentId,
+          paymentDetails: paymentInfo
+        });
+        
+        setTransactionRef(paymentResponse.data.transactionRef);
+        clearCart(); // Clear cart after successful payment
+        toast.success('Thanh toán thành công!');
+      }
+      setCurrentStep(4);
+    } catch (error) {
+      console.error('Payment error:', error);
+      toast.error(error.response?.data?.message || 'Thanh toán thất bại. Vui lòng thử lại.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const steps = [
-    { id: 1, name: 'Cart', icon: ShoppingCart },
-    { id: 2, name: 'Billing', icon: User },
-    { id: 3, name: 'Payment', icon: CreditCard },
-    { id: 4, name: 'Confirmation', icon: Check }
+    { id: 1, name: 'Giỏ hàng', icon: ShoppingCart },
+    { id: 2, name: 'Thanh toán', icon: User },
+    { id: 3, name: 'Xác nhận', icon: CreditCard },
+    { id: 4, name: 'Hoàn tất', icon: Check }
   ];
 
   return (
@@ -119,64 +148,49 @@ const Checkout = () => {
             {/* Main Content */}
             <div className="lg:col-span-2">
               {/* Step 1: Cart */}
-              {currentStep === 1 && (
+              {currentStep === 1 && !enrollNow && (
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <ShoppingCart className="w-5 h-5" />
-                  Shopping Cart ({cartItems.length} items)
+                      Giỏ hàng ({cartItems.length} khóa học)
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
                     {cartItems.length === 0 ? (
                       <div className="text-center py-8">
                         <ShoppingCart className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                        <p className="text-gray-600 mb-4">Your cart is empty</p>
-                        <Button onClick={() => navigate('/catalog')}>
-                      Browse Courses
+                        <p className="text-gray-600 mb-4">Giỏ hàng của bạn đang trống</p>
+                        <Button onClick={() => navigate('/catalog')} className="bg-teal-500 hover:bg-teal-600">
+                          Khám phá khóa học
                         </Button>
                       </div>
                     ) : (
                       <div className="space-y-4">
                         {cartItems.map((item) => (
-                          <div key={item.courseId} className="flex items-center gap-4 p-4 border border-gray-200 rounded-lg">
+                          <div key={item.id} className="flex items-center gap-4 p-4 border border-gray-200 rounded-lg">
                             <img 
-                              src="https://images.unsplash.com/photo-1633356122102-3fe601e05bd2?q=80&w=150&auto=format&fit=crop"
-                              alt={item.course.title}
+                              src={item.thumbnail || "https://images.unsplash.com/photo-1633356122102-3fe601e05bd2?q=80&w=150&auto=format&fit=crop"}
+                              alt={item.title}
                               className="w-20 h-14 object-cover rounded"
                             />
                             <div className="flex-1">
-                              <h3 className="font-semibold text-gray-900">{item.course.title}</h3>
-                              <p className="text-sm text-gray-600">{item.course.duration} • {item.course.level}</p>
+                              <h3 className="font-semibold text-gray-900">{item.title}</h3>
+                              <p className="text-sm text-gray-600">{item.instructor || item.instructorName}</p>
                               <div className="flex items-center gap-2 mt-1">
-                                <Badge variant="outline">{item.course.categoryId === 1 ? 'Programming' : 'Design'}</Badge>
-                                <span className="text-sm text-gray-500">⭐ {item.course.rating}</span>
+                                <Badge variant="outline">{item.level || 'All Levels'}</Badge>
+                                {item.rating && <span className="text-sm text-gray-500">⭐ {item.rating}</span>}
                               </div>
-                            </div>
-                        
-                            <div className="flex items-center gap-2">
-                              <button
-                                onClick={() => updateQuantity(item.courseId, item.quantity - 1)}
-                                className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center hover:bg-gray-50"
-                              >
-                                <Minus className="w-4 h-4" />
-                              </button>
-                              <span className="w-8 text-center">{item.quantity}</span>
-                              <button
-                                onClick={() => updateQuantity(item.courseId, item.quantity + 1)}
-                                className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center hover:bg-gray-50"
-                              >
-                                <Plus className="w-4 h-4" />
-                              </button>
                             </div>
 
                             <div className="text-right">
-                              <div className="font-semibold text-gray-900">
-                                {formatCurrency(item.course.price * item.quantity)}
+                              <div className="font-semibold text-lg text-gray-900">
+                                {formatCurrency(item.price)}
                               </div>
                               <button
-                                onClick={() => removeFromCart(item.courseId)}
+                                onClick={() => removeFromCart(item.id)}
                                 className="text-red-500 hover:text-red-700 mt-1"
+                                title="Xóa khỏi giỏ hàng"
                               >
                                 <Trash2 className="w-4 h-4" />
                               </button>
@@ -186,13 +200,13 @@ const Checkout = () => {
                     
                         <div className="flex justify-between pt-4">
                           <Button variant="outline" onClick={() => navigate('/catalog')}>
-                        Continue Shopping
+                            Tiếp tục mua sắm
                           </Button>
                           <Button 
                             onClick={() => setCurrentStep(2)}
                             className="bg-teal-500 hover:bg-teal-600"
                           >
-                        Proceed to Billing
+                            Tiến hành thanh toán
                           </Button>
                         </div>
                       </div>
@@ -207,7 +221,7 @@ const Checkout = () => {
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <User className="w-5 h-5" />
-                  Billing Information
+                      Thông tin thanh toán
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
@@ -215,31 +229,31 @@ const Checkout = () => {
                       <div className="grid md:grid-cols-2 gap-4">
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">
-                        First Name *
+                            Họ *
                           </label>
                           <Input
                             required
                             value={billingInfo.firstName}
                             onChange={(e) => setBillingInfo(prev => ({...prev, firstName: e.target.value}))}
-                            placeholder="John"
+                            placeholder="Nguyễn"
                           />
                         </div>
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Last Name *
+                            Tên *
                           </label>
                           <Input
                             required
                             value={billingInfo.lastName}
                             onChange={(e) => setBillingInfo(prev => ({...prev, lastName: e.target.value}))}
-                            placeholder="Doe"
+                            placeholder="Văn A"
                           />
                         </div>
                       </div>
 
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Email Address *
+                          Email *
                         </label>
                         <div className="relative">
                           <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -474,20 +488,25 @@ const Checkout = () => {
                     <div className="w-16 h-16 bg-teal-500 rounded-full flex items-center justify-center mx-auto mb-4">
                       <Check className="w-8 h-8 text-white" />
                     </div>
-                    <h2 className="text-2xl font-bold text-gray-900 mb-2">Order Confirmed!</h2>
+                    <h2 className="text-2xl font-bold text-gray-900 mb-2">Đăng ký thành công!</h2>
                     <p className="text-gray-600 mb-6">
-                  Thank you for your purchase. Your courses are now available in your account.
+                      Cảm ơn bạn đã đăng ký. Các khóa học của bạn đã sẵn sàng trong tài khoản.
                     </p>
                     <div className="bg-gray-50 rounded-lg p-4 mb-6">
-                      <div className="text-sm text-gray-600 mb-2">Order ID</div>
-                      <div className="font-mono text-lg">#ORD-2023-001234</div>
+                      <div className="text-sm text-gray-600 mb-2">Mã giao dịch</div>
+                      <div className="font-mono text-lg font-semibold text-teal-600">
+                        {transactionRef || 'N/A'}
+                      </div>
                     </div>
                     <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                      <Button onClick={() => navigate('/course-player/1')}>
-                    Start Learning
+                      <Button 
+                        onClick={() => navigate('/my-learning')}
+                        className="bg-teal-500 hover:bg-teal-600"
+                      >
+                        Bắt đầu học
                       </Button>
                       <Button variant="outline" onClick={() => navigate('/catalog')}>
-                    Continue Shopping
+                        Tiếp tục khám phá
                       </Button>
                     </div>
                   </CardContent>
@@ -499,41 +518,48 @@ const Checkout = () => {
             <div>
               <Card className="sticky top-4">
                 <CardHeader>
-                  <CardTitle>Order Summary</CardTitle>
+                  <CardTitle>Tóm tắt đơn hàng</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-4">
-                    {cartItems.map((item) => (
-                      <div key={item.courseId} className="flex items-center gap-3">
-                        <img 
-                          src="https://images.unsplash.com/photo-1633356122102-3fe601e05bd2?q=80&w=60&auto=format&fit=crop"
-                          alt={item.course.title}
-                          className="w-12 h-8 object-cover rounded"
-                        />
-                        <div className="flex-1 min-w-0">
-                          <h4 className="text-sm font-medium text-gray-900 line-clamp-2">
-                            {item.course.title}
-                          </h4>
-                          <p className="text-xs text-gray-500">Qty: {item.quantity}</p>
+                  {enrollNow && courseIdParam ? (
+                    <div className="text-center py-4">
+                      <p className="text-sm text-gray-600">
+                        Đăng ký nhanh - Chi tiết khóa học sẽ được hiển thị sau khi hoàn tất
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {cartItems.map((item) => (
+                        <div key={item.id} className="flex items-center gap-3">
+                          <img 
+                            src={item.thumbnail || "https://images.unsplash.com/photo-1633356122102-3fe601e05bd2?q=80&w=60&auto=format&fit=crop"}
+                            alt={item.title}
+                            className="w-12 h-8 object-cover rounded"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <h4 className="text-sm font-medium text-gray-900 line-clamp-2">
+                              {item.title}
+                            </h4>
+                          </div>
+                          <div className="text-sm font-semibold">
+                            {formatCurrency(item.price)}
+                          </div>
                         </div>
-                        <div className="text-sm font-semibold">
-                          {formatCurrency(item.course.price * item.quantity)}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  )}
 
                   <div className="border-t pt-4 mt-4 space-y-2">
                     <div className="flex justify-between text-sm">
-                      <span>Subtotal</span>
+                      <span>Tạm tính</span>
                       <span>{formatCurrency(subtotal)}</span>
                     </div>
                     <div className="flex justify-between text-sm">
-                      <span>Tax</span>
+                      <span>VAT (10%)</span>
                       <span>{formatCurrency(tax)}</span>
                     </div>
-                    <div className="flex justify-between text-lg font-semibold border-t pt-2">
-                      <span>Total</span>
+                    <div className="flex justify-between text-lg font-semibold border-t pt-2 text-teal-600">
+                      <span>Tổng cộng</span>
                       <span>{formatCurrency(total)}</span>
                     </div>
                   </div>
@@ -542,7 +568,7 @@ const Checkout = () => {
                   <div className="mt-4 p-3 bg-gray-50 rounded-lg">
                     <div className="flex items-center gap-2 text-sm text-gray-600">
                       <Lock className="w-4 h-4" />
-                      <span>Secure 256-bit SSL encryption</span>
+                      <span>Mã hóa SSL 256-bit an toàn</span>
                     </div>
                   </div>
                 </CardContent>

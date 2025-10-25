@@ -518,7 +518,7 @@ const Landing = () => {
                               <span className='text-sm text-gray-600'>{60 + (i * 10)}%</span>
                             </div>
                           </div>
-                          <Button size='sm' onClick={() => navigate(`/course/${i}`)}>
+                          <Button size='sm' onClick={() => navigate(`/courses/${i}`)}>
                             Continue
                           </Button>
                         </div>
@@ -618,7 +618,7 @@ const Landing = () => {
                         </span>
                         <p className='text-sm text-gray-500'>{course.students} students</p>
                       </div>
-                      <Button className='bg-teal-600 hover:bg-teal-700' onClick={() => navigate(`/course/${course.id}`)}>
+                      <Button className='bg-teal-600 hover:bg-teal-700' onClick={() => navigate(`/courses/${course.id}`)}>
                         Enroll
                       </Button>
                     </div>

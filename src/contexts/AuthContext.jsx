@@ -165,6 +165,22 @@ export const AuthProvider = ({ children }) => {
     console.log('✅ Logout complete');
   };
 
+  // Update user profile in context and localStorage
+  const updateProfile = (updatedUserData) => {
+    console.log('🔄 Updating user profile in context:', updatedUserData);
+    
+    // Merge with existing user data
+    const updatedUser = { ...user, ...updatedUserData };
+    
+    // Update state
+    setUser(updatedUser);
+    
+    // Update localStorage
+    localStorage.setItem('user', JSON.stringify(updatedUser));
+    
+    console.log('✅ Profile updated in context:', updatedUser);
+  };
+
   // Check authentication status (utility function)
   const checkAuth = () => {
     return isAuthenticated && user !== null;
@@ -182,6 +198,7 @@ export const AuthProvider = ({ children }) => {
     login,
     register,
     logout,
+    updateProfile,
     checkAuthStatus,
     checkAuth
   };

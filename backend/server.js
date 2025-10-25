@@ -21,6 +21,8 @@ import WebSocketService from './services/websocketService.js';
 import authRoutes from './routes/auth.js';
 import courseRoutes from './routes/courses.js';
 import databaseRoutes from './routes/database.js';
+import notificationsRoutes from './routes/notifications.js';
+import checkoutRoutes from './routes/checkout.js';
 
 // Load environment variables
 dotenv.config();
@@ -56,7 +58,7 @@ app.use(compression());
 // Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
+  max: 1000, // Increased limit for development
   message: {
     success: false,
     error: {
@@ -75,7 +77,7 @@ app.use('/api/', limiter);
 // Stricter rate limiting for auth endpoints
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Temporarily increase limit for testing
+  max: 10000, // Increased limit for development
   message: {
     success: false,
     error: {
@@ -162,6 +164,9 @@ app.use('/api/auth', (req, res, next) => {
 // Serve static files for testing
 app.use(express.static('.'));
 
+// Serve uploaded files (avatars)
+app.use('/uploads', express.static('uploads'));
+
 // Health check route
 app.get('/api/health', asyncHandler(async (req, res) => {
   const dbStatus = await connectDB().then(() => 'connected').catch(() => 'disconnected');
@@ -202,6 +207,8 @@ app.get('/api/status', asyncHandler(async (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/courses', courseRoutes);
 app.use('/api/database', databaseRoutes);
+app.use('/api/notifications', notificationsRoutes);
+app.use('/api/checkout', checkoutRoutes);
 
 
 // TODO: Add more routes as needed
@@ -271,7 +278,7 @@ const startServer = async () => {
       if (error.code === 'EADDRINUSE') {
         console.log(`💡 Port ${PORT} is already in use. Try a different port.`);
       }
-      process.exit(1);
+      // process.exit(1); // Commented for debugging
     });
     
     server.on('listening', () => {

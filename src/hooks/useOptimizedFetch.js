@@ -18,6 +18,8 @@ export const useOptimizedFetch = (fetchFunction, dependencies = [], options = {}
   } = options;
 
   const fetchData = async (isRetry = false) => {
+    console.log('🔍 fetchData called, loading:', loading, 'isRetry:', isRetry);
+    
     // Cancel previous request
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -29,12 +31,15 @@ export const useOptimizedFetch = (fetchFunction, dependencies = [], options = {}
     }
 
     // Don't start new request if already loading (prevent duplicate calls)
-    if (loading && !isRetry) {
-      return;
-    }
+    // REMOVED: This was blocking initial request when loading=true by default
+    // if (loading && !isRetry) {
+    //   console.log('⚠️ Blocked: already loading');
+    //   return;
+    // }
 
     // Debounce requests
     requestTimeoutRef.current = setTimeout(async () => {
+      console.log('🚀 Starting fetch...');
       try {
         setLoading(true);
         setError(null);
@@ -120,9 +125,18 @@ export const useCourses = (params = {}) => {
  * Hook for single course with optimization
  */
 export const useCourse = (courseId) => {
+  console.log('🔍 useCourse hook called with courseId:', courseId);
+  
   const fetchCourse = async () => {
-    if (!courseId) return { success: true, data: null };
-    return await api.courses.getCourseById(courseId);
+    console.log('🔍 useCourse fetchCourse called, courseId:', courseId);
+    if (!courseId) {
+      console.log('⚠️ No courseId, returning null');
+      return { success: true, data: null };
+    }
+    console.log('📡 Calling api.courses.getCourseById:', courseId);
+    const result = await api.courses.getCourseById(courseId);
+    console.log('✅ getCourseById result:', result);
+    return result;
   };
 
   return useOptimizedFetch(

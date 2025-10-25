@@ -139,6 +139,26 @@ export const authAPI = {
     });
   },
 
+  async updateAvatar(formData) {
+    // Remove Content-Type header to let browser set it with boundary for FormData
+    const token = getToken();
+    const response = await fetch(`${API_BASE_URL}/auth/avatar`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      },
+      body: formData
+    });
+
+    const data = await response.json();
+    
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to upload avatar');
+    }
+
+    return data;
+  },
+
   async refreshToken() {
     // Implementation depends on your refresh token strategy
     return { success: true, data: { token: getToken() } };
@@ -230,7 +250,15 @@ export const courseAPI = {
   },
 
   async getMyCourses() {
-    return await apiRequest('/courses/instructor/my-courses');
+    // For learners: get enrolled courses
+    // For instructors: get their own courses
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    
+    if (user.role === 'learner') {
+      return await apiRequest('/courses/my-enrolled');
+    } else {
+      return await apiRequest('/courses/instructor/my-courses');
+    }
   },
 
   async enrollInCourse(courseId) {
@@ -534,6 +562,34 @@ export const learnerAPI = {
   }
 };
 
+// Checkout API
+const checkoutAPI = {
+  async createOrder(orderData) {
+    return await apiRequest('/checkout/create-order', {
+      method: 'POST',
+      body: JSON.stringify(orderData)
+    });
+  },
+
+  async enrollNow(enrollData) {
+    return await apiRequest('/checkout/enroll-now', {
+      method: 'POST',
+      body: JSON.stringify(enrollData)
+    });
+  },
+
+  async completePayment(paymentData) {
+    return await apiRequest('/checkout/complete-payment', {
+      method: 'POST',
+      body: JSON.stringify(paymentData)
+    });
+  },
+
+  async getInvoices() {
+    return await apiRequest('/checkout/invoices');
+  }
+};
+
 // Cache utilities
 export const cacheUtils = {
   clear: () => {
@@ -568,6 +624,7 @@ export const api = {
   instructor: instructorAPI,
   learner: learnerAPI,
   users: userAPI,
+  checkout: checkoutAPI,
   cache: cacheUtils
 };
 

@@ -20,7 +20,7 @@ const CoursesPage = () => {
   const navigate = useNavigation();
   const { state } = useAuth();
   
-  const goCourse = (courseId) => navigate(`/course/${courseId}`);
+  const goCourse = (courseId) => navigate(`/courses/${courseId}`);
   const [courses, setCourses] = useState([]);
   const [filteredCourses, setFilteredCourses] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -179,7 +179,10 @@ const CoursesPage = () => {
   };
 
   const CourseCard = ({ course, showProgress = false }) => (
-    <div className="group hover:shadow-xl transition-all duration-300 bg-white rounded-2xl overflow-hidden border-0 shadow-md">
+    <div 
+      onClick={() => goCourse(course.course_id)}
+      className="group hover:shadow-xl transition-all duration-300 bg-white rounded-2xl overflow-hidden border-0 shadow-md cursor-pointer"
+    >
       <div className="relative">
         <img 
           src={course.image_url || `https://images.unsplash.com/photo-1551434678-efb963a3ee1d?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80`}
@@ -187,7 +190,13 @@ const CoursesPage = () => {
           className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300"
         />
         <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
-          <button className="bg-white text-gray-900 hover:bg-gray-100 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+          <button 
+            onClick={(e) => {
+              e.stopPropagation();
+              goCourse(course.course_id);
+            }}
+            className="bg-white text-gray-900 hover:bg-gray-100 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+          >
             <Play className="w-4 h-4 mr-1 inline" />
             Preview
           </button>
@@ -261,7 +270,10 @@ const CoursesPage = () => {
             )}
           </div>
           <button 
-            onClick={() => goCourse(course.course_id)}
+            onClick={(e) => {
+              e.stopPropagation();
+              goCourse(course.course_id);
+            }}
             className="bg-teal-600 hover:bg-teal-700 text-white font-medium px-6 py-2 rounded-lg transition-colors"
           >
             {showProgress ? 'Continue' : 'Enroll Now'}

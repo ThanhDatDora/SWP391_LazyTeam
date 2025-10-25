@@ -75,7 +75,7 @@ const LandingLearner = () => {
   const CourseCard = ({ course, isRecent = false }) => (
     <Card 
       className="hover:shadow-lg transition-all duration-300 cursor-pointer group"
-      onClick={() => navigate(`/course/${course.id}`)}
+      onClick={() => navigate(`/courses/${course.id}`)}
     >
       <div className="relative">
         <img 
