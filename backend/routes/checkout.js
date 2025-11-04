@@ -330,6 +330,7 @@ router.post('/enroll-now', authenticateToken, [
       const txnRef = `TXN-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`.toUpperCase();
       
       const paymentResult = await transaction.request()
+        .input('provider', sql.NVarChar, paymentMethod)
         .input('invoiceId', sql.BigInt, invoiceId)
         .input('amountCents', sql.Int, Math.round(course.price * 100))
         .input('currency', sql.Char(3), 'VND')
