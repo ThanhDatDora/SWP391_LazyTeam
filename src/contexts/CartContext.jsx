@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { useToast } from '../hooks/useToast';
 
 const CartContext = createContext();
 
@@ -12,37 +11,53 @@ export const useCart = () => {
 };
 
 export const CartProvider = ({ children }) => {
-  const [cartItems, setCartItems] = useState([]);
-  const { toast } = useToast();
-
-  // Load cart from localStorage on mount
-  useEffect(() => {
-    const savedCart = localStorage.getItem('cart');
-    if (savedCart) {
-      try {
-        setCartItems(JSON.parse(savedCart));
-      } catch (error) {
-        console.error('Error loading cart:', error);
+  const [cartItems, setCartItems] = useState(() => {
+    // Initialize from localStorage
+    try {
+      const savedCart = localStorage.getItem('cart');
+      console.log('🔄 Initializing CartContext from localStorage:', savedCart);
+      
+      // Parse and validate cart items
+      if (savedCart) {
+        const parsed = JSON.parse(savedCart);
+        // Filter out invalid items (missing id field)
+        const validItems = parsed.filter(item => item && item.id);
+        console.log('✅ Valid cart items:', validItems);
+        return validItems;
       }
+      return [];
+    } catch (error) {
+      console.error('❌ Error loading cart from localStorage:', error);
+      return [];
     }
-  }, []);
+  });
 
   // Save cart to localStorage whenever it changes
   useEffect(() => {
+    console.log('💾 Saving cart to localStorage:', cartItems);
     localStorage.setItem('cart', JSON.stringify(cartItems));
   }, [cartItems]);
 
   const addToCart = (course) => {
+    console.log('🛒 === CartContext.addToCart CALLED ===');
+    console.log('📦 Received course:', course);
+    console.log('📦 Current cartItems:', cartItems);
+    
     setCartItems(prevItems => {
-      const existingItem = prevItems.find(item => item.id === course.id);
+      console.log('📦 prevItems:', prevItems);
+      const existingItem = prevItems.find(item => {
+        console.log(`🔍 Comparing item.id (${item.id}, ${typeof item.id}) === course.id (${course.id}, ${typeof course.id})`);
+        return item.id === course.id;
+      });
+      
+      console.log('🔍 existingItem:', existingItem);
       
       if (existingItem) {
-        toast.info('Khóa học đã có trong giỏ hàng');
+        console.log('⚠️ Item already in cart');
         return prevItems;
       }
       
-      toast.success('Đã thêm vào giỏ hàng');
-      return [...prevItems, {
+      const newItem = {
         id: course.id,
         title: course.title,
         price: course.price,
@@ -50,19 +65,22 @@ export const CartProvider = ({ children }) => {
         thumbnail: course.thumbnail,
         level: course.level,
         duration: course.duration
-      }];
+      };
+      
+      console.log('✅ Adding new item:', newItem);
+      const newCart = [...prevItems, newItem];
+      console.log('✅ New cart:', newCart);
+      return newCart;
     });
   };
 
   const removeFromCart = (courseId) => {
     setCartItems(prevItems => prevItems.filter(item => item.id !== courseId));
-    toast.success('Đã xóa khỏi giỏ hàng');
   };
 
   const clearCart = () => {
     setCartItems([]);
     localStorage.removeItem('cart');
-    toast.success('Đã xóa toàn bộ giỏ hàng');
   };
 
   const isInCart = (courseId) => {

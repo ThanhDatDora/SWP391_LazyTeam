@@ -1,150 +1,297 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { Clock, AlertCircle, CheckCircle, ArrowRight, ArrowLeft } from 'lucide-react';
-import { Button } from '../../components/ui/button';
-import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/card';
-import { Badge } from '../../components/ui/badge';
-import { api } from '../../services/api';
-import { useAuth } from '../../contexts/AuthContext';
+import { useState, useEffect } from 'react';import React, { useState, useEffect } from 'react';
 
-const ExamPage = () => {
-  const { examId } = useParams();
-  const navigate = useNavigate();
-  const { state: authState } = useAuth();
-  
+import { useParams, useNavigate } from 'react-router-dom';import { useParams, useNavigate } from 'react-router-dom';
+
+import { useAuth } from '../../contexts/AuthContext';import { Clock, AlertCircle, CheckCircle, ArrowRight, ArrowLeft } from 'lucide-react';
+
+import { Clock, CheckCircle, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';import { Button } from '../../components/ui/button';
+
+import { Button } from '../../components/ui/button';import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/card';
+
+import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/card';import { Badge } from '../../components/ui/badge';
+
+import { Badge } from '../../components/ui/badge';import { api } from '../../services/api';
+
+import { api } from '../../services/api';import { useAuth } from '../../contexts/AuthContext';
+
+
+
+const ExamPage = () => {const ExamPage = () => {
+
+  const { id: examId } = useParams();  const { examId } = useParams();
+
+  const navigate = useNavigate();  const navigate = useNavigate();
+
+  const { state } = useAuth();  const { state: authState } = useAuth();
+
+  const userId = state.user?.user_id;  
+
   const [exam, setExam] = useState(null);
-  const [questions, setQuestions] = useState([]);
-  const [currentQuestion, setCurrentQuestion] = useState(0);
-  const [answers, setAnswers] = useState({});
-  const [timeRemaining, setTimeRemaining] = useState(0);
-  const [examStarted, setExamStarted] = useState(false);
-  const [examSubmitted, setExamSubmitted] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [submissionResult, setSubmissionResult] = useState(null);
+
+  const [loading, setLoading] = useState(true);  const [questions, setQuestions] = useState([]);
+
+  const [starting, setStarting] = useState(false);  const [currentQuestion, setCurrentQuestion] = useState(0);
+
+  const [submitting, setSubmitting] = useState(false);  const [answers, setAnswers] = useState({});
+
+  const [error, setError] = useState(null);  const [timeRemaining, setTimeRemaining] = useState(0);
+
+  const [exam, setExam] = useState(null);  const [examStarted, setExamStarted] = useState(false);
+
+  const [examStarted, setExamStarted] = useState(false);  const [examSubmitted, setExamSubmitted] = useState(false);
+
+  const [questions, setQuestions] = useState([]);  const [loading, setLoading] = useState(true);
+
+  const [answers, setAnswers] = useState({});  const [error, setError] = useState('');
+
+  const [timeLeft, setTimeLeft] = useState(0);  const [submissionResult, setSubmissionResult] = useState(null);
+
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
 
   // Load exam data
-  useEffect(() => {
-    const loadExam = async () => {
-      try {
+
+  useEffect(() => {  useEffect(() => {
+
+    loadExam();    const loadExam = async () => {
+
+  }, [examId]);      try {
+
         setLoading(true);
-        
-        // In real implementation, we'd get exam by ID
-        // For demo, we'll use the mock exam
-        const mockExam = {
-          exam_id: parseInt(examId),
-          mooc_id: 1,
-          name: 'Quiz Servlet Cơ bản',
-          duration_minutes: 20
-        };
-        
-        // Get questions for the MOOC
-        const questionsResponse = await api.exams.getQuestionsByMooc(mockExam.mooc_id);
+
+  const loadExam = async () => {        
+
+    try {        // In real implementation, we'd get exam by ID
+
+      setLoading(true);        // For demo, we'll use the mock exam
+
+      const data = await api.getExamById(examId);        const mockExam = {
+
+      setExam(data);          exam_id: parseInt(examId),
+
+      setTimeLeft(data.duration * 60);          mooc_id: 1,
+
+    } catch (error) {          name: 'Quiz Servlet Cơ bản',
+
+      setError('Failed to load exam');          duration_minutes: 20
+
+    } finally {        };
+
+      setLoading(false);        
+
+    }        // Get questions for the MOOC
+
+  };        const questionsResponse = await api.exams.getQuestionsByMooc(mockExam.mooc_id);
+
         if (questionsResponse.success) {
-          setExam(mockExam);
-          setQuestions(questionsResponse.data);
-          setTimeRemaining(mockExam.duration_minutes * 60); // Convert to seconds
-        } else {
-          setError('Không thể tải đề thi');
-        }
-      } catch (err) {
-        setError('Đã có lỗi xảy ra khi tải đề thi');
-      } finally {
-        setLoading(false);
-      }
-    };
 
-    if (examId) {
-      loadExam();
-    }
-  }, [examId]);
+  const handleStartExam = async () => {          setExam(mockExam);
 
-  // Timer countdown
-  useEffect(() => {
-    let timer;
-    if (examStarted && !examSubmitted && timeRemaining > 0) {
-      timer = setInterval(() => {
-        setTimeRemaining((prev) => {
+    try {          setQuestions(questionsResponse.data);
+
+      setStarting(true);          setTimeRemaining(mockExam.duration_minutes * 60); // Convert to seconds
+
+      const response = await api.startExam(examId);        } else {
+
+      setQuestions(response.questions);          setError('Không thể tải đề thi');
+
+      setExamStarted(true);        }
+
+    } catch (error) {      } catch (err) {
+
+      setError('Failed to start exam');        setError('Đã có lỗi xảy ra khi tải đề thi');
+
+    } finally {      } finally {
+
+      setStarting(false);        setLoading(false);
+
+    }      }
+
+  };    };
+
+
+
+  const handleSubmitExam = async () => {    if (examId) {
+
+    try {      loadExam();
+
+      setSubmitting(true);    }
+
+      await api.submitExam(examId, { answers });  }, [examId]);
+
+      navigate(`/exam/${examId}/result`);
+
+    } catch (error) {  // Timer countdown
+
+      setError('Failed to submit exam');  useEffect(() => {
+
+    } finally {    let timer;
+
+      setSubmitting(false);    if (examStarted && !examSubmitted && timeRemaining > 0) {
+
+    }      timer = setInterval(() => {
+
+  };        setTimeRemaining((prev) => {
+
           if (prev <= 1) {
-            // Auto-submit when time is up
-            handleSubmitExam();
-            return 0;
+
+  if (loading) {            // Auto-submit when time is up
+
+    return <div className="flex justify-center items-center h-screen">Loading...</div>;            handleSubmitExam();
+
+  }            return 0;
+
           }
-          return prev - 1;
-        });
-      }, 1000);
-    }
 
-    return () => {
-      if (timer) {clearInterval(timer);}
-    };
-  }, [examStarted, examSubmitted, timeRemaining]);
+  if (!examStarted) {          return prev - 1;
 
-  const startExam = async () => {
-    try {
-      const response = await api.exams.startExam(parseInt(examId));
-      if (response.success) {
-        setExamStarted(true);
-      } else {
-        setError('Không thể bắt đầu bài thi');
-      }
+    return (        });
+
+      <div className="container mx-auto px-4 py-8">      }, 1000);
+
+        <Card>    }
+
+          <CardHeader>
+
+            <CardTitle>{exam?.title}</CardTitle>    return () => {
+
+          </CardHeader>      if (timer) {clearInterval(timer);}
+
+          <CardContent>    };
+
+            <p>Duration: {exam?.duration} minutes</p>  }, [examStarted, examSubmitted, timeRemaining]);
+
+            <p>Questions: {exam?.question_count}</p>
+
+            <Button onClick={handleStartExam} disabled={starting}>  const startExam = async () => {
+
+              {starting ? 'Starting...' : 'Start Exam'}    try {
+
+            </Button>      const response = await api.exams.startExam(parseInt(examId));
+
+          </CardContent>      if (response.success) {
+
+        </Card>        setExamStarted(true);
+
+      </div>      } else {
+
+    );        setError('Không thể bắt đầu bài thi');
+
+  }      }
+
     } catch (err) {
-      setError('Đã có lỗi xảy ra khi bắt đầu bài thi');
-    }
-  };
 
-  const handleAnswerChange = (questionId, optionId) => {
-    setAnswers(prev => ({
-      ...prev,
-      [questionId]: optionId
-    }));
-  };
+  return (      setError('Đã có lỗi xảy ra khi bắt đầu bài thi');
 
-  const handleSubmitExam = async () => {
-    try {
-      // Prepare submission data
-      const submissionData = {
-        exam_id: parseInt(examId),
-        answers: questions.map(q => ({
-          question_id: q.question_id,
-          selected_option_id: answers[q.question_id] || null
-        }))
-      };
+    <div className="container mx-auto px-4 py-8">    }
 
-      const response = await api.exams.submitExam(parseInt(examId), submissionData);
-      if (response.success) {
-        setExamSubmitted(true);
-        setSubmissionResult(response.data);
-      } else {
-        setError('Không thể nộp bài thi');
-      }
-    } catch (err) {
-      setError('Đã có lỗi xảy ra khi nộp bài thi');
-    }
-  };
+      <Card>  };
 
-  const formatTime = (seconds) => {
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-    return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
-  };
+        <CardHeader>
 
-  const getAnsweredCount = () => {
-    return Object.keys(answers).length;
-  };
+          <div className="flex justify-between items-center">  const handleAnswerChange = (questionId, optionId) => {
 
-  const goToQuestion = (index) => {
-    setCurrentQuestion(index);
-  };
+            <CardTitle>Question {currentQuestionIndex + 1} of {questions.length}</CardTitle>    setAnswers(prev => ({
 
-  const nextQuestion = () => {
-    if (currentQuestion < questions.length - 1) {
-      setCurrentQuestion(currentQuestion + 1);
-    }
-  };
+            <Badge>      ...prev,
+
+              <Clock className="w-4 h-4 mr-2" />      [questionId]: optionId
+
+              {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}    }));
+
+            </Badge>  };
+
+          </div>
+
+        </CardHeader>  const handleSubmitExam = async () => {
+
+        <CardContent>    try {
+
+          <div className="space-y-4">      // Prepare submission data
+
+            <p className="text-lg">{questions[currentQuestionIndex]?.question_text}</p>      const submissionData = {
+
+            <div className="space-y-2">        exam_id: parseInt(examId),
+
+              {questions[currentQuestionIndex]?.options?.map((option, idx) => (        answers: questions.map(q => ({
+
+                <label key={idx} className="flex items-center space-x-2">          question_id: q.question_id,
+
+                  <input          selected_option_id: answers[q.question_id] || null
+
+                    type="radio"        }))
+
+                    name={`question-${currentQuestionIndex}`}      };
+
+                    value={option}
+
+                    checked={answers[currentQuestionIndex] === option}      const response = await api.exams.submitExam(parseInt(examId), submissionData);
+
+                    onChange={(e) => setAnswers({ ...answers, [currentQuestionIndex]: e.target.value })}      if (response.success) {
+
+                  />        setExamSubmitted(true);
+
+                  <span>{option}</span>        setSubmissionResult(response.data);
+
+                </label>      } else {
+
+              ))}        setError('Không thể nộp bài thi');
+
+            </div>      }
+
+          </div>    } catch (err) {
+
+          <div className="flex justify-between mt-6">      setError('Đã có lỗi xảy ra khi nộp bài thi');
+
+            <Button    }
+
+              onClick={() => setCurrentQuestionIndex(Math.max(0, currentQuestionIndex - 1))}  };
+
+              disabled={currentQuestionIndex === 0}
+
+            >  const formatTime = (seconds) => {
+
+              <ChevronLeft className="w-4 h-4" /> Previous    const minutes = Math.floor(seconds / 60);
+
+            </Button>    const remainingSeconds = seconds % 60;
+
+            {currentQuestionIndex === questions.length - 1 ? (    return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+
+              <Button onClick={handleSubmitExam} disabled={submitting}>  };
+
+                {submitting ? 'Submitting...' : 'Submit Exam'}
+
+              </Button>  const getAnsweredCount = () => {
+
+            ) : (    return Object.keys(answers).length;
+
+              <Button  };
+
+                onClick={() => setCurrentQuestionIndex(Math.min(questions.length - 1, currentQuestionIndex + 1))}
+
+              >  const goToQuestion = (index) => {
+
+                Next <ChevronRight className="w-4 h-4" />    setCurrentQuestion(index);
+
+              </Button>  };
+
+            )}
+
+          </div>  const nextQuestion = () => {
+
+        </CardContent>    if (currentQuestion < questions.length - 1) {
+
+      </Card>      setCurrentQuestion(currentQuestion + 1);
+
+    </div>    }
+
+  );  };
+
+};
 
   const prevQuestion = () => {
-    if (currentQuestion > 0) {
+
+export default ExamPage;    if (currentQuestion > 0) {
+
       setCurrentQuestion(currentQuestion - 1);
     }
   };

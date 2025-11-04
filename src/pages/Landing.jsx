@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ArrowRight, Users, BookOpen, Trophy, Play, Star, Check, ChevronRight, Globe, Award, Clock, MessageCircle, Heart, Share2 } from 'lucide-react';
 import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -30,7 +30,7 @@ const Landing = () => {
   
   // Also log when auth state changes
   useEffect(() => {
-    console.log('🔄 Auth state changed:', { isAuthenticated, user: state.user });
+    console.log('?? Auth state changed:', { isAuthenticated, user: state.user });
   }, [isAuthenticated, state.user]);
 
   const loadCourses = async () => {
@@ -60,19 +60,19 @@ const Landing = () => {
 
   const features = [
     {
-      icon: '📚',
+      icon: '??',
       title: 'Online Billing, Invoicing, & Contracts',
       description: 'Simple and secure control of your organization financial and legal transactions. Send customized invoices and contracts.',
       color: 'bg-orange-100 text-orange-600'
     },
     {
-      icon: '📊', 
+      icon: '??', 
       title: 'Easy Scheduling & Attendance Tracking',
       description: 'Schedule and reserve classrooms at one campus or multiple campuses. Keep detailed records of student attendance.',
       color: 'bg-blue-100 text-blue-600'
     },
     {
-      icon: '🎓',
+      icon: '??',
       title: 'Customer Tracking',
       description: 'Automate and track emails to individuals or groups. Skilline built-in system helps organize your organization.',
       color: 'bg-green-100 text-green-600'
@@ -85,7 +85,7 @@ const Landing = () => {
       name: 'Sarah Johnson',
       role: 'Marketing Manager',
       company: 'Tech Corp',
-      image: '👩‍💼',
+      image: '?????',
       rating: 5,
       content: 'The courses here are fantastic! I have learned so much and it has really helped advance my career. The instructors are knowledgeable and supportive.'
     },
@@ -94,7 +94,7 @@ const Landing = () => {
       name: 'Mike Chen',
       role: 'Software Developer',
       company: 'StartupXYZ',
-      image: '👨‍💻',
+      image: '?????',
       rating: 5,
       content: 'Great platform with high-quality content. The interactive lessons and practical projects made learning enjoyable and effective.'
     },
@@ -103,7 +103,7 @@ const Landing = () => {
       name: 'Emily Davis',
       role: 'UX Designer', 
       company: 'Design Studio',
-      image: '👩‍🎨',
+      image: '?????',
       rating: 5,
       content: 'I love the flexibility of learning at my own pace. The course materials are well-structured and the community support is amazing.'
     }
@@ -122,7 +122,7 @@ const Landing = () => {
       lessons: 156,
       level: 'Beginner',
       category: 'Web Development',
-      image: '⚛️',
+      image: '??',
       badge: 'Bestseller'
     },
     {
@@ -137,7 +137,7 @@ const Landing = () => {
       lessons: 89,
       level: 'Advanced',
       category: 'Programming',
-      image: '🟨',
+      image: '??',
       badge: 'Hot'
     },
     {
@@ -152,12 +152,12 @@ const Landing = () => {
       lessons: 124,
       level: 'Intermediate',
       category: 'Design',
-      image: '🎨',
+      image: '??',
       badge: 'Popular'
     }
   ];
 
-  // Render cho guest users (chưa đăng nhập)
+  // Render cho guest users (chua dang nh?p)
   if (!isAuthenticated) {
     return (
       <div className='min-h-screen bg-white'>
@@ -231,7 +231,7 @@ const Landing = () => {
                 <div className='relative'>
                   <div className='relative bg-gradient-to-br from-teal-400 to-blue-500 rounded-3xl p-8 text-white shadow-2xl'>
                     <div className='text-center space-y-6'>
-                      <div className='text-8xl'>👩‍🎓</div>
+                      <div className='text-8xl'>?????</div>
                       <h3 className='text-3xl font-bold'>Start Learning Today</h3>
                       <p className='text-teal-100 text-lg'>Join thousands of successful students</p>
                     </div>
@@ -331,10 +331,10 @@ const Landing = () => {
                         <div>
                           <div className='flex items-center gap-2'>
                             <span className='text-2xl font-bold text-teal-600'>
-                              {course.price.toLocaleString('vi-VN')}đ
+                              {course.price.toLocaleString('vi-VN')}d
                             </span>
                             <span className='text-lg text-gray-400 line-through'>
-                              {course.originalPrice.toLocaleString('vi-VN')}đ
+                              {course.originalPrice.toLocaleString('vi-VN')}d
                             </span>
                           </div>
                           <p className='text-sm text-gray-500'>{course.students} students</p>
@@ -499,7 +499,7 @@ const Landing = () => {
                       <CardContent className='p-6'>
                         <div className='flex items-center gap-4'>
                           <div className='w-16 h-16 bg-gradient-to-r from-teal-400 to-blue-500 rounded-xl flex items-center justify-center text-white text-2xl'>
-                            📚
+                            ??
                           </div>
                           <div className='flex-1'>
                             <h3 className='font-bold text-gray-900 mb-1'>
@@ -536,9 +536,9 @@ const Landing = () => {
                     <h3 className='font-bold text-gray-900 mb-4'>Recent Achievements</h3>
                     <div className='space-y-3'>
                       {[
-                        { icon: '🏆', title: 'Course Master', desc: 'Completed 5 courses' },
-                        { icon: '⚡', title: 'Quick Learner', desc: '10 lessons in one day' },
-                        { icon: '🎯', title: 'Perfect Score', desc: '100% on final exam' }
+                        { icon: '??', title: 'Course Master', desc: 'Completed 5 courses' },
+                        { icon: '?', title: 'Quick Learner', desc: '10 lessons in one day' },
+                        { icon: '??', title: 'Perfect Score', desc: '100% on final exam' }
                       ].map((achievement, i) => (
                         <div key={i} className='flex items-center gap-3'>
                           <div className='text-2xl'>{achievement.icon}</div>
@@ -559,7 +559,7 @@ const Landing = () => {
                     <div className='text-center'>
                       <div className='text-4xl font-bold text-teal-600'>15</div>
                       <div className='text-gray-600'>days in a row</div>
-                      <div className='text-6xl my-4'>🔥</div>
+                      <div className='text-6xl my-4'>??</div>
                       <p className='text-sm text-gray-600'>
                         Keep it up! You are on fire!
                       </p>
@@ -614,7 +614,7 @@ const Landing = () => {
                     <div className='flex items-center justify-between'>
                       <div>
                         <span className='text-2xl font-bold text-teal-600'>
-                          {course.price.toLocaleString('vi-VN')}đ
+                          {course.price.toLocaleString('vi-VN')}d
                         </span>
                         <p className='text-sm text-gray-500'>{course.students} students</p>
                       </div>

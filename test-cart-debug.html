@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Cart - Mini Coursera</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h2 {
+            color: #14b8a6;
+            border-bottom: 2px solid #14b8a6;
+            padding-bottom: 10px;
+        }
+        button {
+            background: #14b8a6;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 14px;
+        }
+        button:hover {
+            background: #0d9488;
+        }
+        button.danger {
+            background: #ef4444;
+        }
+        button.danger:hover {
+            background: #dc2626;
+        }
+        pre {
+            background: #1e293b;
+            color: #10b981;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            font-size: 13px;
+        }
+        .info {
+            padding: 10px;
+            background: #dbeafe;
+            border-left: 4px solid #3b82f6;
+            margin: 10px 0;
+        }
+        .success {
+            padding: 10px;
+            background: #d1fae5;
+            border-left: 4px solid #10b981;
+            margin: 10px 0;
+        }
+        .error {
+            padding: 10px;
+            background: #fee2e2;
+            border-left: 4px solid #ef4444;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>🛒 Debug Giỏ Hàng - Mini Coursera</h1>
+
+    <div class="section">
+        <h2>📊 Trạng thái hiện tại</h2>
+        <div id="status"></div>
+        <button onclick="checkStatus()">🔄 Refresh Status</button>
+    </div>
+
+    <div class="section">
+        <h2>➕ Thêm item test</h2>
+        <button onclick="addTestItem()">Thêm khóa học test</button>
+        <button onclick="addMultipleItems()">Thêm 3 khóa học</button>
+        <div id="addResult"></div>
+    </div>
+
+    <div class="section">
+        <h2>👀 Xem dữ liệu</h2>
+        <button onclick="viewCart()">Xem giỏ hàng</button>
+        <button onclick="viewAllLocalStorage()">Xem tất cả localStorage</button>
+        <div id="viewResult"></div>
+    </div>
+
+    <div class="section">
+        <h2>🗑️ Xóa dữ liệu</h2>
+        <button class="danger" onclick="clearCart()">Xóa giỏ hàng</button>
+        <button class="danger" onclick="clearAllLocalStorage()">Xóa toàn bộ localStorage</button>
+        <div id="clearResult"></div>
+    </div>
+
+    <div class="section">
+        <h2>🧪 Test localStorage</h2>
+        <button onclick="testLocalStorageWrite()">Test ghi localStorage</button>
+        <button onclick="testLocalStorageRead()">Test đọc localStorage</button>
+        <button onclick="testLocalStoragePersist()">Test persistence (reload page)</button>
+        <div id="testResult"></div>
+    </div>
+
+    <script>
+        function log(elementId, message, type = 'info') {
+            const element = document.getElementById(elementId);
+            const className = type === 'success' ? 'success' : type === 'error' ? 'error' : 'info';
+            element.innerHTML = `<div class="${className}">${message}</div>`;
+        }
+
+        function checkStatus() {
+            const cart = localStorage.getItem('cart');
+            const cartData = cart ? JSON.parse(cart) : [];
+            const itemCount = cartData.length;
+            const totalPrice = cartData.reduce((sum, item) => sum + (item.price || 0), 0);
+            
+            const html = `
+                <div class="info">
+                    <strong>📦 Số lượng items:</strong> ${itemCount}<br>
+                    <strong>💰 Tổng giá:</strong> ${totalPrice.toLocaleString('vi-VN')} VNĐ<br>
+                    <strong>📅 Thời gian:</strong> ${new Date().toLocaleString('vi-VN')}
+                </div>
+                <pre>${cart || 'Giỏ hàng trống'}</pre>
+            `;
+            log('status', html);
+        }
+
+        function addTestItem() {
+            try {
+                const cart = localStorage.getItem('cart');
+                const cartData = cart ? JSON.parse(cart) : [];
+                
+                const newItem = {
+                    id: Date.now(),
+                    title: `Khóa học test ${cartData.length + 1}`,
+                    price: Math.floor(Math.random() * 500000) + 100000,
+                    instructorName: 'Test Instructor',
+                    thumbnail: `https://picsum.photos/400/250?random=${Date.now()}`,
+                    level: 'Beginner',
+                    duration: '10h'
+                };
+                
+                cartData.push(newItem);
+                localStorage.setItem('cart', JSON.stringify(cartData));
+                
+                log('addResult', `✅ Đã thêm: ${newItem.title} (${newItem.price.toLocaleString('vi-VN')} VNĐ)`, 'success');
+                checkStatus();
+            } catch (error) {
+                log('addResult', `❌ Lỗi: ${error.message}`, 'error');
+            }
+        }
+
+        function addMultipleItems() {
+            try {
+                const items = [
+                    { id: 1, title: 'React Advanced', price: 299000, instructorName: 'John Doe', level: 'Advanced', duration: '15h' },
+                    { id: 2, title: 'Node.js Master', price: 399000, instructorName: 'Jane Smith', level: 'Intermediate', duration: '20h' },
+                    { id: 3, title: 'TypeScript Pro', price: 199000, instructorName: 'Mike Wilson', level: 'Beginner', duration: '12h' }
+                ];
+                
+                localStorage.setItem('cart', JSON.stringify(items));
+                log('addResult', `✅ Đã thêm ${items.length} khóa học`, 'success');
+                checkStatus();
+            } catch (error) {
+                log('addResult', `❌ Lỗi: ${error.message}`, 'error');
+            }
+        }
+
+        function viewCart() {
+            const cart = localStorage.getItem('cart');
+            if (!cart) {
+                log('viewResult', '⚠️ Giỏ hàng trống', 'info');
+                return;
+            }
+            
+            try {
+                const cartData = JSON.parse(cart);
+                const html = `<pre>${JSON.stringify(cartData, null, 2)}</pre>`;
+                log('viewResult', html);
+            } catch (error) {
+                log('viewResult', `❌ Lỗi parse: ${error.message}`, 'error');
+            }
+        }
+
+        function viewAllLocalStorage() {
+            const items = {};
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                items[key] = localStorage.getItem(key);
+            }
+            const html = `<pre>${JSON.stringify(items, null, 2)}</pre>`;
+            log('viewResult', html);
+        }
+
+        function clearCart() {
+            localStorage.removeItem('cart');
+            log('clearResult', '✅ Đã xóa giỏ hàng', 'success');
+            checkStatus();
+        }
+
+        function clearAllLocalStorage() {
+            const confirmed = confirm('⚠️ Bạn có chắc muốn xóa TOÀN BỘ localStorage? (bao gồm cả token đăng nhập)');
+            if (confirmed) {
+                localStorage.clear();
+                log('clearResult', '✅ Đã xóa toàn bộ localStorage', 'success');
+                checkStatus();
+            }
+        }
+
+        function testLocalStorageWrite() {
+            try {
+                const testData = { test: true, timestamp: Date.now() };
+                localStorage.setItem('test_key', JSON.stringify(testData));
+                log('testResult', '✅ Ghi localStorage thành công!', 'success');
+            } catch (error) {
+                log('testResult', `❌ Không thể ghi localStorage: ${error.message}`, 'error');
+            }
+        }
+
+        function testLocalStorageRead() {
+            try {
+                const testData = localStorage.getItem('test_key');
+                if (testData) {
+                    log('testResult', `✅ Đọc thành công: <pre>${testData}</pre>`, 'success');
+                } else {
+                    log('testResult', '⚠️ Không tìm thấy test_key. Chạy "Test ghi" trước!', 'info');
+                }
+            } catch (error) {
+                log('testResult', `❌ Không thể đọc localStorage: ${error.message}`, 'error');
+            }
+        }
+
+        function testLocalStoragePersist() {
+            const testData = { 
+                test: true, 
+                timestamp: Date.now(),
+                message: 'Nếu thấy dữ liệu này sau khi reload, localStorage hoạt động tốt!'
+            };
+            localStorage.setItem('persist_test', JSON.stringify(testData));
+            log('testResult', '✅ Đã lưu dữ liệu test. Reload trang này và click "Test đọc" để kiểm tra!', 'success');
+        }
+
+        // Auto check status on load
+        window.onload = checkStatus;
+    </script>
+</body>
+</html>

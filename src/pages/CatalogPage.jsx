@@ -111,10 +111,10 @@ const CatalogPage = () => {
 
   const formatPrice = (price) => {
     if (price === 0) {return 'Miễn phí';}
-    return new Intl.NumberFormat('vi-VN', {
+    return new Intl.NumberFormat('en-US', {
       style: 'currency',
-      currency: 'VND'
-    }).format(price * 1000); // Convert to VND
+      currency: 'USD'
+    }).format(price); // Display as USD
   };
 
   const getCourseLevel = (level) => {

@@ -23,54 +23,73 @@ const ProgressPage = () => {
     try {
       setLoading(true);
       
-      // Mock progress data
-      const mockEnrollments = [
-        {
-          enrollment_id: 1,
-          course: {
-            course_id: 1,
-            title: 'Java Servlet & React Web Dev',
-            description: 'Khóa học toàn diện về phát triển web với Java và React',
-            total_moocs: 4
+      console.log('📊 [ProgressPage] Fetching enrollments from API...');
+      
+      // Fetch real enrollments from API
+      const response = await api.enrollments.getMyEnrollments();
+      
+      console.log('📊 [ProgressPage] API Response:', response);
+      
+      if (response && response.success) {
+        const enrollments = response.data || [];
+        
+        console.log('✅ [ProgressPage] Received enrollments:', enrollments.length);
+        console.log('📋 [ProgressPage] Sample enrollment:', enrollments[0]);
+        
+        setEnrollments(enrollments);
+        calculateOverallStats(enrollments);
+      } else {
+        console.warn('⚠️ [ProgressPage] API failed, using mock data');
+        // Fallback to mock data if API fails
+        const mockEnrollments = [
+          {
+            enrollment_id: 1,
+            course: {
+              course_id: 1,
+              title: 'Java Servlet & React Web Dev',
+              description: 'Khóa học toàn diện về phát triển web với Java và React',
+              total_moocs: 4
+            },
+            enrolled_at: '2025-01-10T00:00:00.000Z',
+            progress: {
+              completed_moocs: 2,
+              total_moocs: 4,
+              completed_lessons: 8,
+              total_lessons: 16,
+              exam_scores: [
+                { exam_name: 'Quiz Servlet Cơ bản', best_score: 4, max_score: 5 },
+                { exam_name: 'Quiz React Foundation', best_score: 5, max_score: 5 }
+              ],
+              last_activity: '2025-01-16T14:20:00.000Z'
+            }
           },
-          enrolled_at: '2025-01-10T00:00:00.000Z',
-          progress: {
-            completed_moocs: 2,
-            total_moocs: 4,
-            completed_lessons: 8,
-            total_lessons: 16,
-            exam_scores: [
-              { exam_name: 'Quiz Servlet Cơ bản', best_score: 4, max_score: 5 },
-              { exam_name: 'Quiz React Foundation', best_score: 5, max_score: 5 }
-            ],
-            last_activity: '2025-01-16T14:20:00.000Z'
+          {
+            enrollment_id: 2,
+            course: {
+              course_id: 2,
+              title: 'Spring Boot Microservices',
+              description: 'Xây dựng microservices với Spring Boot',
+              total_moocs: 3
+            },
+            enrolled_at: '2025-01-05T00:00:00.000Z',
+            progress: {
+              completed_moocs: 1,
+              total_moocs: 3,
+              completed_lessons: 4,
+              total_lessons: 12,
+              exam_scores: [
+                { exam_name: 'Spring Boot Basics', best_score: 3, max_score: 5 }
+              ],
+              last_activity: '2025-01-12T10:30:00.000Z'
+            }
           }
-        },
-        {
-          enrollment_id: 2,
-          course: {
-            course_id: 2,
-            title: 'Spring Boot Microservices',
-            description: 'Xây dựng microservices với Spring Boot',
-            total_moocs: 3
-          },
-          enrolled_at: '2025-01-05T00:00:00.000Z',
-          progress: {
-            completed_moocs: 1,
-            total_moocs: 3,
-            completed_lessons: 4,
-            total_lessons: 12,
-            exam_scores: [
-              { exam_name: 'Spring Boot Basics', best_score: 3, max_score: 5 }
-            ],
-            last_activity: '2025-01-12T10:30:00.000Z'
-          }
-        }
-      ];
+        ];
 
-      setEnrollments(mockEnrollments);
-      calculateOverallStats(mockEnrollments);
+        setEnrollments(mockEnrollments);
+        calculateOverallStats(mockEnrollments);
+      }
     } catch (err) {
+      console.error('❌ [ProgressPage] Load progress error:', err);
       setError('Không thể tải tiến độ học tập');
     } finally {
       setLoading(false);
@@ -78,6 +97,8 @@ const ProgressPage = () => {
   };
 
   const calculateOverallStats = (enrollments) => {
+    console.log('📊 [ProgressPage] Calculating stats for', enrollments.length, 'enrollments');
+    
     const totalCourses = enrollments.length;
     let completedCourses = 0;
     let totalLessons = 0;
@@ -88,6 +109,11 @@ const ProgressPage = () => {
 
     enrollments.forEach(enrollment => {
       const progress = enrollment.progress;
+      
+      console.log(`  📚 Course: ${enrollment.course.title}`);
+      console.log(`     - Lessons: ${progress.completed_lessons}/${progress.total_lessons}`);
+      console.log(`     - MOOCs: ${progress.completed_moocs}/${progress.total_moocs}`);
+      console.log(`     - Exams: ${progress.exam_scores?.length || 0}`);
       
       // Course completion (if all MOOCs completed)
       if (progress.completed_moocs === progress.total_moocs) {
@@ -108,7 +134,7 @@ const ProgressPage = () => {
       totalStudyTime += progress.completed_lessons * 0.5; // 30 mins per lesson
     });
 
-    setStats({
+    const calculatedStats = {
       totalCourses,
       completedCourses,
       totalLessons,
@@ -117,7 +143,11 @@ const ProgressPage = () => {
       passedExams,
       totalStudyTime: Math.round(totalStudyTime * 10) / 10,
       overallProgress: totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0
-    });
+    };
+    
+    console.log('📊 [ProgressPage] Overall stats:', calculatedStats);
+
+    setStats(calculatedStats);
   };
 
   const getProgressColor = (percentage) => {
@@ -180,14 +210,70 @@ const ProgressPage = () => {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Tiến độ học tập</h1>
-          <p className="text-gray-600 mt-1">Theo dõi quá trình học tập và thành tích của bạn</p>
+    <div className="min-h-screen bg-gradient-to-br from-teal-50 via-white to-blue-50">
+      {/* Header/Navbar */}
+      <div className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-50">
+        <div className="container mx-auto px-4">
+          <div className="flex items-center justify-between h-16">
+            {/* Left: Title & Navigation */}
+            <div className="flex items-center space-x-8">
+              <div className="flex items-center space-x-3">
+                <div className="bg-gradient-to-br from-teal-500 to-blue-600 rounded-lg p-2">
+                  <BarChart3 className="h-6 w-6 text-white" />
+                </div>
+                <div>
+                  <h1 className="text-xl font-bold text-gray-900">Tiến độ học tập</h1>
+                  <p className="text-xs text-gray-500">Theo dõi quá trình học tập của bạn</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Right: Quick Actions */}
+            <div className="flex items-center space-x-4">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => navigate('/my-learning')}
+                className="hidden md:flex items-center space-x-2"
+              >
+                <BookOpen className="h-4 w-4" />
+                <span>Khóa học của tôi</span>
+              </Button>
+              
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => navigate('/courses')}
+                className="hidden md:flex items-center space-x-2"
+              >
+                <Target className="h-4 w-4" />
+                <span>Khám phá khóa học</span>
+              </Button>
+
+              <div className="flex items-center space-x-2 pl-4 border-l border-gray-200">
+                <div className="text-right hidden sm:block">
+                  <p className="text-sm font-medium text-gray-900">{authState.user?.full_name || 'Học viên'}</p>
+                  <p className="text-xs text-gray-500">Cấp độ: {stats?.completedCourses || 0} khóa hoàn thành</p>
+                </div>
+                {authState.user?.avatar_url ? (
+                  <img 
+                    src={authState.user.avatar_url} 
+                    alt="Avatar" 
+                    className="h-10 w-10 rounded-full border-2 border-teal-500"
+                  />
+                ) : (
+                  <div className="h-10 w-10 rounded-full bg-gradient-to-br from-teal-500 to-blue-600 flex items-center justify-center text-white font-bold">
+                    {(authState.user?.full_name || 'H').charAt(0).toUpperCase()}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
+
+      {/* Main Content */}
+      <div className="container mx-auto px-4 py-8 space-y-6">
 
       {/* Overall Statistics */}
       {stats && (
@@ -410,10 +496,11 @@ const ProgressPage = () => {
                       </div>
                     </div>
                     <Button
-                      onClick={() => navigate(`/course/${enrollment.course.course_id}`)}
+                      onClick={() => navigate(`/learn/${enrollment.course.course_id}`)}
                       size="sm"
+                      className="bg-teal-600 hover:bg-teal-700"
                     >
-                      Tiếp tục học
+                      {progress.completed_moocs > 0 ? 'Tiếp tục học' : 'Bắt đầu học'}
                     </Button>
                   </div>
                 </CardContent>
@@ -435,6 +522,7 @@ const ProgressPage = () => {
           </CardContent>
         </Card>
       )}
+    </div>
     </div>
   );
 };

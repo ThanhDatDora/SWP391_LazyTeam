@@ -20,12 +20,27 @@ const MyCoursesPage = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadMyCourses();
-  }, []);
+    console.log('🔄 MyCoursesPage: User changed, reloading courses...', {
+      hasUser: !!state.user,
+      userEmail: state.user?.email,
+      userId: state.user?.userId
+    });
+    
+    // Clear existing courses when user changes
+    setEnrolledCourses([]);
+    
+    // Only load courses if user is logged in
+    if (state.user) {
+      loadMyCourses();
+    } else {
+      setLoading(false);
+    }
+  }, [state.user]); // Re-fetch when user changes
 
   const loadMyCourses = async () => {
     try {
       setLoading(true);
+      console.log('📡 Fetching my courses for user:', state.user?.email);
       const response = await api.courses.getMyCourses();
       console.log('📚 My Courses API response:', response);
       
@@ -58,7 +73,7 @@ const MyCoursesPage = () => {
             lastAccessed: new Date(),
             nextLesson: 'Introduction to JavaScript',
             category: 'Web Development',
-            thumbnail: 'https://via.placeholder.com/400x250',
+            thumbnail: 'https://picsum.photos/400/250',
             certificate: false
           },
           {
@@ -74,7 +89,7 @@ const MyCoursesPage = () => {
             lastAccessed: new Date(Date.now() - 86400000), // 1 day ago
             nextLesson: 'Machine Learning Basics',
             category: 'Data Science',
-            thumbnail: 'https://via.placeholder.com/400x250',
+            thumbnail: 'https://picsum.photos/400/250',
             certificate: false
           },
           {
@@ -90,7 +105,7 @@ const MyCoursesPage = () => {
             lastAccessed: new Date(Date.now() - 172800000), // 2 days ago
             nextLesson: null,
             category: 'Frontend Development',
-            thumbnail: 'https://via.placeholder.com/400x250',
+            thumbnail: 'https://picsum.photos/400/250',
             certificate: true
           }
         ];
@@ -115,7 +130,7 @@ const MyCoursesPage = () => {
           lastAccessed: new Date(),
           nextLesson: 'Introduction to JavaScript',
           category: 'Web Development',
-          thumbnail: 'https://via.placeholder.com/400x250',
+          thumbnail: 'https://picsum.photos/400/250',
           certificate: false
         },
         {
@@ -131,7 +146,7 @@ const MyCoursesPage = () => {
           lastAccessed: new Date(Date.now() - 86400000),
           nextLesson: 'Machine Learning Basics',
           category: 'Data Science',
-          thumbnail: 'https://via.placeholder.com/400x250',
+          thumbnail: 'https://picsum.photos/400/250',
           certificate: false
         },
         {
@@ -147,7 +162,7 @@ const MyCoursesPage = () => {
           lastAccessed: new Date(Date.now() - 172800000),
           nextLesson: null,
           category: 'Frontend Development',
-          thumbnail: 'https://via.placeholder.com/400x250',
+          thumbnail: 'https://picsum.photos/400/250',
           certificate: true
         }
       ];
@@ -300,7 +315,7 @@ const MyCoursesPage = () => {
                 className={`hover:shadow-lg transition-shadow cursor-pointer ${
                   viewMode === 'list' ? 'md:flex md:items-center' : ''
                 }`}
-                onClick={() => navigate(`/course-player/${course.id}`)}
+                onClick={() => navigate(`/learn/${course.id}`)}
               >
                 <CardContent className="p-0">
                   {viewMode === 'grid' ? (
@@ -443,7 +458,7 @@ const MyCoursesPage = () => {
                   <Card 
                     key={`continue-${course.id}`}
                     className="hover:shadow-lg transition-shadow cursor-pointer"
-                    onClick={() => navigate(`/course-player/${course.id}`)}
+                    onClick={() => navigate(`/learn/${course.id}`)}
                   >
                     <CardContent className="p-6">
                       <div className="flex items-start gap-4">
@@ -494,7 +509,7 @@ const MyCoursesPage = () => {
                             variant="outline" 
                             size="sm" 
                             className="w-full"
-                            onClick={() => navigate(`/course-player/${course.id}`)}
+                            onClick={() => navigate(`/learn/${course.id}`)}
                           >
                             Review Course
                           </Button>

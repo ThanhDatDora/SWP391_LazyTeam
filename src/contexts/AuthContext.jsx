@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react';
-import { api } from '../services/api';
+import { api, cacheUtils } from '../services/api';
 
 const AuthContext = createContext();
 
@@ -153,16 +153,20 @@ export const AuthProvider = ({ children }) => {
   const logout = () => {
     console.log('🚪 Logging out user...');
     
-    // Clear localStorage
+    // Clear ALL localStorage items
     localStorage.removeItem('token');
+    localStorage.removeItem('authToken'); // THIS IS THE TOKEN USED BY API!
     localStorage.removeItem('user');
     localStorage.removeItem('cart');
+    
+    // Clear API cache to prevent showing old user's data
+    cacheUtils.clear();
     
     // Clear state
     setUser(null);
     setIsAuthenticated(false);
     
-    console.log('✅ Logout complete');
+    console.log('✅ Logout complete - All data cleared (localStorage + API cache)');
   };
 
   // Update user profile in context and localStorage
@@ -200,7 +204,8 @@ export const AuthProvider = ({ children }) => {
     logout,
     updateProfile,
     checkAuthStatus,
-    checkAuth
+    checkAuth,
+    setUser // Export setUser để AuthCallback có thể dùng
   };
 
   return (

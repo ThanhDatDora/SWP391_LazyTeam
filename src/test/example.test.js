@@ -27,7 +27,7 @@ vi.mock('react-router-dom', async () => {
 // Component imports
 import CourseCard from '../components/course/CourseCard';
 import AuthPage from '../pages/auth/AuthPage';
-import { ToastProvider } from '../components/ui/toast';
+import { ToastProvider } from '../components/ui/Toast';
 
 describe('CourseCard Component', () => {
   const mockCourse = createMockCourse({

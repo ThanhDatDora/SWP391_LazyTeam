@@ -70,17 +70,26 @@ router.post('/create-order', authenticateToken, [
 
       // Create payment record
       const paymentResult = await transaction.request()
+        .input('userId', sql.BigInt, userId)
         .input('provider', sql.NVarChar, paymentMethod)
         .input('amountCents', sql.Int, Math.round(totalAmount * 100)) // Convert to cents
         .input('currency', sql.Char(3), 'VND')
         .input('status', sql.NVarChar, 'pending')
         .query(`
-          INSERT INTO payments (provider, amount_cents, currency, status, created_at)
+          INSERT INTO payments (user_id, provider, amount_cents, currency, status, created_at)
           OUTPUT INSERTED.payment_id
-          VALUES (@provider, @amountCents, @currency, @status, GETDATE())
+          VALUES (@userId, @provider, @amountCents, @currency, @status, GETDATE())
         `);
 
       const paymentId = paymentResult.recordset[0].payment_id;
+      
+      // Link invoices to payment
+      for (const invoiceId of invoiceIds) {
+        await transaction.request()
+          .input('invoiceId', sql.BigInt, invoiceId)
+          .input('paymentId', sql.BigInt, paymentId)
+          .query(`UPDATE invoices SET payment_id = @paymentId WHERE invoice_id = @invoiceId`);
+      }
 
       // Commit transaction
       await transaction.commit();
@@ -121,7 +130,7 @@ router.post('/complete-payment', authenticateToken, [
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { paymentId, paymentDetails } = req.body;
+    const { paymentId } = req.body;
     const userId = req.user.userId;
     const pool = await getPool();
 
@@ -284,7 +293,7 @@ router.post('/enroll-now', authenticateToken, [
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { courseId, billingInfo, paymentMethod = 'card' } = req.body;
+    const { courseId, paymentMethod = 'card' } = req.body;
     const userId = req.user.userId;
     const pool = await getPool();
 
@@ -321,7 +330,7 @@ router.post('/enroll-now', authenticateToken, [
       const txnRef = `TXN-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`.toUpperCase();
       
       const paymentResult = await transaction.request()
-        .input('provider', sql.NVarChar, paymentMethod)
+        .input('invoiceId', sql.BigInt, invoiceId)
         .input('amountCents', sql.Int, Math.round(course.price * 100))
         .input('currency', sql.Char(3), 'VND')
         .input('status', sql.NVarChar, 'completed')

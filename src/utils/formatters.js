@@ -5,22 +5,22 @@
 // Price formatting
 export const formatPrice = (price) => {
   if (price === 0 || price === '0' || !price) {return 'Miễn phí';}
-  return new Intl.NumberFormat('vi-VN', {
+  return new Intl.NumberFormat('en-US', {
     style: 'currency',
-    currency: 'VND'
+    currency: 'USD'
   }).format(price);
 };
 
 export const formatPriceShort = (price) => {
   if (price === 0 || price === '0' || !price) {return 'Miễn phí';}
   
-  if (price >= 1000000) {
-    return `${(price / 1000000).toFixed(1)}M VND`;
-  }
   if (price >= 1000) {
-    return `${(price / 1000).toFixed(0)}K VND`;
+    return `$${(price / 1000).toFixed(1)}K`;
   }
-  return `${price} VND`;
+  if (price >= 100) {
+    return `$${price.toFixed(0)}`;
+  }
+  return `$${price.toFixed(2)}`;
 };
 
 // Legacy alias for backward compatibility

@@ -23,7 +23,11 @@ const CourseDetailPage = lazy(() => import('../pages/CourseDetailPageNew'));
 const CatalogPage = lazy(() => import('../pages/CatalogPage'));
 const ExamPage = lazy(() => import('../pages/exam/ExamPage'));
 const ExamHistoryPage = lazy(() => import('../pages/exam/ExamHistoryPage'));
+const ExamResultsPage = lazy(() => import('../pages/exam/ExamResultsPage'));
+const QuizPageNew = lazy(() => import('../pages/QuizPage'));
+const ExamPageNew = lazy(() => import('../pages/ExamPage'));
 const ProgressPage = lazy(() => import('../pages/ProgressPage'));
+const CourseLearningPage = lazy(() => import('../pages/CourseLearningPage'));
 const ProfilePage = lazy(() => import('../pages/ProfilePage'));
 const MyProfilePage = lazy(() => import('../pages/MyProfilePage'));
 const NotificationsPage = lazy(() => import('../pages/NotificationsPage'));
@@ -144,16 +148,17 @@ const AppRouter = () => {
   };
 
   return (
-    <Routes>
-      {/* Public Auth Routes */}
-      <Route 
-        path="/auth" 
-        element={
-          <PublicRoute>
-            <AuthPage />
-          </PublicRoute>
-        } 
-      />
+    <Suspense fallback={<LoadingSpinner />}>
+      <Routes>
+        {/* Public Auth Routes */}
+        <Route 
+          path="/auth" 
+          element={
+            <PublicRoute>
+              <AuthPage />
+            </PublicRoute>
+          } 
+        />
       <Route 
         path="/auth/callback" 
         element={<AuthCallback />} 
@@ -324,6 +329,14 @@ const AppRouter = () => {
         } 
       />
       <Route 
+        path="/exam-results/:instanceId" 
+        element={
+          <ProtectedRoute>
+            <ExamResultsPage />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
         path="/exam-history" 
         element={
           <ProtectedRoute>
@@ -336,6 +349,30 @@ const AppRouter = () => {
         element={
           <ProtectedRoute>
             <ProgressPage />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/learn/:courseId" 
+        element={
+          <ProtectedRoute>
+            <CourseLearningPage />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/quiz/:quizId" 
+        element={
+          <ProtectedRoute>
+            <QuizPageNew />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/exam/:examId" 
+        element={
+          <ProtectedRoute>
+            <ExamPageNew />
           </ProtectedRoute>
         } 
       />
@@ -386,6 +423,7 @@ const AppRouter = () => {
       {/* Legacy learner routes redirect to new routes */}
       <Route path="/my/attempts" element={<Navigate to="/exam-history" replace />} />
       <Route path="/my/progress" element={<Navigate to="/progress" replace />} />
+      <Route path="/my-learning" element={<Navigate to="/progress" replace />} />
       
       {/* Calendar & Search (to be implemented) */}
       <Route 
@@ -408,6 +446,7 @@ const AppRouter = () => {
       {/* Catch all route */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </Suspense>
   );
 };
 

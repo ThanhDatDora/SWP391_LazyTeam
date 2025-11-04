@@ -23,6 +23,13 @@ import courseRoutes from './routes/courses.js';
 import databaseRoutes from './routes/database.js';
 import notificationsRoutes from './routes/notifications.js';
 import checkoutRoutes from './routes/checkout.js';
+import adminRevenueRoutes from './routes/admin-revenue.js';
+import instructorRevenueRoutes from './routes/instructor-revenue.js';
+import enrollmentRoutes from './routes/enrollments.js';
+import quizRoutes from './routes/quizzes.js';
+import examRoutes from './routes/exams.js';
+import newExamRoutes from './routes/new-exam-routes.js';
+import assignmentsRoutes from './routes/assignments.js';
 
 // Load environment variables
 dotenv.config();
@@ -209,12 +216,17 @@ app.use('/api/courses', courseRoutes);
 app.use('/api/database', databaseRoutes);
 app.use('/api/notifications', notificationsRoutes);
 app.use('/api/checkout', checkoutRoutes);
+app.use('/api/admin', adminRevenueRoutes);
+app.use('/api/instructor', instructorRevenueRoutes);
+app.use('/api/enrollments', enrollmentRoutes);
+app.use('/api/quizzes', quizRoutes);
+app.use('/api/exams', examRoutes);
+app.use('/api/learning/exams', newExamRoutes);
+app.use('/api/assignments', assignmentsRoutes);
 
 
 // TODO: Add more routes as needed
 // app.use('/api/users', userRoutes);
-// app.use('/api/exams', examRoutes);
-// app.use('/api/enrollments', enrollmentRoutes);
 // app.use('/api/payments', paymentRoutes);
 
 // 404 handler for API routes (must be before global error handler)

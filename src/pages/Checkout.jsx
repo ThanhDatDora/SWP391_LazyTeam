@@ -10,13 +10,16 @@ import { useNavigation } from '../hooks/useNavigation';
 import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../contexts/CartContext';
 import { useToast } from '../hooks/useToast';
-import AppLayout from '../components/layout/AppLayout';
+import CheckoutLayout from '../components/layout/CheckoutLayout';
+
+// VERSION MARKER - Check console for this on page load
+console.log('🔥 Checkout.jsx loaded - VERSION v3.0 - LATEST CODE');
 
 const Checkout = () => {
   const navigate = useNavigation();
   const { state } = useAuth();
   const { cartItems, removeFromCart, clearCart, getTotalPrice } = useCart();
-  const { toast } = useToast();
+  const { success: showSuccess, error: showError } = useToast();
   const [currentStep, setCurrentStep] = useState(1); // 1: Cart, 2: Billing, 3: Payment, 4: Confirmation
   const [loading, setLoading] = useState(false);
   const [transactionRef, setTransactionRef] = useState('');
@@ -50,58 +53,271 @@ const Checkout = () => {
     expiryDate: '',
     cvv: '',
     cardholderName: '',
-    paymentMethod: 'card'
+    paymentMethod: 'qr' // Default to QR code
   });
 
   const subtotal = getTotalPrice();
   const tax = subtotal * 0.1; // 10% VAT
   const total = subtotal + tax;
+  
+  // Convert USD to VND for QR payment (1 USD = ~24,000 VND)
+  const totalVND = Math.round(total * 24000);
 
   const handleBillingSubmit = async (e) => {
     e.preventDefault();
     setCurrentStep(3);
   };
 
+  const handleCompleteQRPayment = async () => {
+    if (!paymentId) {
+      showError('Không tìm thấy thông tin thanh toán');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      console.log('🔄 Step 1: Calling completePayment API...');
+      const apiPaymentResponse = await api.checkout.completePayment({
+        paymentId: paymentId,
+        paymentDetails: paymentInfo
+      });
+      
+      console.log('📦 Step 2: API Response:', {
+        hasResponse: !!apiPaymentResponse,
+        success: apiPaymentResponse?.success,
+        hasData: !!apiPaymentResponse?.data,
+        fullResponse: apiPaymentResponse
+      });
+      
+      if (!apiPaymentResponse || !apiPaymentResponse.success) {
+        console.error('❌ API call failed:', apiPaymentResponse);
+        throw new Error(apiPaymentResponse?.error || 'Payment API call failed');
+      }
+      
+      // Backend can return in 2 formats (same as create-order)
+      const paymentResponse = apiPaymentResponse.data;
+      console.log('📦 Step 3: Payment response:', {
+        hasResponse: !!paymentResponse,
+        success: paymentResponse?.success,
+        hasData: !!paymentResponse?.data,
+        hasTransactionRef: !!paymentResponse?.transactionRef,
+        fullResponse: paymentResponse
+      });
+      
+      // Smart format detection
+      let paymentData;
+      if (paymentResponse?.success === true && paymentResponse?.data) {
+        // Format 1: Wrapped { success: true, data: {...} }
+        console.log('✅ Format 1: Wrapped format');
+        paymentData = paymentResponse.data;
+      } else if (paymentResponse?.transactionRef) {
+        // Format 2: Direct { transactionRef, ... }
+        console.log('✅ Format 2: Direct format');
+        paymentData = paymentResponse;
+      } else {
+        // Error
+        console.error('❌ Invalid response format:', paymentResponse);
+        throw new Error(paymentResponse?.error || paymentResponse?.message || 'Payment completion failed');
+      }
+      
+      console.log('📦 Step 4: Payment data extracted:', paymentData);
+      
+      setTransactionRef(paymentData.transactionRef);
+      clearCart();
+      showSuccess('Xác nhận thanh toán thành công!');
+      // Force re-render to show success message
+      setCurrentStep(4);
+    } catch (error) {
+      console.error('💥 Complete payment error:', error);
+      console.error('💥 Error details:', {
+        message: error?.message,
+        stack: error?.stack,
+        fullError: error
+      });
+      showError(error?.message || 'Xác nhận thanh toán thất bại. Vui lòng liên hệ hỗ trợ.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handlePaymentSubmit = async (e) => {
     e.preventDefault();
+    console.log('🎯 handlePaymentSubmit called [v3.0] - current step:', currentStep);
+    console.log('📋 Initial state:', {
+      enrollNow,
+      courseIdParam,
+      cartItemsCount: cartItems.length,
+      paymentMethod: paymentInfo.paymentMethod,
+      billingInfo
+    });
+    
     setLoading(true);
     
     try {
       if (enrollNow && courseIdParam) {
         // Enroll Now flow - instant enrollment
+        console.log('📝 Enroll Now flow');
         const response = await api.checkout.enrollNow({
           courseId: parseInt(courseIdParam),
           billingInfo,
           paymentMethod: paymentInfo.paymentMethod
         });
         setTransactionRef(response.data.transactionRef);
-        toast.success('Đăng ký khóa học thành công!');
+        showSuccess('Đăng ký khóa học thành công!');
+        console.log('✅ Moving to step 4');
+        setCurrentStep(4);
       } else {
         // Cart flow - multiple courses
         const courses = cartItems.map(item => ({ courseId: item.id }));
-        const orderResponse = await api.checkout.createOrder({
+        
+        console.log('🛒 Cart flow - Creating order with:', { 
+          coursesCount: courses.length,
+          courses,
+          billingInfo, 
+          paymentMethod: paymentInfo.paymentMethod 
+        });
+        
+        console.log('🔄 Step 1: Calling api.checkout.createOrder...');
+        const apiResponse = await api.checkout.createOrder({
           courses,
           billingInfo,
           paymentMethod: paymentInfo.paymentMethod
         });
         
-        setPaymentId(orderResponse.data.paymentId);
-        
-        // Complete payment
-        const paymentResponse = await api.checkout.completePayment({
-          paymentId: orderResponse.data.paymentId,
-          paymentDetails: paymentInfo
+        console.log('✅ Step 2: Received API Response:', {
+          hasResponse: !!apiResponse,
+          responseType: typeof apiResponse,
+          success: apiResponse?.success,
+          hasData: !!apiResponse?.data,
+          fullResponse: apiResponse
         });
         
-        setTransactionRef(paymentResponse.data.transactionRef);
-        clearCart(); // Clear cart after successful payment
-        toast.success('Thanh toán thành công!');
+        // Check if API call succeeded
+        if (!apiResponse) {
+          console.error('❌ CRITICAL: apiResponse is null/undefined');
+          throw new Error('Không nhận được phản hồi từ server');
+        }
+        
+        if (!apiResponse.success) {
+          console.error('❌ API call failed with:', apiResponse);
+          throw new Error(apiResponse?.error || 'API trả về lỗi');
+        }
+        
+        console.log('✅ Step 3: API call successful, unwrapping backend response...');
+        // Backend response is wrapped inside apiResponse.data
+        const orderResponse = apiResponse.data;
+        console.log('📦 Backend orderResponse:', {
+          hasOrderResponse: !!orderResponse,
+          responseType: typeof orderResponse,
+          success: orderResponse?.success,
+          hasData: !!orderResponse?.data,
+          hasPaymentId: !!orderResponse?.paymentId,
+          message: orderResponse?.message,
+          fullOrderResponse: orderResponse
+        });
+        
+        // Check if backend returned data
+        if (!orderResponse) {
+          console.error('❌ CRITICAL: orderResponse is null/undefined');
+          throw new Error('Backend không trả về dữ liệu');
+        }
+        
+        // Backend can return in 2 formats:
+        // Format 1: { success: true, data: { paymentId, invoiceIds, ... } }
+        // Format 2: { paymentId, invoiceIds, totalAmount, ... } (direct data)
+        let paymentData;
+        if (orderResponse.success === true && orderResponse.data) {
+          // Format 1: Wrapped format
+          console.log('✅ Step 4a: Backend returned wrapped format');
+          paymentData = orderResponse.data;
+        } else if (orderResponse.paymentId) {
+          // Format 2: Direct data format
+          console.log('✅ Step 4b: Backend returned direct format');
+          paymentData = orderResponse;
+        } else {
+          // Error format: { success: false, error: '...' }
+          console.error('❌ Backend returned error:', orderResponse);
+          throw new Error(orderResponse?.error || orderResponse?.message || 'Backend trả về lỗi');
+        }
+        
+        console.log('✅ Step 5: Extracting payment ID...');
+        if (!paymentData) {
+          console.error('❌ CRITICAL: paymentData is null/undefined');
+          throw new Error('Backend không trả về payment data');
+        }
+        
+        const createdPaymentId = paymentData.paymentId;
+        console.log('💳 Payment ID extracted:', {
+          hasPaymentId: !!createdPaymentId,
+          paymentId: createdPaymentId,
+          paymentIdType: typeof createdPaymentId
+        });
+        
+        if (!createdPaymentId) {
+          console.error('❌ CRITICAL: paymentId is null/undefined in paymentData:', paymentData);
+          throw new Error('Không tạo được mã thanh toán');
+        }
+        
+        setPaymentId(createdPaymentId);
+        console.log('✅ Step 5: Payment ID set successfully');
+        
+        console.log('💳 Payment info:', {
+          paymentMethod: paymentInfo.paymentMethod,
+          hasCardInfo: !!paymentInfo.cardNumber,
+          fullPaymentInfo: paymentInfo
+        });
+        
+        // For QR payment: show QR code and wait for user confirmation
+        if (paymentInfo.paymentMethod === 'qr') {
+          console.log('🔄 QR Payment path selected');
+          try {
+            showSuccess('Vui lòng quét mã QR để thanh toán!');
+            console.log('✅ Toast displayed');
+          } catch (toastError) {
+            console.error('⚠️ Toast error (non-critical):', toastError);
+          }
+          console.log('🔄 Setting currentStep to 4 (QR display)...');
+          setCurrentStep(4); // Show confirmation page with QR
+          console.log('✅ Step changed to 4 successfully - QR code should display');
+        } else {
+          // For card payment: complete immediately
+          console.log('💳 Card Payment path selected, completing payment immediately...');
+          const apiPaymentResponse = await api.checkout.completePayment({
+            paymentId: createdPaymentId,
+            paymentDetails: paymentInfo
+          });
+          
+          console.log('📦 Payment completion response:', apiPaymentResponse);
+          
+          if (!apiPaymentResponse || !apiPaymentResponse.success) {
+            throw new Error(apiPaymentResponse?.error || 'Payment API call failed');
+          }
+          
+          const paymentResponse = apiPaymentResponse.data;
+          if (!paymentResponse || !paymentResponse.success) {
+            throw new Error(paymentResponse?.error || 'Payment completion failed');
+          }
+          
+          setTransactionRef(paymentResponse.data.transactionRef);
+          clearCart();
+          showSuccess('Thanh toán thành công!');
+          console.log('✅ Card payment complete, moving to step 4');
+          setCurrentStep(4);
+        }
       }
-      setCurrentStep(4);
     } catch (error) {
-      console.error('Payment error:', error);
-      toast.error(error.response?.data?.message || 'Thanh toán thất bại. Vui lòng thử lại.');
+      console.error('💥 ============ PAYMENT ERROR ============');
+      console.error('💥 Error object:', error);
+      console.error('💥 Error message:', error?.message);
+      console.error('💥 Error stack:', error?.stack);
+      console.error('💥 Error name:', error?.name);
+      console.error('💥 Full error details:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
+      console.error('💥 ========================================');
+      
+      const errorMessage = error?.message || 'Thanh toán thất bại. Vui lòng thử lại.';
+      showError(errorMessage);
     } finally {
+      console.log('🏁 handlePaymentSubmit finished, setting loading to false');
       setLoading(false);
     }
   };
@@ -114,7 +330,7 @@ const Checkout = () => {
   ];
 
   return (
-    <AppLayout user={state.user}>
+    <CheckoutLayout>
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-6xl mx-auto space-y-8">
           {/* Progress Steps */}
@@ -366,7 +582,7 @@ const Checkout = () => {
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <CreditCard className="w-5 h-5" />
-                  Payment Information
+                      Thanh toán
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
@@ -374,17 +590,16 @@ const Checkout = () => {
                       {/* Payment Method Selection */}
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-3">
-                      Payment Method
+                          Phương thức thanh toán
                         </label>
-                        <div className="grid md:grid-cols-3 gap-4">
+                        <div className="grid md:grid-cols-2 gap-4">
                           {[
-                            { id: 'card', name: 'Credit/Debit Card', icon: '💳' },
-                            { id: 'paypal', name: 'PayPal', icon: '🅿️' },
-                            { id: 'crypto', name: 'Cryptocurrency', icon: '₿' }
+                            { id: 'qr', name: 'Chuyển khoản QR Code', icon: '�' },
+                            { id: 'card', name: 'Thẻ tín dụng/Ghi nợ', icon: '💳' }
                           ].map(method => (
                             <div
                               key={method.id}
-                              className={`p-4 border-2 rounded-lg cursor-pointer text-center ${
+                              className={`p-4 border-2 rounded-lg cursor-pointer text-center transition-all ${
                                 paymentInfo.paymentMethod === method.id
                                   ? 'border-teal-500 bg-teal-50'
                                   : 'border-gray-200 hover:border-gray-300'
@@ -398,12 +613,134 @@ const Checkout = () => {
                         </div>
                       </div>
 
+                      {/* QR Code Payment */}
+                      {paymentInfo.paymentMethod === 'qr' && (
+                        <div className="space-y-4">
+                          <div className="bg-gradient-to-br from-green-50 to-blue-50 rounded-xl p-6 border-2 border-green-200">
+                            {/* Header */}
+                            <div className="text-center mb-4">
+                              <h3 className="text-xl font-bold text-gray-900 mb-2">
+                                Quét mã QR để thanh toán
+                              </h3>
+                              <p className="text-sm text-gray-600">
+                                Sử dụng ứng dụng ngân hàng để quét mã QR
+                              </p>
+                            </div>
+
+                            {/* QR Code Card */}
+                            <div className="bg-white rounded-lg shadow-lg p-6 max-w-md mx-auto">
+                              {/* Bank Logo */}
+                              <div className="flex items-center justify-center mb-4">
+                                <img
+                                  src="https://cdn.haitrieu.com/wp-content/uploads/2022/02/Logo-OCB-H.png"
+                                  alt="OCB Bank"
+                                  className="h-12"
+                                  onError={(e) => {
+                                    e.target.style.display = 'none';
+                                    e.target.nextElementSibling.style.display = 'block';
+                                  }}
+                                />
+                                <div style={{display: 'none'}} className="text-2xl font-bold text-green-700">
+                                  OCB - Ngân Hàng Phương Đông
+                                </div>
+                              </div>
+
+                              {/* Account Info */}
+                              <div className="bg-gray-50 rounded-lg p-4 mb-4 space-y-2">
+                                <div className="flex items-center gap-2">
+                                  <User className="w-4 h-4 text-gray-600" />
+                                  <div>
+                                    <div className="text-xs text-gray-500">Người nhận</div>
+                                    <div className="font-semibold text-gray-900">NGUYEN DUC HUY</div>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <CreditCard className="w-4 h-4 text-gray-600" />
+                                  <div>
+                                    <div className="text-xs text-gray-500">Số tài khoản</div>
+                                    <div className="font-mono font-semibold text-gray-900">0933027148</div>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* QR Code Image */}
+                              <div className="flex justify-center mb-4">
+                                <div className="bg-white p-4 rounded-lg shadow-inner">
+                                  <img
+                                    src={`https://img.vietqr.io/image/970448-0933027148-compact2.png?amount=${totalVND}&addInfo=MINICOURSE-${Date.now()}`}
+                                    alt="QR Payment Code"
+                                    className="w-64 h-64 object-contain"
+                                    onError={(e) => {
+                                      // Fallback to QR Server API
+                                      e.target.src = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=OCB-0933027148-${totalVND}`;
+                                    }}
+                                  />
+                                </div>
+                              </div>
+
+                              {/* Payment Amount */}
+                              <div className="bg-gradient-to-r from-blue-500 to-teal-500 text-white rounded-lg p-4 text-center">
+                                <div className="text-sm opacity-90 mb-1">Số tiền thanh toán</div>
+                                <div className="text-3xl font-bold">{formatCurrency(total)}</div>
+                                <div className="text-sm opacity-75 mt-1">≈ {totalVND.toLocaleString('vi-VN')} VND</div>
+                              </div>
+
+                              {/* Payment Apps */}
+                              <div className="mt-4 flex items-center justify-center gap-4 text-sm text-gray-600">
+                                <span>Hỗ trợ:</span>
+                                <div className="flex gap-2">
+                                  <span className="px-2 py-1 bg-red-50 text-red-700 rounded font-medium">VietQR</span>
+                                  <span className="px-2 py-1 bg-blue-50 text-blue-700 rounded font-medium">Napas 247</span>
+                                  <span className="px-2 py-1 bg-purple-50 text-purple-700 rounded font-medium">PayQo</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Instructions */}
+                            <div className="mt-6 bg-blue-50 rounded-lg p-4">
+                              <h4 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                                <span className="text-blue-600">📝</span>
+                                Hướng dẫn thanh toán:
+                              </h4>
+                              <ol className="space-y-2 text-sm text-gray-700">
+                                <li className="flex items-start gap-2">
+                                  <span className="font-bold text-blue-600">1.</span>
+                                  <span>Mở ứng dụng ngân hàng (Mobile Banking) trên điện thoại</span>
+                                </li>
+                                <li className="flex items-start gap-2">
+                                  <span className="font-bold text-blue-600">2.</span>
+                                  <span>Chọn chức năng <strong>Quét mã QR</strong> hoặc <strong>Chuyển khoản</strong></span>
+                                </li>
+                                <li className="flex items-start gap-2">
+                                  <span className="font-bold text-blue-600">3.</span>
+                                  <span>Quét mã QR phía trên hoặc nhập thông tin tài khoản</span>
+                                </li>
+                                <li className="flex items-start gap-2">
+                                  <span className="font-bold text-blue-600">4.</span>
+                                  <span>Kiểm tra thông tin và <strong>xác nhận thanh toán</strong></span>
+                                </li>
+                                <li className="flex items-start gap-2">
+                                  <span className="font-bold text-blue-600">5.</span>
+                                  <span>Sau khi chuyển khoản thành công, nhấn nút <strong>"Hoàn tất đơn hàng"</strong> bên dưới</span>
+                                </li>
+                              </ol>
+                            </div>
+
+                            {/* Warning Note */}
+                            <div className="mt-4 bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-yellow-800">
+                              <strong>⚠️ Lưu ý:</strong> Vui lòng kiểm tra kỹ thông tin tài khoản trước khi chuyển khoản. 
+                              Đơn hàng sẽ được xử lý sau khi nhận được thanh toán (thường trong vòng 5-10 phút).
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
                       {/* Card Payment Form */}
                       {paymentInfo.paymentMethod === 'card' && (
                         <div className="space-y-4">
                           <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Card Number *
+                              Số thẻ *
                             </label>
                             <div className="relative">
                               <CreditCard className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -421,7 +758,7 @@ const Checkout = () => {
                           <div className="grid md:grid-cols-2 gap-4">
                             <div>
                               <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Expiry Date *
+                                Ngày hết hạn *
                               </label>
                               <Input
                                 required
@@ -433,7 +770,7 @@ const Checkout = () => {
                             </div>
                             <div>
                               <label className="block text-sm font-medium text-gray-700 mb-1">
-                            CVV *
+                                CVV *
                               </label>
                               <div className="relative">
                                 <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -451,13 +788,13 @@ const Checkout = () => {
 
                           <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Cardholder Name *
+                              Tên chủ thẻ *
                             </label>
                             <Input
                               required
                               value={paymentInfo.cardholderName}
                               onChange={(e) => setPaymentInfo(prev => ({...prev, cardholderName: e.target.value}))}
-                              placeholder="John Doe"
+                              placeholder="NGUYEN VAN A"
                             />
                           </div>
                         </div>
@@ -468,12 +805,26 @@ const Checkout = () => {
                           type="button"
                           variant="outline" 
                           onClick={() => setCurrentStep(2)}
+                          disabled={loading}
                         >
                           <ArrowLeft className="w-4 h-4 mr-2" />
-                      Back to Billing
+                          Quay lại thông tin
                         </Button>
-                        <Button type="submit" className="bg-teal-500 hover:bg-teal-600">
-                      Complete Order - {formatCurrency(total)}
+                        <Button 
+                          type="submit" 
+                          className="bg-teal-500 hover:bg-teal-600"
+                          disabled={loading}
+                        >
+                          {loading ? (
+                            <>
+                              <span className="animate-spin mr-2">⏳</span>
+                              Đang xử lý...
+                            </>
+                          ) : (
+                            <>
+                              {paymentInfo.paymentMethod === 'qr' ? 'Hoàn tất đơn hàng' : `Thanh toán ${formatCurrency(total)}`}
+                            </>
+                          )}
                         </Button>
                       </div>
                     </form>
@@ -485,30 +836,112 @@ const Checkout = () => {
               {currentStep === 4 && (
                 <Card>
                   <CardContent className="text-center p-8">
-                    <div className="w-16 h-16 bg-teal-500 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <Check className="w-8 h-8 text-white" />
-                    </div>
-                    <h2 className="text-2xl font-bold text-gray-900 mb-2">Đăng ký thành công!</h2>
-                    <p className="text-gray-600 mb-6">
-                      Cảm ơn bạn đã đăng ký. Các khóa học của bạn đã sẵn sàng trong tài khoản.
-                    </p>
-                    <div className="bg-gray-50 rounded-lg p-4 mb-6">
-                      <div className="text-sm text-gray-600 mb-2">Mã giao dịch</div>
-                      <div className="font-mono text-lg font-semibold text-teal-600">
-                        {transactionRef || 'N/A'}
-                      </div>
-                    </div>
-                    <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                      <Button 
-                        onClick={() => navigate('/my-learning')}
-                        className="bg-teal-500 hover:bg-teal-600"
-                      >
-                        Bắt đầu học
-                      </Button>
-                      <Button variant="outline" onClick={() => navigate('/catalog')}>
-                        Tiếp tục khám phá
-                      </Button>
-                    </div>
+                    {transactionRef ? (
+                      // Payment completed
+                      <>
+                        <div className="w-16 h-16 bg-teal-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                          <Check className="w-8 h-8 text-white" />
+                        </div>
+                        <h2 className="text-2xl font-bold text-gray-900 mb-2">Đăng ký thành công!</h2>
+                        <p className="text-gray-600 mb-6">
+                          Cảm ơn bạn đã đăng ký. Các khóa học của bạn đã sẵn sàng trong tài khoản.
+                        </p>
+                        <div className="bg-gray-50 rounded-lg p-4 mb-6">
+                          <div className="text-sm text-gray-600 mb-2">Mã giao dịch</div>
+                          <div className="font-mono text-lg font-semibold text-teal-600">
+                            {transactionRef}
+                          </div>
+                        </div>
+                        <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                          <Button 
+                            onClick={() => navigate('/my-learning')}
+                            className="bg-teal-500 hover:bg-teal-600"
+                          >
+                            Bắt đầu học
+                          </Button>
+                          <Button variant="outline" onClick={() => navigate('/catalog')}>
+                            Tiếp tục khám phá
+                          </Button>
+                        </div>
+                      </>
+                    ) : (
+                      // QR Payment - Waiting for confirmation
+                      <>
+                        <div className="w-16 h-16 bg-blue-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                          <CreditCard className="w-8 h-8 text-white" />
+                        </div>
+                        <h2 className="text-2xl font-bold text-gray-900 mb-2">Chờ xác nhận thanh toán</h2>
+                        <p className="text-gray-600 mb-6">
+                          Vui lòng quét mã QR và chuyển khoản, sau đó nhấn nút bên dưới để hoàn tất đơn hàng.
+                        </p>
+                        
+                        {/* Show QR Code Again */}
+                        <div className="max-w-md mx-auto bg-gradient-to-br from-green-50 to-blue-50 rounded-xl p-6 border-2 border-green-200 mb-6">
+                          <div className="bg-white rounded-lg shadow-lg p-6">
+                            {/* QR Code Image */}
+                            <div className="flex justify-center mb-4">
+                              <div className="bg-white p-4 rounded-lg shadow-inner">
+                                <img
+                                  src={`https://img.vietqr.io/image/970448-0933027148-compact2.png?amount=${totalVND}&addInfo=MINICOURSE-${Date.now()}`}
+                                  alt="QR Payment Code"
+                                  className="w-64 h-64 object-contain"
+                                  onError={(e) => {
+                                    e.target.src = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=OCB-0933027148-${totalVND}`;
+                                  }}
+                                />
+                              </div>
+                            </div>
+
+                            {/* Account Info */}
+                            <div className="bg-gray-50 rounded-lg p-4 mb-4 space-y-2">
+                              <div className="flex items-center gap-2">
+                                <User className="w-4 h-4 text-gray-600" />
+                                <div>
+                                  <div className="text-xs text-gray-500">Người nhận</div>
+                                  <div className="font-semibold text-gray-900">NGUYEN DUC HUY</div>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <CreditCard className="w-4 h-4 text-gray-600" />
+                                <div>
+                                  <div className="text-xs text-gray-500">Số tài khoản</div>
+                                  <div className="font-mono font-semibold text-gray-900">0933027148</div>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Payment Amount */}
+                            <div className="bg-gradient-to-r from-blue-500 to-teal-500 text-white rounded-lg p-4 text-center">
+                              <div className="text-sm opacity-90 mb-1">Số tiền thanh toán</div>
+                              <div className="text-3xl font-bold">{formatCurrency(total)}</div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6 text-sm text-yellow-800">
+                          <strong>⚠️ Lưu ý:</strong> Sau khi chuyển khoản thành công, vui lòng nhấn nút 
+                          <strong> "Tôi đã chuyển khoản"</strong> bên dưới để hệ thống xác nhận và kích hoạt khóa học.
+                        </div>
+
+                        <Button 
+                          onClick={handleCompleteQRPayment}
+                          className="bg-teal-500 hover:bg-teal-600 w-full sm:w-auto"
+                          disabled={loading}
+                        >
+                          {loading ? (
+                            <>
+                              <span className="animate-spin mr-2">⏳</span>
+                              Đang xác nhận...
+                            </>
+                          ) : (
+                            <>
+                              <Check className="w-5 h-5 mr-2" />
+                              Tôi đã chuyển khoản
+                            </>
+                          )}
+                        </Button>
+                      </>
+                    )}
                   </CardContent>
                 </Card>
               )}
@@ -577,7 +1010,7 @@ const Checkout = () => {
           </div>
         </div>
       </div>
-    </AppLayout>
+    </CheckoutLayout>
   );
 };
 

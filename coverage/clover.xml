@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<coverage generated="1761368682440" clover="3.2.0">
-  <project timestamp="1761368682440" name="All files">
-    <metrics statements="3914" coveredstatements="39" conditionals="2879" coveredconditionals="6" methods="1268" coveredmethods="16" elements="8061" coveredelements="61" complexity="0" loc="3914" ncloc="3914" packages="23" files="92" classes="92"/>
+<coverage generated="1761371792122" clover="3.2.0">
+  <project timestamp="1761371792122" name="All files">
+    <metrics statements="3935" coveredstatements="50" conditionals="2879" coveredconditionals="6" methods="1268" coveredmethods="16" elements="8082" coveredelements="72" complexity="0" loc="3935" ncloc="3935" packages="23" files="92" classes="92"/>
     <package name="src">
       <metrics statements="2" coveredstatements="0" conditionals="2" coveredconditionals="0" methods="2" coveredmethods="0"/>
       <file name="App.jsx" path="E:\mini-coursera-ui-tailwind\src\App.jsx">
@@ -838,7 +838,7 @@
       </file>
     </package>
     <package name="src.contexts">
-      <metrics statements="272" coveredstatements="39" conditionals="118" coveredconditionals="6" methods="64" coveredmethods="16"/>
+      <metrics statements="283" coveredstatements="50" conditionals="118" coveredconditionals="6" methods="64" coveredmethods="16"/>
       <file name="AuthContext.jsx" path="E:\mini-coursera-ui-tailwind\src\contexts\AuthContext.jsx">
         <metrics statements="105" coveredstatements="0" conditionals="24" coveredconditionals="0" methods="9" coveredmethods="0"/>
         <line num="4" count="0" type="stmt"/>
@@ -948,7 +948,7 @@
         <line num="218" count="0" type="stmt"/>
       </file>
       <file name="CartContext.jsx" path="E:\mini-coursera-ui-tailwind\src\contexts\CartContext.jsx">
-        <metrics statements="39" coveredstatements="39" conditionals="6" coveredconditionals="6" methods="16" coveredmethods="16"/>
+        <metrics statements="50" coveredstatements="50" conditionals="6" coveredconditionals="6" methods="16" coveredmethods="16"/>
         <line num="4" count="1" type="stmt"/>
         <line num="6" count="1" type="stmt"/>
         <line num="7" count="58" type="stmt"/>
@@ -968,26 +968,37 @@
         <line num="32" count="54" type="stmt"/>
         <line num="35" count="54" type="stmt"/>
         <line num="36" count="80" type="stmt"/>
-        <line num="37" count="1238" type="stmt"/>
-        <line num="39" count="80" type="cond" truecount="2" falsecount="0"/>
-        <line num="40" count="1" type="stmt"/>
-        <line num="41" count="1" type="stmt"/>
-        <line num="44" count="79" type="stmt"/>
-        <line num="45" count="79" type="stmt"/>
-        <line num="57" count="54" type="stmt"/>
-        <line num="58" count="9" type="stmt"/>
-        <line num="59" count="5" type="stmt"/>
-        <line num="62" count="54" type="stmt"/>
-        <line num="63" count="3" type="stmt"/>
-        <line num="64" count="3" type="stmt"/>
-        <line num="65" count="3" type="stmt"/>
-        <line num="68" count="54" type="stmt"/>
-        <line num="69" count="3" type="stmt"/>
+        <line num="37" count="80" type="stmt"/>
+        <line num="38" count="80" type="stmt"/>
+        <line num="40" count="80" type="stmt"/>
+        <line num="41" count="80" type="stmt"/>
+        <line num="42" count="80" type="stmt"/>
+        <line num="43" count="1238" type="stmt"/>
+        <line num="44" count="1238" type="stmt"/>
+        <line num="47" count="80" type="stmt"/>
+        <line num="49" count="80" type="cond" truecount="2" falsecount="0"/>
+        <line num="50" count="1" type="stmt"/>
+        <line num="51" count="1" type="stmt"/>
+        <line num="54" count="79" type="stmt"/>
+        <line num="64" count="79" type="stmt"/>
+        <line num="65" count="79" type="stmt"/>
+        <line num="66" count="79" type="stmt"/>
+        <line num="67" count="79" type="stmt"/>
+        <line num="68" count="79" type="stmt"/>
         <line num="72" count="54" type="stmt"/>
-        <line num="73" count="60" type="stmt"/>
-        <line num="76" count="54" type="stmt"/>
-        <line num="77" count="9" type="stmt"/>
-        <line num="80" count="54" type="stmt"/>
+        <line num="73" count="9" type="stmt"/>
+        <line num="74" count="5" type="stmt"/>
+        <line num="77" count="54" type="stmt"/>
+        <line num="78" count="3" type="stmt"/>
+        <line num="79" count="3" type="stmt"/>
+        <line num="80" count="3" type="stmt"/>
+        <line num="83" count="54" type="stmt"/>
+        <line num="84" count="3" type="stmt"/>
+        <line num="87" count="54" type="stmt"/>
+        <line num="88" count="60" type="stmt"/>
+        <line num="91" count="54" type="stmt"/>
+        <line num="92" count="9" type="stmt"/>
+        <line num="95" count="54" type="stmt"/>
       </file>
       <file name="WebSocketContext.jsx" path="E:\mini-coursera-ui-tailwind\src\contexts\WebSocketContext.jsx">
         <metrics statements="128" coveredstatements="0" conditionals="88" coveredconditionals="0" methods="39" coveredmethods="0"/>
@@ -1430,7 +1441,7 @@
       </file>
     </package>
     <package name="src.pages">
-      <metrics statements="1110" coveredstatements="0" conditionals="1155" coveredconditionals="0" methods="396" coveredmethods="0"/>
+      <metrics statements="1120" coveredstatements="0" conditionals="1155" coveredconditionals="0" methods="396" coveredmethods="0"/>
       <file name="AboutPage.jsx" path="E:\mini-coursera-ui-tailwind\src\pages\AboutPage.jsx">
         <metrics statements="6" coveredstatements="0" conditionals="0" coveredconditionals="0" methods="3" coveredmethods="0"/>
         <line num="7" count="0" type="stmt"/>
@@ -1695,7 +1706,7 @@
         <line num="227" count="0" type="cond" truecount="0" falsecount="2"/>
       </file>
       <file name="CourseDetail.jsx" path="E:\mini-coursera-ui-tailwind\src\pages\CourseDetail.jsx">
-        <metrics statements="90" coveredstatements="0" conditionals="122" coveredconditionals="0" methods="26" coveredmethods="0"/>
+        <metrics statements="100" coveredstatements="0" conditionals="122" coveredconditionals="0" methods="26" coveredmethods="0"/>
         <line num="26" count="0" type="stmt"/>
         <line num="27" count="0" type="stmt"/>
         <line num="28" count="0" type="stmt"/>
@@ -1756,36 +1767,46 @@
         <line num="309" count="0" type="stmt"/>
         <line num="313" count="0" type="stmt"/>
         <line num="316" count="0" type="stmt"/>
-        <line num="317" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="317" count="0" type="stmt"/>
         <line num="318" count="0" type="stmt"/>
         <line num="319" count="0" type="stmt"/>
         <line num="320" count="0" type="stmt"/>
+        <line num="321" count="0" type="stmt"/>
         <line num="323" count="0" type="cond" truecount="0" falsecount="2"/>
         <line num="324" count="0" type="stmt"/>
         <line num="325" count="0" type="stmt"/>
-        <line num="328" count="0" type="stmt"/>
-        <line num="339" count="0" type="stmt"/>
-        <line num="341" count="0" type="stmt"/>
-        <line num="344" count="0" type="stmt"/>
-        <line num="345" count="0" type="stmt"/>
+        <line num="326" count="0" type="stmt"/>
+        <line num="329" count="0" type="stmt"/>
+        <line num="330" count="0" type="stmt"/>
+        <line num="332" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="333" count="0" type="stmt"/>
+        <line num="334" count="0" type="stmt"/>
+        <line num="337" count="0" type="stmt"/>
+        <line num="347" count="0" type="stmt"/>
+        <line num="348" count="0" type="stmt"/>
+        <line num="349" count="0" type="stmt"/>
+        <line num="352" count="0" type="stmt"/>
+        <line num="354" count="0" type="stmt"/>
+        <line num="357" count="0" type="stmt"/>
         <line num="358" count="0" type="stmt"/>
-        <line num="369" count="0" type="stmt"/>
-        <line num="370" count="0" type="stmt"/>
-        <line num="410" count="0" type="cond" truecount="0" falsecount="2"/>
-        <line num="411" count="0" type="stmt"/>
-        <line num="421" count="0" type="cond" truecount="0" falsecount="2"/>
-        <line num="422" count="0" type="stmt"/>
-        <line num="426" count="0" type="stmt"/>
-        <line num="432" count="0" type="stmt"/>
-        <line num="489" count="0" type="stmt"/>
-        <line num="511" count="0" type="stmt"/>
-        <line num="520" count="0" type="stmt"/>
-        <line num="588" count="0" type="stmt"/>
-        <line num="607" count="0" type="stmt"/>
-        <line num="657" count="0" type="stmt"/>
-        <line num="686" count="0" type="stmt"/>
-        <line num="711" count="0" type="stmt"/>
-        <line num="753" count="0" type="stmt"/>
+        <line num="371" count="0" type="stmt"/>
+        <line num="382" count="0" type="stmt"/>
+        <line num="383" count="0" type="stmt"/>
+        <line num="423" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="424" count="0" type="stmt"/>
+        <line num="434" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="435" count="0" type="stmt"/>
+        <line num="439" count="0" type="stmt"/>
+        <line num="445" count="0" type="stmt"/>
+        <line num="502" count="0" type="stmt"/>
+        <line num="524" count="0" type="stmt"/>
+        <line num="533" count="0" type="stmt"/>
+        <line num="601" count="0" type="stmt"/>
+        <line num="620" count="0" type="stmt"/>
+        <line num="670" count="0" type="stmt"/>
+        <line num="699" count="0" type="stmt"/>
+        <line num="724" count="0" type="stmt"/>
+        <line num="766" count="0" type="stmt"/>
       </file>
       <file name="CourseDetailPageNew.jsx" path="E:\mini-coursera-ui-tailwind\src\pages\CourseDetailPageNew.jsx">
         <metrics statements="90" coveredstatements="0" conditionals="147" coveredconditionals="0" methods="30" coveredmethods="0"/>

@@ -167,9 +167,9 @@ const CoursesPage = () => {
 
   const formatCurrency = (price) => {
     if (!price || price === 0) return 'Miễn phí';
-    return new Intl.NumberFormat('vi-VN', {
+    return new Intl.NumberFormat('en-US', {
       style: 'currency',
-      currency: 'VND'
+      currency: 'USD'
     }).format(price);
   };
 

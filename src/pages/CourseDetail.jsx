@@ -296,9 +296,9 @@ const CourseDetail = () => {
 
   const formatCurrency = (price) => {
     if (!price || price === 0) return 'Free';
-    return new Intl.NumberFormat('vi-VN', {
+    return new Intl.NumberFormat('en-US', {
       style: 'currency',
-      currency: 'VND'
+      currency: 'USD'
     }).format(price);
   };
 
@@ -314,18 +314,27 @@ const CourseDetail = () => {
   };
 
   const handleAddToCart = () => {
+    console.log('🛒 === ADD TO CART DEBUG ===');
+    console.log('🔐 isAuthenticated:', state.isAuthenticated);
+    console.log('📦 course:', course);
+    console.log('🆔 courseId (from params):', courseId, 'type:', typeof courseId);
+    console.log('🆔 parseInt(courseId):', parseInt(courseId));
+    
     if (!state.isAuthenticated) {
       toast.error('Vui lòng đăng nhập để thêm vào giỏ hàng');
       navigate('/login');
       return;
     }
 
-    if (isInCart(parseInt(courseId))) {
+    const isAlreadyInCart = isInCart(parseInt(courseId));
+    console.log('✅ isInCart check:', isAlreadyInCart);
+    
+    if (isAlreadyInCart) {
       toast.info('Khóa học đã có trong giỏ hàng');
       return;
     }
 
-    addToCart({
+    const cartItem = {
       id: parseInt(courseId),
       title: course.title,
       price: course.price,
@@ -333,7 +342,11 @@ const CourseDetail = () => {
       thumbnail: course.thumbnail,
       level: course.level,
       duration: course.duration
-    });
+    };
+    
+    console.log('📦 Adding to cart:', cartItem);
+    addToCart(cartItem);
+    console.log('✅ addToCart called');
   };
 
   const handleEnroll = () => {

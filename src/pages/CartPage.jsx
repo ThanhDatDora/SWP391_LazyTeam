@@ -13,9 +13,9 @@ const CartPage = () => {
   const { cartItems, removeFromCart, getTotalPrice, getItemCount } = useCart();
 
   const formatCurrency = (price) => {
-    return new Intl.NumberFormat('vi-VN', {
+    return new Intl.NumberFormat('en-US', {
       style: 'currency',
-      currency: 'VND'
+      currency: 'USD'
     }).format(price);
   };
 
@@ -141,24 +141,18 @@ const CartPage = () => {
                     Tiếp tục mua sắm
                   </Button>
                   <div className="space-y-2 text-sm text-gray-600 mt-4">
-                    <div className="flex items-center gap-2">
-                      <div className="w-4 h-4 rounded-full bg-green-500 flex items-center justify-center">
-                        <span className="text-white text-xs">✓</span>
+                    {[
+                      'Đảm bảo hoàn tiền 30 ngày',
+                      'Truy cập trọn đời',
+                      'Chứng chỉ hoàn thành'
+                    ].map((feature, index) => (
+                      <div key={index} className="flex items-center gap-2">
+                        <div className="w-4 h-4 rounded-full bg-green-500 flex items-center justify-center">
+                          <span className="text-white text-xs">✓</span>
+                        </div>
+                        <span>{feature}</span>
                       </div>
-                      <span>Đảm bảo hoàn tiền 30 ngày</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-4 h-4 rounded-full bg-green-500 flex items-center justify-center">
-                        <span className="text-white text-xs">✓</span>
-                      </div>
-                      <span>Truy cập trọn đời</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-4 h-4 rounded-full bg-green-500 flex items-center justify-center">
-                        <span className="text-white text-xs">✓</span>
-                      </div>
-                      <span>Chứng chỉ hoàn thành</span>
-                    </div>
+                    ))}
                   </div>
                 </CardContent>
               </Card>

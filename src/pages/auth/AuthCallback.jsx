@@ -5,7 +5,7 @@ import { useAuth } from '../../contexts/AuthContext';
 const AuthCallback = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { setUser, setToken } = useAuth();
+  const { setUser } = useAuth(); // Chỉ cần setUser, không cần setToken
 
   useEffect(() => {
     const handleCallback = async () => {
@@ -23,13 +23,17 @@ const AuthCallback = () => {
         try {
           const user = JSON.parse(decodeURIComponent(userStr));
           
+          console.log('✅ [AuthCallback] Received OAuth data:', { user, token: token.substring(0, 20) + '...' });
+          
           // Save to localStorage
           localStorage.setItem('token', token);
+          localStorage.setItem('authToken', token); // Cũng lưu vào authToken key (API sử dụng key này!)
           localStorage.setItem('user', JSON.stringify(user));
           
           // Update auth context
-          setToken(token);
           setUser(user);
+          
+          console.log('✅ [AuthCallback] Saved to localStorage and updated context');
           
           // Redirect to home
           navigate('/');
@@ -43,7 +47,7 @@ const AuthCallback = () => {
     };
 
     handleCallback();
-  }, [searchParams, navigate, setUser, setToken]);
+  }, [searchParams, navigate, setUser]); // Bỏ setToken khỏi dependencies
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">

@@ -1,0 +1,105 @@
+{
+  "timestamp": "2025-11-01T07:48:20.635Z",
+  "error": {
+    "name": "NotFoundError",
+    "message": "Route /api/admin/revenue/summary not found",
+    "type": "NOT_FOUND_ERROR",
+    "code": 3001,
+    "statusCode": 404,
+    "stack": "NotFoundError: Route /api/admin/revenue/summary not found\n    at notFoundHandler (file:///E:/mini-coursera-ui-tailwind/backend/middleware/errorHandler.js:325:17)\n    at Layer.handle [as handle_request] (E:\\mini-coursera-ui-tailwind\\backend\\node_modules\\express\\lib\\router\\layer.js:95:5)\n    at trim_prefix (E:\\mini-coursera-ui-tailwind\\backend\\node_modules\\express\\lib\\router\\index.js:328:13)\n    at E:\\mini-coursera-ui-tailwind\\backend\\node_modules\\express\\lib\\router\\index.js:286:9\n    at param (E:\\mini-coursera-ui-tailwind\\backend\\node_modules\\express\\lib\\router\\index.js:365:14)\n    at param (E:\\mini-coursera-ui-tailwind\\backend\\node_modules\\express\\lib\\router\\index.js:376:14)\n    at router.process_params (E:\\mini-coursera-ui-tailwind\\backend\\node_modules\\express\\lib\\router\\index.js:421:3)\n    at next (E:\\mini-coursera-ui-tailwind\\backend\\node_modules\\express\\lib\\router\\index.js:280:10)\n    at SendStream.error (E:\\mini-coursera-ui-tailwind\\backend\\node_modules\\serve-static\\index.js:121:7)\n    at SendStream.emit (node:events:508:28)"
+  },
+  "request": {
+    "method": "GET",
+    "url": "/api/admin/revenue/summary",
+    "userAgent": "Mozilla/5.0 (Windows NT; Windows NT 10.0; en-US) WindowsPowerShell/5.1.26100.6899",
+    "ip": "127.0.0.1",
+    "userId": null,
+    "body": {},
+    "query": {}
+  },
+  "environment": "development"
+}
+{
+  "timestamp": "2025-11-01T11:07:33.407Z",
+  "error": {
+    "name": "NotFoundError",
+    "message": "Route /api/enrollments/my-enrollments not found",
+    "type": "NOT_FOUND_ERROR",
+    "code": 3001,
+    "statusCode": 404,
+    "stack": "NotFoundError: Route /api/enrollments/my-enrollments not found\n    at notFoundHandler (file:///E:/mini-coursera-ui-tailwind/backend/middleware/errorHandler.js:325:17)\n    at Layer.handle [as handle_request] (E:\\mini-coursera-ui-tailwind\\backend\\node_modules\\express\\lib\\router\\layer.js:95:5)\n    at trim_prefix (E:\\mini-coursera-ui-tailwind\\backend\\node_modules\\express\\lib\\router\\index.js:328:13)\n    at E:\\mini-coursera-ui-tailwind\\backend\\node_modules\\express\\lib\\router\\index.js:286:9\n    at param (E:\\mini-coursera-ui-tailwind\\backend\\node_modules\\express\\lib\\router\\index.js:365:14)\n    at param (E:\\mini-coursera-ui-tailwind\\backend\\node_modules\\express\\lib\\router\\index.js:376:14)\n    at router.process_params (E:\\mini-coursera-ui-tailwind\\backend\\node_modules\\express\\lib\\router\\index.js:421:3)\n    at next (E:\\mini-coursera-ui-tailwind\\backend\\node_modules\\express\\lib\\router\\index.js:280:10)\n    at SendStream.error (E:\\mini-coursera-ui-tailwind\\backend\\node_modules\\serve-static\\index.js:121:7)\n    at SendStream.emit (node:events:508:28)"
+  },
+  "request": {
+    "method": "GET",
+    "url": "/api/enrollments/my-enrollments",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
+    "ip": "127.0.0.1",
+    "userId": null,
+    "body": {},
+    "query": {}
+  },
+  "environment": "development"
+}
+{
+  "timestamp": "2025-11-01T11:07:33.420Z",
+  "error": {
+    "name": "NotFoundError",
+    "message": "Route /api/enrollments/my-enrollments not found",
+    "type": "NOT_FOUND_ERROR",
+    "code": 3001,
+    "statusCode": 404,
+    "stack": "NotFoundError: Route /api/enrollments/my-enrollments not found\n    at notFoundHandler (file:///E:/mini-coursera-ui-tailwind/backend/middleware/errorHandler.js:325:17)\n    at Layer.handle [as handle_request] (E:\\mini-coursera-ui-tailwind\\backend\\node_modules\\express\\lib\\router\\layer.js:95:5)\n    at trim_prefix (E:\\mini-coursera-ui-tailwind\\backend\\node_modules\\express\\lib\\router\\index.js:328:13)\n    at E:\\mini-coursera-ui-tailwind\\backend\\node_modules\\express\\lib\\router\\index.js:286:9\n    at param (E:\\mini-coursera-ui-tailwind\\backend\\node_modules\\express\\lib\\router\\index.js:365:14)\n    at param (E:\\mini-coursera-ui-tailwind\\backend\\node_modules\\express\\lib\\router\\index.js:376:14)\n    at router.process_params (E:\\mini-coursera-ui-tailwind\\backend\\node_modules\\express\\lib\\router\\index.js:421:3)\n    at next (E:\\mini-coursera-ui-tailwind\\backend\\node_modules\\express\\lib\\router\\index.js:280:10)\n    at SendStream.error (E:\\mini-coursera-ui-tailwind\\backend\\node_modules\\serve-static\\index.js:121:7)\n    at SendStream.emit (node:events:508:28)"
+  },
+  "request": {
+    "method": "GET",
+    "url": "/api/enrollments/my-enrollments",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
+    "ip": "127.0.0.1",
+    "userId": null,
+    "body": {},
+    "query": {}
+  },
+  "environment": "development"
+}
+{
+  "timestamp": "2025-11-01T11:15:13.900Z",
+  "error": {
+    "name": "NotFoundError",
+    "message": "Route /api/enrollments/my-enrollments not found",
+    "type": "NOT_FOUND_ERROR",
+    "code": 3001,
+    "statusCode": 404,
+    "stack": "NotFoundError: Route /api/enrollments/my-enrollments not found\n    at notFoundHandler (file:///E:/mini-coursera-ui-tailwind/backend/middleware/errorHandler.js:325:17)\n    at Layer.handle [as handle_request] (E:\\mini-coursera-ui-tailwind\\backend\\node_modules\\express\\lib\\router\\layer.js:95:5)\n    at trim_prefix (E:\\mini-coursera-ui-tailwind\\backend\\node_modules\\express\\lib\\router\\index.js:328:13)\n    at E:\\mini-coursera-ui-tailwind\\backend\\node_modules\\express\\lib\\router\\index.js:286:9\n    at param (E:\\mini-coursera-ui-tailwind\\backend\\node_modules\\express\\lib\\router\\index.js:365:14)\n    at param (E:\\mini-coursera-ui-tailwind\\backend\\node_modules\\express\\lib\\router\\index.js:376:14)\n    at router.process_params (E:\\mini-coursera-ui-tailwind\\backend\\node_modules\\express\\lib\\router\\index.js:421:3)\n    at next (E:\\mini-coursera-ui-tailwind\\backend\\node_modules\\express\\lib\\router\\index.js:280:10)\n    at SendStream.error (E:\\mini-coursera-ui-tailwind\\backend\\node_modules\\serve-static\\index.js:121:7)\n    at SendStream.emit (node:events:508:28)"
+  },
+  "request": {
+    "method": "GET",
+    "url": "/api/enrollments/my-enrollments",
+    "userAgent": "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Mobile Safari/537.36",
+    "ip": "127.0.0.1",
+    "userId": null,
+    "body": {},
+    "query": {}
+  },
+  "environment": "development"
+}
+{
+  "timestamp": "2025-11-01T11:15:13.913Z",
+  "error": {
+    "name": "NotFoundError",
+    "message": "Route /api/enrollments/my-enrollments not found",
+    "type": "NOT_FOUND_ERROR",
+    "code": 3001,
+    "statusCode": 404,
+    "stack": "NotFoundError: Route /api/enrollments/my-enrollments not found\n    at notFoundHandler (file:///E:/mini-coursera-ui-tailwind/backend/middleware/errorHandler.js:325:17)\n    at Layer.handle [as handle_request] (E:\\mini-coursera-ui-tailwind\\backend\\node_modules\\express\\lib\\router\\layer.js:95:5)\n    at trim_prefix (E:\\mini-coursera-ui-tailwind\\backend\\node_modules\\express\\lib\\router\\index.js:328:13)\n    at E:\\mini-coursera-ui-tailwind\\backend\\node_modules\\express\\lib\\router\\index.js:286:9\n    at param (E:\\mini-coursera-ui-tailwind\\backend\\node_modules\\express\\lib\\router\\index.js:365:14)\n    at param (E:\\mini-coursera-ui-tailwind\\backend\\node_modules\\express\\lib\\router\\index.js:376:14)\n    at router.process_params (E:\\mini-coursera-ui-tailwind\\backend\\node_modules\\express\\lib\\router\\index.js:421:3)\n    at next (E:\\mini-coursera-ui-tailwind\\backend\\node_modules\\express\\lib\\router\\index.js:280:10)\n    at SendStream.error (E:\\mini-coursera-ui-tailwind\\backend\\node_modules\\serve-static\\index.js:121:7)\n    at SendStream.emit (node:events:508:28)"
+  },
+  "request": {
+    "method": "GET",
+    "url": "/api/enrollments/my-enrollments",
+    "userAgent": "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Mobile Safari/537.36",
+    "ip": "127.0.0.1",
+    "userId": null,
+    "body": {},
+    "query": {}
+  },
+  "environment": "development"
+}

@@ -64,7 +64,9 @@ const apiRequest = async (endpoint, options = {}) => {
       throw new Error(data.message || 'API request failed');
     }
     
-    const result = { success: true, data };
+    // ✅ FIX: Don't double-wrap if backend already returns { success: true, data: ... }
+    // Just return the backend response directly
+    const result = data.success !== undefined ? data : { success: true, data };
     
     // Cache successful GET requests (but not auth endpoints)
     if ((!options.method || options.method === 'GET') && !isAuthEndpoint) {
@@ -318,14 +320,69 @@ export const enrollmentAPI = {
     return await apiRequest(`/enrollments/course/${courseId}/progress`);
   },
 
-  async markLessonComplete(lessonId) {
+  async getCourseContent(courseId) {
+    return await apiRequest(`/enrollments/course/${courseId}/content`);
+  },
+
+  async markLessonComplete(lessonId, data) {
     return await apiRequest(`/enrollments/lesson/${lessonId}/complete`, {
-      method: 'POST'
+      method: 'POST',
+      body: JSON.stringify(data)
     });
   },
 
   async getCourseEnrollments(courseId) {
     return await apiRequest(`/courses/${courseId}/enrollments`);
+  }
+};
+
+// Quiz API (new learning system)
+export const quizAPI = {
+  async getQuizById(quizId) {
+    return await apiRequest(`/quizzes/${quizId}`);
+  },
+
+  async submitQuiz(quizId, answers) {
+    return await apiRequest(`/quizzes/${quizId}/submit`, {
+      method: 'POST',
+      body: JSON.stringify({ answers })
+    });
+  },
+
+  async getQuizAttempts(quizId) {
+    return await apiRequest(`/quizzes/${quizId}/attempts`);
+  }
+};
+
+// Exam API (new learning system)
+export const newExamAPI = {
+  async getExamByMooc(moocId) {
+    return await apiRequest(`/learning/exams/mooc/${moocId}`);
+  },
+
+  async startExam(examId) {
+    return await apiRequest(`/learning/exams/${examId}/start`, {
+      method: 'POST'
+    });
+  },
+
+  async submitExam(examId, attemptId, answers) {
+    return await apiRequest(`/learning/exams/${examId}/submit`, {
+      method: 'POST',
+      body: JSON.stringify({ attempt_id: attemptId, answers })
+    });
+  },
+
+  async getExamResult(attemptId) {
+    return await apiRequest(`/learning/exams/attempts/${attemptId}/result`);
+  },
+
+  async getCourseProgress(courseId) {
+    return await apiRequest(`/learning/exams/course/${courseId}/progress`);
+  },
+
+  async getCertificate(courseId) {
+    return await apiRequest(`/exams/certificate/${courseId}`);
   }
 };
 
@@ -509,6 +566,26 @@ export const adminAPI = {
 
   async updateUserStatus(userId, status) {
     return await userAPI.updateUserStatus(userId, status);
+  },
+
+  // Revenue APIs
+  async getRevenueSummary() {
+    return await apiRequest('/admin/revenue/summary');
+  },
+
+  async getPendingPayments() {
+    return await apiRequest('/admin/revenue/pending-payments');
+  },
+
+  async getInstructorRevenue() {
+    return await apiRequest('/admin/revenue/instructor-revenue');
+  },
+
+  async verifyPayment(paymentId, verified, note = '') {
+    return await apiRequest(`/admin/revenue/verify-payment/${paymentId}`, {
+      method: 'POST',
+      body: JSON.stringify({ verified, note })
+    });
   }
 };
 
@@ -536,6 +613,16 @@ export const instructorAPI = {
 
   async updateCourse(courseId, courseData) {
     return await courseAPI.updateCourse(courseId, courseData);
+  },
+
+  // Revenue APIs
+  async getRevenueSummary() {
+    return await apiRequest('/instructor/revenue/summary');
+  },
+
+  async getTransactions(params = {}) {
+    const queryString = new URLSearchParams(params).toString();
+    return await apiRequest(`/instructor/revenue/transactions${queryString ? '?' + queryString : ''}`);
   }
 };
 
@@ -590,6 +677,61 @@ const checkoutAPI = {
   }
 };
 
+// Assignments API
+const assignmentsAPI = {
+  async submit(lessonId, contentText, file) {
+    const formData = new FormData();
+    formData.append('lesson_id', lessonId);
+    formData.append('content_text', contentText);
+    if (file) {
+      formData.append('file', file);
+    }
+    
+    const token = getToken();
+    try {
+      const response = await fetch(`${API_BASE_URL}/assignments/submit`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        body: formData
+      });
+      
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Submission failed');
+      }
+      
+      return data;
+    } catch (error) {
+      console.error('❌ Assignment submission error:', error);
+      return {
+        success: false,
+        error: error.message || 'Network error occurred'
+      };
+    }
+  },
+
+  async getSubmission(lessonId) {
+    return await apiRequest(`/assignments/submission/${lessonId}`);
+  },
+
+  async grade(submissionId, score, feedback) {
+    return await apiRequest('/assignments/grade', {
+      method: 'POST',
+      body: JSON.stringify({
+        submission_id: submissionId,
+        score,
+        feedback
+      })
+    });
+  },
+
+  async getSubmissions(lessonId) {
+    return await apiRequest(`/assignments/lesson/${lessonId}/submissions`);
+  }
+};
+
 // Cache utilities
 export const cacheUtils = {
   clear: () => {
@@ -620,11 +762,14 @@ export const api = {
   content: contentAPI,
   exams: examAPI,
   enrollments: enrollmentAPI,
+  quizzes: quizAPI,
+  newExams: newExamAPI,
   admin: adminAPI,
   instructor: instructorAPI,
   learner: learnerAPI,
   users: userAPI,
   checkout: checkoutAPI,
+  assignments: assignmentsAPI,
   cache: cacheUtils
 };
 

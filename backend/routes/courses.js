@@ -117,6 +117,103 @@ router.get('/', [
   }
 });
 
+// Get my enrolled courses (MUST be before /:id route!)
+router.get('/my-enrolled', authenticateToken, authorizeRoles('learner'), async (req, res) => {
+  try {
+    const pool = await getPool();
+    const userId = req.user.userId;
+    
+    console.log('📚 [my-enrolled] Fetching courses for userId:', userId);
+    
+    const result = await pool.request()
+      .input('userId', sql.BigInt, userId)
+      .query(`
+        SELECT 
+          c.course_id as id,
+          c.title,
+          c.description,
+          c.price,
+          c.level,
+          'https://via.placeholder.com/400x250' as thumbnail,
+          '10 hours' as duration,
+          u.full_name as instructor,
+          e.enrolled_at as enrolledAt,
+          e.status as enrollmentStatus,
+          e.completed_at as completedAt,
+          cat.name as category,
+          
+          -- Calculate real progress
+          ISNULL((
+            SELECT COUNT(DISTINCT p.lesson_id)
+            FROM progress p
+            INNER JOIN lessons l ON p.lesson_id = l.lesson_id
+            INNER JOIN moocs m ON l.mooc_id = m.mooc_id
+            WHERE m.course_id = c.course_id 
+              AND p.user_id = e.user_id
+              AND p.is_completed = 1
+          ), 0) as completedLessons,
+          
+          ISNULL((
+            SELECT COUNT(*)
+            FROM lessons l
+            INNER JOIN moocs m ON l.mooc_id = m.mooc_id
+            WHERE m.course_id = c.course_id
+          ), 0) as totalLessons,
+          
+          -- Calculate progress percentage
+          CASE 
+            WHEN (SELECT COUNT(*) FROM lessons l INNER JOIN moocs m ON l.mooc_id = m.mooc_id WHERE m.course_id = c.course_id) = 0 
+            THEN 0
+            ELSE CAST(
+              (SELECT COUNT(DISTINCT p.lesson_id) FROM progress p INNER JOIN lessons l ON p.lesson_id = l.lesson_id INNER JOIN moocs m ON l.mooc_id = m.mooc_id WHERE m.course_id = c.course_id AND p.user_id = e.user_id AND p.is_completed = 1) 
+              * 100.0 / 
+              (SELECT COUNT(*) FROM lessons l INNER JOIN moocs m ON l.mooc_id = m.mooc_id WHERE m.course_id = c.course_id)
+              AS INT
+            )
+          END as progress,
+          
+          -- Determine status based on completion
+          CASE 
+            WHEN e.completed_at IS NOT NULL THEN 'completed'
+            WHEN EXISTS (
+              SELECT 1 FROM progress p 
+              INNER JOIN lessons l ON p.lesson_id = l.lesson_id 
+              INNER JOIN moocs m ON l.mooc_id = m.mooc_id 
+              WHERE m.course_id = c.course_id AND p.user_id = e.user_id
+            ) THEN 'in-progress'
+            ELSE 'not-started'
+          END as status,
+          
+          e.enrolled_at as lastAccessed,
+          'Continue Learning' as nextLesson,
+          CASE WHEN e.completed_at IS NOT NULL THEN 1 ELSE 0 END as certificate
+          
+        FROM enrollments e
+        INNER JOIN courses c ON e.course_id = c.course_id
+        INNER JOIN users u ON c.owner_instructor_id = u.user_id
+        LEFT JOIN categories cat ON c.category_id = cat.category_id
+        WHERE e.user_id = @userId AND e.status = 'active'
+        ORDER BY e.enrolled_at DESC
+      `);
+
+    console.log('✅ [my-enrolled] Found', result.recordset.length, 'enrolled courses');
+    
+    res.json({ 
+      success: true,
+      data: result.recordset 
+    });
+
+  } catch (error) {
+    console.error('❌ [my-enrolled] Error:', error.message);
+    console.error('Full error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Internal server error',
+      error: error.message 
+    });
+  }
+});
+
 // Get single course by ID
 router.get('/:id', async (req, res) => {
   try {
@@ -412,110 +509,6 @@ router.post('/:id/enroll', authenticateToken, authorizeRoles('learner'), async (
 
   } catch (error) {
     console.error('Enrollment error:', error);
-    res.status(500).json({ message: 'Internal server error' });
-  }
-});
-
-// Get learner's enrolled courses (My Courses)
-router.get('/my-enrolled', authenticateToken, authorizeRoles('learner'), async (req, res) => {
-  try {
-    const pool = await getPool();
-    
-    const result = await pool.request()
-      .input('userId', sql.BigInt, req.user.user_id)
-      .query(`
-        SELECT 
-          c.course_id as id,
-          c.title,
-          c.description,
-          c.price,
-          c.level,
-          u.full_name as instructor,
-          e.enrollment_date as enrolledAt,
-          e.status as enrollmentStatus,
-          cat.name as category,
-          'https://via.placeholder.com/400x250' as thumbnail,
-          '10 hours' as duration,
-          
-          -- Calculate progress
-          CAST(COALESCE(
-            (SELECT COUNT(*) FROM lesson_completions lc
-             INNER JOIN lessons l ON lc.lesson_id = l.lesson_id
-             INNER JOIN moocs m ON l.mooc_id = m.mooc_id
-             WHERE m.course_id = c.course_id AND lc.student_id = @userId) * 100.0 /
-            NULLIF((SELECT COUNT(*) FROM lessons l
-                    INNER JOIN moocs m ON l.mooc_id = m.mooc_id
-                    WHERE m.course_id = c.course_id), 0),
-            0
-          ) AS INT) as progress,
-          
-          -- Total lessons
-          (SELECT COUNT(*) FROM lessons l
-           INNER JOIN moocs m ON l.mooc_id = m.mooc_id
-           WHERE m.course_id = c.course_id) as totalLessons,
-          
-          -- Completed lessons
-          (SELECT COUNT(*) FROM lesson_completions lc
-           INNER JOIN lessons l ON lc.lesson_id = l.lesson_id
-           INNER JOIN moocs m ON l.mooc_id = m.mooc_id
-           WHERE m.course_id = c.course_id AND lc.student_id = @userId) as completedLessons,
-          
-          -- Last accessed (use latest completion date or enrollment date)
-          COALESCE(
-            (SELECT MAX(completed_at) FROM lesson_completions lc
-             INNER JOIN lessons l ON lc.lesson_id = l.lesson_id
-             INNER JOIN moocs m ON l.mooc_id = m.mooc_id
-             WHERE m.course_id = c.course_id AND lc.student_id = @userId),
-            e.enrollment_date
-          ) as lastAccessed,
-          
-          -- Next lesson title
-          (SELECT TOP 1 l.title
-           FROM lessons l
-           INNER JOIN moocs m ON l.mooc_id = m.mooc_id
-           LEFT JOIN lesson_completions lc ON l.lesson_id = lc.lesson_id AND lc.student_id = @userId
-           WHERE m.course_id = c.course_id AND lc.completion_id IS NULL
-           ORDER BY m.order_no, l.order_no) as nextLesson,
-          
-          -- Status based on completion
-          CASE 
-            WHEN CAST(COALESCE(
-              (SELECT COUNT(*) FROM lesson_completions lc
-               INNER JOIN lessons l ON lc.lesson_id = l.lesson_id
-               INNER JOIN moocs m ON l.mooc_id = m.mooc_id
-               WHERE m.course_id = c.course_id AND lc.student_id = @userId) * 100.0 /
-              NULLIF((SELECT COUNT(*) FROM lessons l
-                      INNER JOIN moocs m ON l.mooc_id = m.mooc_id
-                      WHERE m.course_id = c.course_id), 0),
-              0
-            ) AS INT) >= 100 THEN 'completed'
-            ELSE 'in-progress'
-          END as status,
-          
-          -- Check if certificate exists
-          CASE 
-            WHEN EXISTS (
-              SELECT 1 FROM certificates 
-              WHERE student_id = @userId AND course_id = c.course_id
-            ) THEN 1
-            ELSE 0
-          END as certificate
-          
-        FROM enrollments e
-        INNER JOIN courses c ON e.course_id = c.course_id
-        INNER JOIN users u ON c.owner_instructor_id = u.user_id
-        LEFT JOIN categories cat ON c.category_id = cat.category_id
-        WHERE e.student_id = @userId AND c.status = 'active'
-        ORDER BY e.enrollment_date DESC
-      `);
-
-    res.json({ 
-      success: true,
-      data: result.recordset 
-    });
-
-  } catch (error) {
-    console.error('Get enrolled courses error:', error);
     res.status(500).json({ message: 'Internal server error' });
   }
 });

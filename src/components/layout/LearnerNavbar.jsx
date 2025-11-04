@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { useCart } from '../../contexts/CartContext';
 import { 
   ShoppingCart, 
   User, 
@@ -15,31 +16,14 @@ import NotificationDropdown from '../notifications/NotificationDropdown';
 
 const LearnerNavbar = () => {
   const { state, logout } = useAuth();
+  const { cartItems, getItemCount } = useCart();
   const navigate = useNavigate();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
-  const [cartItemCount, setCartItemCount] = useState(0);
 
-  // Load cart count from localStorage
+  // Log cart changes for debugging
   useEffect(() => {
-    const updateCartCount = () => {
-      try {
-        const savedCart = localStorage.getItem('cart');
-        if (savedCart) {
-          const parsedCart = JSON.parse(savedCart);
-          setCartItemCount(parsedCart.length);
-        }
-      } catch (error) {
-        console.error('Error loading cart count:', error);
-        setCartItemCount(0);
-      }
-    };
-
-    updateCartCount();
-    
-    // Listen for cart updates
-    window.addEventListener('storage', updateCartCount);
-    return () => window.removeEventListener('storage', updateCartCount);
-  }, []);
+    console.log('🔄 LearnerNavbar: cartItems changed:', cartItems.length);
+  }, [cartItems]);
 
   const handleLogout = () => {
     // Clear localStorage first
@@ -126,9 +110,9 @@ const LearnerNavbar = () => {
               className="relative p-2 text-gray-600 hover:text-blue-600 transition-colors"
             >
               <ShoppingCart className="w-5 h-5" />
-              {cartItemCount > 0 && (
+              {getItemCount() > 0 && (
                 <span className="absolute -top-1 -right-1 bg-blue-600 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center">
-                  {cartItemCount}
+                  {getItemCount()}
                 </span>
               )}
             </Link>
