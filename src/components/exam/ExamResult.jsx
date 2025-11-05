@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import Confetti from 'react-confetti';
 import { 
   Trophy, XCircle, TrendingUp, Clock, 
   CheckCircle2, RotateCcw, Eye, ArrowRight 
@@ -19,6 +20,12 @@ const ExamResult = ({
   onContinue,
   loading = false
 }) => {
+  const [showConfetti, setShowConfetti] = useState(false);
+  const [windowDimensions, setWindowDimensions] = useState({
+    width: window.innerWidth,
+    height: window.innerHeight
+  });
+
   if (!result) return null;
 
   const {
@@ -30,6 +37,33 @@ const ExamResult = ({
     next_mooc_unlocked
   } = result;
 
+  // Show confetti for passing scores (70% or higher)
+  useEffect(() => {
+    if (passed && score >= 70) {
+      setShowConfetti(true);
+      
+      // Hide confetti after 4 seconds
+      const timer = setTimeout(() => {
+        setShowConfetti(false);
+      }, 4000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [passed, score]);
+
+  // Update window dimensions for responsive confetti
+  useEffect(() => {
+    const handleResize = () => {
+      setWindowDimensions({
+        width: window.innerWidth,
+        height: window.innerHeight
+      });
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -38,6 +72,18 @@ const ExamResult = ({
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 py-12">
+      {/* Confetti Animation for Passing Scores */}
+      {showConfetti && (
+        <Confetti
+          width={windowDimensions.width}
+          height={windowDimensions.height}
+          recycle={false}
+          numberOfPieces={200}
+          gravity={0.3}
+          colors={['#10B981', '#3B82F6', '#8B5CF6', '#F59E0B', '#EF4444', '#06B6D4']}
+        />
+      )}
+      
       <div className="container mx-auto px-4 max-w-3xl">
         {/* Main Result Card */}
         <Card className={`

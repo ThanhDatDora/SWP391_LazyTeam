@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Clock, AlertCircle, CheckCircle2, Send } from 'lucide-react';
 import { Card, CardContent } from '../ui/card';
 import { Button } from '../ui/button';
@@ -23,6 +23,87 @@ const ExamSession = ({
   const [timeLeft, setTimeLeft] = useState(duration_minutes * 60); // in seconds
   const [showConfirmSubmit, setShowConfirmSubmit] = useState(false);
 
+  // Keyboard shortcuts
+  const handleKeyDown = useCallback((event) => {
+    // Ignore if user is typing in an input or modal is open
+    if (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA') {
+      return;
+    }
+
+    switch (event.key) {
+      case 'ArrowLeft':
+        event.preventDefault();
+        navigateQuestion('prev');
+        break;
+      case 'ArrowRight':
+        event.preventDefault();
+        navigateQuestion('next');
+        break;
+      case 'Enter':
+        event.preventDefault();
+        if (showConfirmSubmit) {
+          handleSubmit();
+        } else {
+          setShowConfirmSubmit(true);
+        }
+        break;
+      case 'Escape':
+        event.preventDefault();
+        setShowConfirmSubmit(false);
+        break;
+      case ' ':
+        event.preventDefault();
+        // Select answer A, B, C, D with spacebar cycling
+        const currentQuestion = questions[currentQuestionIndex];
+        if (currentQuestion && currentQuestion.options) {
+          const currentAnswer = answers[currentQuestion.id];
+          const options = ['A', 'B', 'C', 'D'];
+          const currentIndex = options.indexOf(currentAnswer);
+          const nextIndex = (currentIndex + 1) % options.length;
+          handleAnswerSelect(currentQuestion.id, options[nextIndex]);
+        }
+        break;
+      case '1':
+      case 'a':
+      case 'A':
+        event.preventDefault();
+        if (questions[currentQuestionIndex]) {
+          handleAnswerSelect(questions[currentQuestionIndex].id, 'A');
+        }
+        break;
+      case '2':
+      case 'b':
+      case 'B':
+        event.preventDefault();
+        if (questions[currentQuestionIndex]) {
+          handleAnswerSelect(questions[currentQuestionIndex].id, 'B');
+        }
+        break;
+      case '3':
+      case 'c':
+      case 'C':
+        event.preventDefault();
+        if (questions[currentQuestionIndex]) {
+          handleAnswerSelect(questions[currentQuestionIndex].id, 'C');
+        }
+        break;
+      case '4':
+      case 'd':
+      case 'D':
+        event.preventDefault();
+        if (questions[currentQuestionIndex]) {
+          handleAnswerSelect(questions[currentQuestionIndex].id, 'D');
+        }
+        break;
+    }
+  }, [currentQuestionIndex, questions, answers, showConfirmSubmit]);
+
+  // Add keyboard event listeners
+  useEffect(() => {
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [handleKeyDown]);
+
   // Timer countdown
   useEffect(() => {
     const timer = setInterval(() => {
@@ -46,6 +127,21 @@ const ExamSession = ({
       selected_option: option
     }));
     onAutoSubmit?.(formattedAnswers);
+  };
+
+  const navigateQuestion = (direction) => {
+    if (direction === 'next' && currentQuestionIndex < questions.length - 1) {
+      setCurrentQuestionIndex(prev => prev + 1);
+    } else if (direction === 'prev' && currentQuestionIndex > 0) {
+      setCurrentQuestionIndex(prev => prev - 1);
+    }
+  };
+
+  const handleAnswerSelect = (questionId, selectedOption) => {
+    setAnswers(prev => ({
+      ...prev,
+      [questionId]: selectedOption
+    }));
   };
 
   const handleSubmit = () => {

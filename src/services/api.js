@@ -8,23 +8,85 @@ import {
   apiWithFallback 
 } from '../utils/fallbackData';
 
-// Token management
+// Token management with refresh capability
 const getToken = () => localStorage.getItem('authToken');
 const setToken = (token) => localStorage.setItem('authToken', token);
 const removeToken = () => localStorage.removeItem('authToken');
+
+// JWT token utilities
+const isTokenExpired = (token) => {
+  if (!token) return true;
+  
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    const currentTime = Date.now() / 1000;
+    
+    // Check if token expires within 5 minutes (300 seconds)
+    return payload.exp < (currentTime + 300);
+  } catch (error) {
+    console.error('Error checking token expiration:', error);
+    return true;
+  }
+};
+
+const refreshToken = async () => {
+  try {
+    console.log('🔄 Attempting token refresh...');
+    const currentToken = getToken();
+    
+    if (!currentToken) {
+      throw new Error('No token to refresh');
+    }
+    
+    const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${currentToken}`
+      }
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      if (data.token) {
+        setToken(data.token);
+        console.log('✅ Token refreshed successfully');
+        return data.token;
+      }
+    }
+    
+    throw new Error('Token refresh failed');
+  } catch (error) {
+    console.error('❌ Token refresh failed:', error);
+    removeToken();
+    // Redirect to login or trigger logout
+    window.location.href = '/login';
+    throw error;
+  }
+};
 
 // Simple in-memory cache for API responses
 const apiCache = new Map();
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
-// API request helper with improved caching and rate limiting
+// API request helper with improved caching and token refresh
 const apiRequest = async (endpoint, options = {}) => {
   const url = `${API_BASE_URL}${endpoint}`;
-  const token = getToken();
+  let token = getToken();
+  
+  // Check if token needs refresh (skip for auth endpoints)
+  const isAuthEndpoint = endpoint.includes('/auth/');
+  if (token && !isAuthEndpoint && isTokenExpired(token)) {
+    try {
+      token = await refreshToken();
+    } catch (error) {
+      // Token refresh failed, user will be redirected to login
+      return;
+    }
+  }
   
   // Check cache for GET requests (unless forced refresh or auth endpoint)
   const cacheKey = `${endpoint}_${JSON.stringify(options.body || {})}`;
-  const isAuthEndpoint = endpoint.includes('/auth/');
   if ((!options.method || options.method === 'GET') && !options.forceRefresh && !isAuthEndpoint) {
     const cached = apiCache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
@@ -49,6 +111,29 @@ const apiRequest = async (endpoint, options = {}) => {
     console.log(`📡 API Request: ${endpoint}`);
     console.log(`📤 Request config:`, { method: config.method, headers: config.headers, body: config.body });
     const response = await fetch(url, config);
+    
+    // Handle 401 unauthorized - try token refresh once
+    if (response.status === 401 && !isAuthEndpoint && !options._retryAttempt) {
+      console.log('🔄 401 detected, attempting token refresh...');
+      try {
+        const newToken = await refreshToken();
+        if (newToken) {
+          // Retry request with new token
+          return await apiRequest(endpoint, { 
+            ...options, 
+            _retryAttempt: true,
+            headers: {
+              ...options.headers,
+              Authorization: `Bearer ${newToken}`
+            }
+          });
+        }
+      } catch (refreshError) {
+        console.error('❌ Token refresh failed on 401:', refreshError);
+        // Let the original 401 response be processed below
+      }
+    }
+    
     const data = await response.json();
     
     if (!response.ok) {
