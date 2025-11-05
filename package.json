@@ -38,6 +38,7 @@
     "@stripe/stripe-js": "^8.0.0",
     "class-variance-authority": "^0.7.0",
     "lucide-react": "^0.441.0",
+    "node-fetch": "^2.7.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-hot-toast": "^2.6.0",
