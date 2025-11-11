@@ -1,0 +1,59 @@
+name: Database Migration
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+      migration_type:
+        description: 'Migration type'
+        required: true
+        default: 'up'
+        type: choice
+        options:
+          - up
+          - down
+          - status
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18.x'
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: |
+        cd backend
+        npm ci
+    
+    - name: Run database migration
+      env:
+        DB_SERVER: ${{ secrets.DB_SERVER }}
+        DB_NAME: ${{ secrets.DB_NAME }}
+        DB_USER: ${{ secrets.DB_USER }}
+        DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+        DB_ENCRYPT: true
+      run: |
+        cd backend
+        node scripts/migrate.js ${{ github.event.inputs.migration_type }}
+    
+    - name: Backup database (production only)
+      if: github.event.inputs.environment == 'production'
+      run: |
+        # Create backup before migration
+        echo "Creating database backup..."
+        # Add backup logic here

@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Auth State</title>
+</head>
+<body>
+    <h1>Testing Mini Coursera Authentication</h1>
+    <div id="status"></div>
+    <button onclick="clearStorage()">Clear Storage</button>
+    <button onclick="setMockLearner()">Set Mock Learner</button>
+    <button onclick="checkAuth()">Check Auth</button>
+    
+    <script>
+        function clearStorage() {
+            localStorage.clear();
+            document.getElementById('status').innerHTML = '<p>✅ Storage cleared</p>';
+        }
+        
+        function setMockLearner() {
+            const mockUser = {
+                id: 3,
+                email: 'learner@test.com',
+                full_name: 'Test Learner',
+                role_id: 3
+            };
+            localStorage.setItem('user', JSON.stringify(mockUser));
+            localStorage.setItem('token', 'mock-token');
+            document.getElementById('status').innerHTML = '<p>✅ Mock learner set</p>';
+        }
+        
+        function checkAuth() {
+            const user = localStorage.getItem('user');
+            const token = localStorage.getItem('token');
+            document.getElementById('status').innerHTML = 
+                '<h3>Auth Status:</h3>' +
+                '<p><strong>User:</strong> ' + (user || 'None') + '</p>' +
+                '<p><strong>Token:</strong> ' + (token || 'None') + '</p>';
+        }
+        
+        // Auto check on load
+        checkAuth();
+    </script>
+</body>
+</html>
