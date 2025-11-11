@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Exam API Fix</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .status { padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .warning { background-color: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+        button { padding: 10px 20px; margin: 5px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        pre { background: #f8f9fa; padding: 15px; border-radius: 5px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Test Exam API Fix</h1>
+    
+    <div id="status" class="status warning">
+        Kiểm tra: Đã fix environment variable VITE_API_URL → VITE_API_BASE_URL
+    </div>
+
+    <h2>🔗 Test API URLs</h2>
+    <button onclick="testEnvironmentVariables()">Test Environment Variables</button>
+    <button onclick="testApiConnections()">Test API Connections</button>
+    <button onclick="testExamDataLoad()">Test Exam Data Load (MOOC 52)</button>
+    
+    <div id="results"></div>
+
+    <script>
+        const results = document.getElementById('results');
+        const status = document.getElementById('status');
+
+        function log(message, isError = false, isSuccess = false) {
+            const div = document.createElement('div');
+            div.innerHTML = message;
+            div.className = isError ? 'status error' : (isSuccess ? 'status success' : 'status warning');
+            results.appendChild(div);
+        }
+
+        function testEnvironmentVariables() {
+            results.innerHTML = '';
+            log('🔍 Testing Environment Variables...');
+            
+            // Test what would be available in Vite environment
+            const viteEnvs = {
+                'VITE_API_BASE_URL': 'http://localhost:3001/api',
+                'VITE_API_URL': undefined // This should be undefined now
+            };
+            
+            // Simulate what CourseLearningPage.jsx would use
+            const oldUrl = `${viteEnvs.VITE_API_URL}/api/learning/exams/mooc/52`;
+            const newUrl = `${viteEnvs.VITE_API_BASE_URL}/learning/exams/mooc/52`;
+            
+            log(`❌ OLD (broken): ${oldUrl}`, true);
+            log(`✅ NEW (fixed): ${newUrl}`, false, true);
+            
+            if (oldUrl.includes('undefined')) {
+                log('🎯 Confirmed: Old code would produce undefined URL', true);
+            }
+            if (newUrl.includes('localhost:3001')) {
+                log('🎯 Confirmed: New code produces valid URL', false, true);
+            }
+        }
+
+        async function testApiConnections() {
+            results.innerHTML = '';
+            log('🔍 Testing API Connections...');
+            
+            const apiUrl = 'http://localhost:3001/api/learning/exams/mooc/52';
+            
+            try {
+                log(`📡 Testing: ${apiUrl}`);
+                const response = await fetch(apiUrl, {
+                    headers: {
+                        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjEsImVtYWlsIjoidGVzdEBleGFtcGxlLmNvbSIsInJvbGUiOiJzdHVkZW50IiwiaWF0IjoxNzMwODUxODA2LCJleHAiOjE3MzA5MzgyMDZ9.lbEuOI8fUr7nMWApvwShQq--RkHy9JfuAD5v0zaBfgs'
+                    }
+                });
+                
+                if (!response.ok) {
+                    if (response.status === 401) {
+                        log('⚠️ Token expired - need fresh login', true);
+                        log('💡 Solution: Login again to get new token');
+                    } else {
+                        log(`❌ API Error: ${response.status} ${response.statusText}`, true);
+                    }
+                    return;
+                }
+                
+                const data = await response.json();
+                log(`✅ API Response Success!`, false, true);
+                log(`📊 Questions found: ${data.data?.questions?.length || 0}`, false, true);
+                log(`⏱️ Exam duration: ${data.data?.exam?.duration || 'N/A'} minutes`, false, true);
+                
+                if (data.data?.questions?.length > 0) {
+                    log(`🎉 EXCELLENT! API returns ${data.data.questions.length} questions`, false, true);
+                    status.className = 'status success';
+                    status.innerHTML = '✅ FIX SUCCESSFUL: API now returns exam data correctly!';
+                } else {
+                    log('⚠️ API returns but no questions found', true);
+                }
+                
+            } catch (error) {
+                log(`❌ Connection Error: ${error.message}`, true);
+                log('💡 Make sure backend is running on port 3001');
+            }
+        }
+
+        async function testExamDataLoad() {
+            results.innerHTML = '';
+            log('🔍 Testing Exam Data Load Simulation...');
+            
+            // Simulate the exact same function from CourseLearningPage.jsx
+            const moocId = 52;
+            const apiUrl = `http://localhost:3001/api/learning/exams/mooc/${moocId}`;
+            
+            log(`🎯 Simulating CourseLearningPage.jsx loadExamData(${moocId})`);
+            log(`📡 Using fixed URL: ${apiUrl}`);
+            
+            try {
+                const response = await fetch(apiUrl, {
+                    headers: {
+                        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjEsImVtYWlsIjoidGVzdEBleGFtcGxlLmNvbSIsInJvbGUiOiJzdHVkZW50IiwiaWF0IjoxNzMwODUxODA2LCJleHAiOjE3MzA5MzgyMDZ9.lbEuOI8fUr7nMWApvwShQq--RkHy9JfuAD5v0zaBfgs'
+                    }
+                });
+                
+                if (!response.ok) {
+                    if (response.status === 401) {
+                        log('🔑 Authentication required - please login first', true);
+                        log('💡 The fix works but you need a fresh token');
+                        status.className = 'status warning';
+                        status.innerHTML = '⚠️ Fix successful but authentication needed';
+                        return;
+                    }
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                log('✅ Response received successfully', false, true);
+                log(`📝 Questions: ${data.data?.questions?.length || 0}`, false, true);
+                log(`📋 Exam available: ${data.data?.exam ? 'Yes' : 'No'}`, false, true);
+                
+                if (data.data?.questions && data.data.questions.length > 0) {
+                    log(`🎉 SUCCESS! Found ${data.data.questions.length} questions for MOOC ${moocId}`, false, true);
+                    log('📊 Sample question preview:', false, true);
+                    const sampleQ = data.data.questions[0];
+                    log(`"${sampleQ.question_text}" (${sampleQ.difficulty_level})`, false, true);
+                    
+                    status.className = 'status success';
+                    status.innerHTML = '🎉 PROBLEM SOLVED! Exam data loads correctly now!';
+                } else {
+                    log('⚠️ No questions found in response', true);
+                }
+                
+            } catch (error) {
+                log(`❌ Load Error: ${error.message}`, true);
+            }
+        }
+
+        // Auto-run environment test
+        testEnvironmentVariables();
+    </script>
+</body>
+</html>

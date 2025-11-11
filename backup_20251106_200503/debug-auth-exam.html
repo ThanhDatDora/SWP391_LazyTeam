@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Authentication & Exam API</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            padding: 20px; 
+            max-width: 1200px; 
+            margin: 0 auto;
+        }
+        .status { padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .warning { background-color: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+        .info { background-color: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        button { 
+            padding: 10px 20px; 
+            margin: 5px; 
+            background: #007bff; 
+            color: white; 
+            border: none; 
+            border-radius: 5px; 
+            cursor: pointer; 
+        }
+        button:hover { background: #0056b3; }
+        button:disabled { background: #6c757d; cursor: not-allowed; }
+        pre { 
+            background: #f8f9fa; 
+            padding: 15px; 
+            border-radius: 5px; 
+            overflow-x: auto; 
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .test-section {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔧 Debug: Authentication & Exam API</h1>
+    
+    <div class="grid">
+        <div class="test-section">
+            <h2>🔑 Authentication Test</h2>
+            <div>
+                <label>Email: <input type="email" id="email" value="test@example.com"></label><br><br>
+                <label>Password: <input type="password" id="password" value="password"></label><br><br>
+                <button onclick="testLogin()">Test Login</button>
+                <button onclick="checkCurrentToken()">Check Current Token</button>
+            </div>
+            <div id="authResults"></div>
+        </div>
+        
+        <div class="test-section">
+            <h2>📋 Exam API Test</h2>
+            <div>
+                <label>MOOC ID: 
+                    <select id="moocId">
+                        <option value="52">52 - Photography Intro (60 questions)</option>
+                        <option value="53">53 - Camera Fundamentals (10 questions)</option>
+                        <option value="54">54 - Composition (8 questions)</option>
+                        <option value="55">55 - Lighting (0 questions)</option>
+                        <option value="56">56 - Final Project (0 questions)</option>
+                    </select>
+                </label><br><br>
+                <button onclick="testExamAPI()">Test Exam API</button>
+                <button onclick="testExamAPINoAuth()">Test Without Auth</button>
+            </div>
+            <div id="examResults"></div>
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <h2>🎯 Complete Workflow Test</h2>
+        <button onclick="runCompleteTest()">Run Complete Login → API Test</button>
+        <div id="workflowResults"></div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:3001/api';
+        
+        function log(container, message, type = 'info') {
+            const div = document.createElement('div');
+            div.className = `status ${type}`;
+            div.innerHTML = message;
+            document.getElementById(container).appendChild(div);
+        }
+        
+        function clearResults(container) {
+            document.getElementById(container).innerHTML = '';
+        }
+
+        async function testLogin() {
+            clearResults('authResults');
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            
+            log('authResults', '🔄 Attempting login...', 'info');
+            
+            try {
+                const response = await fetch(`${API_BASE}/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.token) {
+                    localStorage.setItem('authToken', data.token);
+                    log('authResults', '✅ Login successful! Token saved to localStorage', 'success');
+                    log('authResults', `📋 User: ${data.user?.email || 'Unknown'}`, 'success');
+                    log('authResults', `🎫 Token: ${data.token.substring(0, 50)}...`, 'info');
+                } else {
+                    log('authResults', `❌ Login failed: ${data.message || 'Unknown error'}`, 'error');
+                }
+            } catch (error) {
+                log('authResults', `❌ Login error: ${error.message}`, 'error');
+            }
+        }
+        
+        function checkCurrentToken() {
+            clearResults('authResults');
+            const token = localStorage.getItem('authToken');
+            
+            if (token) {
+                log('authResults', '✅ Token found in localStorage', 'success');
+                log('authResults', `🎫 Token: ${token.substring(0, 50)}...`, 'info');
+                
+                // Decode JWT to check expiry
+                try {
+                    const payload = JSON.parse(atob(token.split('.')[1]));
+                    const exp = new Date(payload.exp * 1000);
+                    const now = new Date();
+                    
+                    if (exp > now) {
+                        log('authResults', `✅ Token valid until: ${exp.toLocaleString()}`, 'success');
+                    } else {
+                        log('authResults', `❌ Token expired on: ${exp.toLocaleString()}`, 'error');
+                    }
+                    
+                    log('authResults', `👤 User ID: ${payload.userId}, Email: ${payload.email}`, 'info');
+                } catch (e) {
+                    log('authResults', '⚠️ Could not decode token', 'warning');
+                }
+            } else {
+                log('authResults', '❌ No token found in localStorage', 'error');
+            }
+        }
+        
+        async function testExamAPI() {
+            clearResults('examResults');
+            const moocId = document.getElementById('moocId').value;
+            const token = localStorage.getItem('authToken');
+            
+            if (!token) {
+                log('examResults', '❌ No auth token found. Please login first.', 'error');
+                return;
+            }
+            
+            log('examResults', `🔄 Testing exam API for MOOC ${moocId}...`, 'info');
+            
+            try {
+                const response = await fetch(`${API_BASE}/learning/exams/mooc/${moocId}`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                log('examResults', `📊 Status: ${response.status}`, response.ok ? 'success' : 'error');
+                
+                if (response.ok && data.success) {
+                    log('examResults', '✅ API call successful!', 'success');
+                    log('examResults', `📝 Total Questions: ${data.data.total_questions}`, 'success');
+                    log('examResults', `⏱️ Duration: ${data.data.duration_minutes} minutes`, 'info');
+                    log('examResults', `🎯 Can Take Exam: ${data.data.can_take_exam}`, 'info');
+                    log('examResults', `📚 MOOC: ${data.data.mooc_name}`, 'info');
+                    
+                    const pre = document.createElement('pre');
+                    pre.textContent = JSON.stringify(data, null, 2);
+                    document.getElementById('examResults').appendChild(pre);
+                    
+                } else {
+                    log('examResults', `❌ API failed: ${data.message || 'Unknown error'}`, 'error');
+                    if (response.status === 401) {
+                        log('examResults', '🔑 Authentication required - token may be expired', 'warning');
+                    }
+                }
+            } catch (error) {
+                log('examResults', `❌ API error: ${error.message}`, 'error');
+            }
+        }
+        
+        async function testExamAPINoAuth() {
+            clearResults('examResults');
+            const moocId = document.getElementById('moocId').value;
+            
+            log('examResults', `🔄 Testing exam API for MOOC ${moocId} WITHOUT AUTH...`, 'warning');
+            
+            try {
+                const response = await fetch(`${API_BASE}/learning/exams/mooc/${moocId}`);
+                const data = await response.json();
+                
+                log('examResults', `📊 Status: ${response.status}`, response.ok ? 'success' : 'error');
+                
+                if (response.ok) {
+                    log('examResults', '✅ API accessible without auth!', 'success');
+                    log('examResults', `📝 Total Questions: ${data.data?.total_questions || 'N/A'}`, 'success');
+                    
+                    const pre = document.createElement('pre');
+                    pre.textContent = JSON.stringify(data, null, 2);
+                    document.getElementById('examResults').appendChild(pre);
+                } else {
+                    log('examResults', `❌ API failed: ${data.message}`, 'error');
+                }
+            } catch (error) {
+                log('examResults', `❌ API error: ${error.message}`, 'error');
+            }
+        }
+        
+        async function runCompleteTest() {
+            clearResults('workflowResults');
+            log('workflowResults', '🚀 Starting complete workflow test...', 'info');
+            
+            // Step 1: Login
+            log('workflowResults', '1️⃣ Step 1: Login', 'info');
+            await testLoginWorkflow();
+            
+            // Step 2: Test API
+            setTimeout(async () => {
+                log('workflowResults', '2️⃣ Step 2: Test Exam API', 'info');
+                await testExamAPIWorkflow();
+            }, 1000);
+        }
+        
+        async function testLoginWorkflow() {
+            try {
+                const response = await fetch(`${API_BASE}/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        email: document.getElementById('email').value,
+                        password: document.getElementById('password').value 
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.token) {
+                    localStorage.setItem('authToken', data.token);
+                    log('workflowResults', '✅ Login successful - token saved', 'success');
+                    return true;
+                } else {
+                    log('workflowResults', `❌ Login failed: ${data.message}`, 'error');
+                    return false;
+                }
+            } catch (error) {
+                log('workflowResults', `❌ Login error: ${error.message}`, 'error');
+                return false;
+            }
+        }
+        
+        async function testExamAPIWorkflow() {
+            const token = localStorage.getItem('authToken');
+            if (!token) {
+                log('workflowResults', '❌ No token available for API test', 'error');
+                return;
+            }
+            
+            const moocId = document.getElementById('moocId').value;
+            
+            try {
+                const response = await fetch(`${API_BASE}/learning/exams/mooc/${moocId}`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    log('workflowResults', '🎉 COMPLETE SUCCESS! Full workflow working!', 'success');
+                    log('workflowResults', `📊 MOOC ${moocId}: ${data.data.total_questions} questions available`, 'success');
+                    log('workflowResults', `🎯 Status: ${data.data.can_take_exam ? 'Ready to take exam' : 'Requirements not met'}`, 'info');
+                } else {
+                    log('workflowResults', `❌ API call failed in workflow: ${data.message}`, 'error');
+                }
+            } catch (error) {
+                log('workflowResults', `❌ API error in workflow: ${error.message}`, 'error');
+            }
+        }
+        
+        // Auto-check current token on page load
+        window.onload = function() {
+            checkCurrentToken();
+        };
+    </script>
+</body>
+</html>

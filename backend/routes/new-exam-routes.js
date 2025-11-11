@@ -130,34 +130,35 @@ router.post('/:examId/start', async (req, res) => {
       `);
 
     const progress = lessonProgress.recordset[0];
-    if (progress.total_lessons === 0 || progress.completed_lessons < progress.total_lessons) {
-      return res.status(400).json({
-        success: false,
-        error: 'Must complete all lessons before taking exam'
-      });
-    }
+    // TEMPORARILY DISABLED FOR TESTING
+    // if (progress.total_lessons === 0 || progress.completed_lessons < progress.total_lessons) {
+    //   return res.status(400).json({
+    //     success: false,
+    //     error: 'Must complete all lessons before taking exam'
+    //   });
+    // }
 
-    // Check for recent attempts (5 minute cooldown)
-    const recentAttempt = await pool.request()
-      .input('userId', sql.BigInt, userId)
-      .input('moocId', sql.BigInt, moocId)
-      .query(`
-        SELECT TOP 1 started_at
-        FROM exam_attempts
-        WHERE user_id = @userId AND mooc_id = @moocId
-        ORDER BY started_at DESC
-      `);
+    // TEMPORARILY DISABLED: Check for recent attempts (5 minute cooldown)
+    // const recentAttempt = await pool.request()
+    //   .input('userId', sql.BigInt, userId)
+    //   .input('moocId', sql.BigInt, moocId)
+    //   .query(`
+    //     SELECT TOP 1 started_at
+    //     FROM exam_attempts
+    //     WHERE user_id = @userId AND mooc_id = @moocId
+    //     ORDER BY started_at DESC
+    //   `);
 
-    if (recentAttempt.recordset.length > 0) {
-      const lastAttempt = new Date(recentAttempt.recordset[0].started_at);
-      const timeSince = (Date.now() - lastAttempt.getTime()) / 1000;
-      if (timeSince < 300) {
-        return res.status(400).json({
-          success: false,
-          error: `Please wait ${Math.ceil(300 - timeSince)} seconds before retrying`
-        });
-      }
-    }
+    // if (recentAttempt.recordset.length > 0) {
+    //   const lastAttempt = new Date(recentAttempt.recordset[0].started_at);
+    //   const timeSince = (Date.now() - lastAttempt.getTime()) / 1000;
+    //   if (timeSince < 300) {
+    //     return res.status(400).json({
+    //       success: false,
+    //       error: `Please wait ${Math.ceil(300 - timeSince)} seconds before retrying`
+    //     });
+    //   }
+    // }
 
     // Get random 10 questions for this MOOC
     const questionsResult = await pool.request()

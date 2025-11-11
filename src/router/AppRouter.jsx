@@ -24,6 +24,7 @@ const CatalogPage = lazy(() => import('../pages/CatalogPage'));
 const ExamPage = lazy(() => import('../pages/exam/ExamPage'));
 const ExamHistoryPage = lazy(() => import('../pages/exam/ExamHistoryPage'));
 const ExamResultsPage = lazy(() => import('../pages/exam/ExamResultsPage'));
+const ExamStandalonePage = lazy(() => import('../pages/exam/ExamStandalonePage'));
 const QuizPageNew = lazy(() => import('../pages/QuizPage'));
 const ExamPageNew = lazy(() => import('../pages/ExamPage'));
 const ProgressPage = lazy(() => import('../pages/ProgressPage'));
@@ -45,6 +46,7 @@ const AdminPanel = lazy(() => import('../pages/admin/AdminPanel'));
 // Instructor Pages
 const InstructorDashboard = lazy(() => import('../pages/instructor/InstructorDashboard'));
 const CourseManagement = lazy(() => import('../pages/instructor/CourseManagement'));
+const AssignmentGradingPage = lazy(() => import('../pages/instructor/AssignmentGradingPage'));
 
 // Legacy Pages (keeping for compatibility) - Lazy load these
 const TestPage = lazy(() => import('../pages/TestPage'));
@@ -361,6 +363,22 @@ const AppRouter = () => {
         } 
       />
       <Route 
+        path="/learn/:courseId/exam/:examId" 
+        element={
+          <ProtectedRoute>
+            <ExamStandalonePage />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/learn/:courseId/exam/:examId/results" 
+        element={
+          <ProtectedRoute>
+            <ExamResultsPage />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
         path="/quiz/:quizId" 
         element={
           <ProtectedRoute>
@@ -416,6 +434,14 @@ const AppRouter = () => {
         element={
           <ProtectedRoute allowedRoles={[2, 1]}>
             <CourseManagement />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/instructor/courses/:courseId/assignments/grade" 
+        element={
+          <ProtectedRoute allowedRoles={[2, 1]}>
+            <AssignmentGradingPage />
           </ProtectedRoute>
         } 
       />

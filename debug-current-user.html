@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Debug Current User</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 50px auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .container {
+      background: white;
+      border-radius: 8px;
+      padding: 30px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    h1 {
+      color: #333;
+      border-bottom: 3px solid #4CAF50;
+      padding-bottom: 10px;
+    }
+    .info-section {
+      margin: 20px 0;
+      padding: 15px;
+      background: #f9f9f9;
+      border-left: 4px solid #2196F3;
+    }
+    .label {
+      font-weight: bold;
+      color: #555;
+    }
+    .value {
+      color: #000;
+      font-family: monospace;
+      background: #fff;
+      padding: 5px 10px;
+      border-radius: 4px;
+      margin-top: 5px;
+      display: block;
+    }
+    .error {
+      background: #ffebee;
+      border-left-color: #f44336;
+      color: #c62828;
+    }
+    .success {
+      background: #e8f5e9;
+      border-left-color: #4CAF50;
+      color: #2e7d32;
+    }
+    button {
+      background: #2196F3;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      margin-right: 10px;
+    }
+    button:hover {
+      background: #1976D2;
+    }
+    .danger {
+      background: #f44336;
+    }
+    .danger:hover {
+      background: #d32f2f;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔍 Debug Current User</h1>
+    <div id="result"></div>
+    <div style="margin-top: 20px;">
+      <button onclick="checkToken()">🔄 Refresh</button>
+      <button class="danger" onclick="clearToken()">🗑️ Clear Token</button>
+    </div>
+  </div>
+
+  <script>
+    function checkToken() {
+      const resultDiv = document.getElementById('result');
+      const token = localStorage.getItem('authToken');
+      
+      if (!token) {
+        resultDiv.innerHTML = `
+          <div class="info-section error">
+            <div class="label">❌ No Token Found</div>
+            <p>You are not logged in. Please login first.</p>
+          </div>
+        `;
+        return;
+      }
+      
+      try {
+        // Decode JWT token
+        const parts = token.split('.');
+        if (parts.length !== 3) {
+          throw new Error('Invalid token format');
+        }
+        
+        const payload = JSON.parse(atob(parts[1]));
+        const currentTime = Date.now() / 1000;
+        const isExpired = payload.exp < currentTime;
+        
+        let html = `
+          <div class="info-section ${isExpired ? 'error' : 'success'}">
+            <div class="label">🎫 Token Status: ${isExpired ? 'EXPIRED ⚠️' : 'VALID ✅'}</div>
+          </div>
+          
+          <div class="info-section">
+            <div class="label">👤 User ID:</div>
+            <span class="value">${payload.userId || 'N/A'}</span>
+          </div>
+          
+          <div class="info-section">
+            <div class="label">📧 Email:</div>
+            <span class="value">${payload.email || 'N/A'}</span>
+          </div>
+          
+          <div class="info-section">
+            <div class="label">👥 Role:</div>
+            <span class="value">${payload.role || 'N/A'}</span>
+          </div>
+          
+          <div class="info-section">
+            <div class="label">⏰ Issued At:</div>
+            <span class="value">${new Date(payload.iat * 1000).toLocaleString()}</span>
+          </div>
+          
+          <div class="info-section">
+            <div class="label">⏱️ Expires At:</div>
+            <span class="value">${new Date(payload.exp * 1000).toLocaleString()}</span>
+          </div>
+          
+          <div class="info-section">
+            <div class="label">🔑 Full Token (first 100 chars):</div>
+            <span class="value">${token.substring(0, 100)}...</span>
+          </div>
+          
+          <div class="info-section">
+            <div class="label">📋 Full Payload:</div>
+            <pre class="value" style="white-space: pre-wrap;">${JSON.stringify(payload, null, 2)}</pre>
+          </div>
+        `;
+        
+        // Check if user is user_id = 5
+        if (payload.userId == 5) {
+          html += `
+            <div class="info-section success">
+              <div class="label">✅ Perfect!</div>
+              <p>You are logged in as user_id 5 (huy484820@gmail.com). Attempt 19 belongs to you.</p>
+            </div>
+          `;
+        } else {
+          html += `
+            <div class="info-section error">
+              <div class="label">❌ Mismatch!</div>
+              <p>You are logged in as user_id <strong>${payload.userId}</strong>, but attempt 19 belongs to user_id <strong>5</strong> (huy484820@gmail.com).</p>
+              <p>Please login with the correct account: <strong>huy484820@gmail.com</strong></p>
+            </div>
+          `;
+        }
+        
+        resultDiv.innerHTML = html;
+      } catch (error) {
+        resultDiv.innerHTML = `
+          <div class="info-section error">
+            <div class="label">❌ Error Decoding Token</div>
+            <p>${error.message}</p>
+            <pre class="value">${token}</pre>
+          </div>
+        `;
+      }
+    }
+    
+    function clearToken() {
+      if (confirm('Are you sure you want to clear the token and logout?')) {
+        localStorage.removeItem('authToken');
+        checkToken();
+      }
+    }
+    
+    // Check on load
+    checkToken();
+  </script>
+</body>
+</html>

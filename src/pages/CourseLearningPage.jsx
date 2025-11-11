@@ -9,7 +9,7 @@ import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { useNavigation } from '../hooks/useNavigation';
 import { useAuth } from '../contexts/AuthContext';
-import { useParams } from 'react-router-dom';
+import { useParams, useLocation } from 'react-router-dom';
 import { api } from '../services/api';
 import { useToast } from '../hooks/useToast';
 
@@ -26,6 +26,7 @@ import { ExamCard, ExamIntro, ExamSession, ExamResult, ExamReview } from '../com
 const CourseLearningPage = () => {
   const { courseId } = useParams();
   const navigate = useNavigation();
+  const location = useLocation();
   const { state: authState } = useAuth();
   const { toast } = useToast();
 
@@ -46,10 +47,42 @@ const CourseLearningPage = () => {
   const [examResult, setExamResult] = useState(null);
   const [examReview, setExamReview] = useState(null);
   const [examLoading, setExamLoading] = useState(false);
+  const [examAttempts, setExamAttempts] = useState({}); // Store exam attempts by mooc_id
 
   useEffect(() => {
     loadCourseContent();
   }, [courseId]);
+
+  // Reload exam attempts when returning from exam completion
+  // Updated: 2025-11-11 16:15 - Fixed null check for response object
+  useEffect(() => {
+    if (location?.state?.examCompleted && courseContent?.moocs) {
+      console.log('🔄 Exam completed, reloading attempts...');
+      
+      // Reload exam attempts
+      loadExamAttempts(courseContent.moocs).then(() => {
+        console.log('✅ Exam attempts reloaded successfully');
+      }).catch((error) => {
+        console.error('❌ Failed to reload exam attempts:', error);
+      });
+      
+      // Show toast based on exam result (with null check)
+      if (toast) {
+        if (location?.state?.examError) {
+          toast.error(location.state.examError);
+        } else if (location?.state?.examPassed) {
+          toast.success('🎉 Chúc mừng! Bạn đã vượt qua bài thi!');
+        } else if (location?.state?.examPassed === false) {
+          toast.info('Đã hoàn thành bài thi. Bạn có thể thử lại để cải thiện điểm.');
+        } else {
+          toast.success('Đã hoàn thành bài thi! Kiểm tra kết quả.');
+        }
+      }
+      
+      // Clear navigation state
+      window.history.replaceState({}, document.title);
+    }
+  }, [location?.state, courseContent, toast]);
 
   const loadCourseContent = async () => {
     try {
@@ -58,6 +91,9 @@ const CourseLearningPage = () => {
       
       if (response.success) {
         setCourseContent(response.data);
+        
+        // Load exam attempts for all MOOCs with exams
+        await loadExamAttempts(response.data.moocs);
         
         // Find first incomplete lesson (SHOW ALL, even without content_url for debugging)
         let found = false;
@@ -84,6 +120,51 @@ const CourseLearningPage = () => {
       toast.error('Không thể tải nội dung khóa học');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadExamAttempts = async (moocs) => {
+    try {
+      const attemptsData = {};
+      
+      // Load attempts for each MOOC that has an exam
+      for (const mooc of moocs) {
+        if (mooc.mooc_id) { // Use mooc_id
+          try {
+            const response = await api.newExams.getExamByMooc(mooc.mooc_id);
+            if (response && response.success && response.data) {
+              const data = response.data;
+              const hasAttempts = (data.previous_attempts || 0) > 0;
+              const bestScore = data.best_score || 0;
+              const passingScore = data.passing_score || 70;
+              
+              // Determine if passed based on best_score >= passing_score
+              const passed = hasAttempts && bestScore >= passingScore;
+              
+              attemptsData[mooc.mooc_id] = {
+                hasAttempts: hasAttempts,
+                attemptCount: data.previous_attempts || 0,
+                bestScore: bestScore,
+                passed: passed,
+                passingScore: passingScore
+              };
+              
+              console.log(`📊 MOOC ${mooc.mooc_id} exam status:`, {
+                attempts: data.previous_attempts,
+                bestScore: bestScore,
+                passingScore: passingScore,
+                passed: passed
+              });
+            }
+          } catch (error) {
+            console.error(`Failed to load exam attempts for MOOC ${mooc.mooc_id}:`, error);
+          }
+        }
+      }
+      
+      setExamAttempts(attemptsData);
+    } catch (error) {
+      console.error('Failed to load exam attempts:', error);
     }
   };
 
@@ -229,8 +310,8 @@ const CourseLearningPage = () => {
       console.log('📋 Exam info response:', response);
       
       if (response.success && response.data) {
-        setExamData(response.data);
-        setExamState('intro');
+        // Navigate to standalone exam page directly
+        navigate(`/learn/${courseId}/exam/${response.data.exam_id}`);
       } else {
         toast.error(response.error || 'Không thể tải thông tin bài thi');
       }
@@ -243,26 +324,8 @@ const CourseLearningPage = () => {
   };
 
   const handleStartExamSession = async () => {
-    try {
-      setExamLoading(true);
-      console.log('🚀 Starting exam session for exam_id:', examData.exam_id);
-      
-      const response = await api.newExams.startExam(examData.exam_id);
-      console.log('📝 Start exam response:', response);
-      
-      if (response.success && response.data) {
-        setCurrentAttemptId(response.data.attempt_id);
-        setExamQuestions(response.data.questions);
-        setExamState('session');
-      } else {
-        toast.error(response.error || 'Không thể bắt đầu bài thi');
-      }
-    } catch (error) {
-      console.error('❌ Failed to start exam session:', error);
-      toast.error('Không thể bắt đầu bài thi');
-    } finally {
-      setExamLoading(false);
-    }
+    // Navigate to standalone exam page instead of modal
+    navigate(`/learn/${courseId}/exam/${examData.exam_id}`);
   };
 
   const handleExamSubmit = async (answers) => {
@@ -673,9 +736,10 @@ const CourseLearningPage = () => {
                       canTakeExam={mooc.lessons.every(l => l.completed)}
                       lessonsCompleted={mooc.lessons.filter(l => l.completed).length}
                       totalLessons={mooc.lessons.length}
-                      previousAttempts={mooc.exam_attempts || 0}
-                      bestScore={mooc.exam_best_score || 0}
-                      passed={mooc.exam_passed || false}
+                      previousAttempts={examAttempts[mooc.mooc_id]?.attemptCount || 0}
+                      bestScore={examAttempts[mooc.mooc_id]?.bestScore || 0}
+                      passed={examAttempts[mooc.mooc_id]?.passed || false}
+                      passingScore={examAttempts[mooc.mooc_id]?.passingScore || 70}
                       onStartExam={() => handleExamStart(mooc.mooc_id)}
                       loading={examLoading}
                     />
@@ -754,3 +818,5 @@ const CourseLearningPage = () => {
 };
 
 export default CourseLearningPage;
+
+// Force rebuild: 16:21:55

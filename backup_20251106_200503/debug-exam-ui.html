@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug Exam UI State</title>
+</head>
+<body>
+    <h1>Debug Exam UI State</h1>
+    <p>Open browser console and paste the following JavaScript to debug the exam state:</p>
+    
+    <pre id="debug-script">
+// Debug Exam UI State
+console.log('🔍 DEBUGGING EXAM UI STATE');
+console.log('Current URL:', window.location.href);
+
+// Check if we're on a learning page
+if (window.location.pathname.includes('/learn/')) {
+    console.log('✅ On learning page');
+    
+    // Check localStorage for auth token
+    const token = localStorage.getItem('authToken');
+    console.log('🔑 Auth token exists:', !!token);
+    
+    // Check for ExamCard elements
+    const examCards = document.querySelectorAll('[class*="ExamCard"], [class*="exam-card"]');
+    console.log('📋 ExamCard elements found:', examCards.length);
+    
+    // Check for Take Exam buttons
+    const examButtons = document.querySelectorAll('button:contains("Take Exam"), button:contains("No Questions"), button:contains("Start Exam")');
+    console.log('🎯 Exam buttons found:', examButtons.length);
+    
+    // Look for any button with exam-related text
+    const allButtons = Array.from(document.querySelectorAll('button'));
+    const examRelatedButtons = allButtons.filter(btn => 
+        btn.textContent.toLowerCase().includes('exam') ||
+        btn.textContent.toLowerCase().includes('question')
+    );
+    
+    console.log('🔍 All exam-related buttons:');
+    examRelatedButtons.forEach((btn, index) => {
+        console.log(`  Button ${index + 1}:`, {
+            text: btn.textContent,
+            disabled: btn.disabled,
+            className: btn.className
+        });
+    });
+    
+    // Check React DevTools if available
+    if (window.React) {
+        console.log('⚛️ React detected');
+    }
+    
+    // Check for exam data in component state (if accessible)
+    console.log('📊 Checking for exam data patterns in DOM...');
+    
+    // Look for text patterns that indicate question counts
+    const bodyText = document.body.innerText;
+    const questionMatches = bodyText.match(/(\d+)\s*questions?/gi);
+    if (questionMatches) {
+        console.log('📝 Question count patterns found:', questionMatches);
+    }
+    
+    // Check for "No questions" text
+    if (bodyText.toLowerCase().includes('no questions')) {
+        console.log('⚠️ "No questions" text found in page');
+    }
+    
+    // Check console for any exam-related logs
+    console.log('📋 Look for exam-related console logs above this message');
+    
+} else {
+    console.log('❌ Not on learning page. Navigate to http://localhost:5173/learn/9 first');
+}
+
+// Function to test API call
+async function testExamAPI(moocId) {
+    const token = localStorage.getItem('authToken');
+    if (!token) {
+        console.log('❌ No auth token found');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`http://localhost:3001/api/learning/exams/mooc/${moocId}`, {
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const data = await response.json();
+        console.log(`📊 API Response for MOOC ${moocId}:`, data);
+        return data;
+    } catch (error) {
+        console.log(`❌ API Error for MOOC ${moocId}:`, error);
+    }
+}
+
+console.log('🧪 To test API calls, use: testExamAPI(53) or testExamAPI(54)');
+    </pre>
+    
+    <script>
+        // Auto-copy to clipboard
+        const script = document.getElementById('debug-script').textContent;
+        navigator.clipboard.writeText(script).then(() => {
+            console.log('Debug script copied to clipboard');
+        });
+    </script>
+</body>
+</html>

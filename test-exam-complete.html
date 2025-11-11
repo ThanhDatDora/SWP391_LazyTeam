@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Exam System Complete</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .step { margin: 10px 0; padding: 10px; border: 1px solid #ccc; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        .info { background-color: #d1ecf1; border-color: #bee5eb; }
+        pre { background: #f8f9fa; padding: 10px; overflow-x: auto; }
+        button { padding: 8px 16px; margin: 5px; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Complete Exam System Test</h1>
+    
+    <div class="step info">
+        <h3>Step 1: Check Current URL and Login Status</h3>
+        <button onclick="checkCurrentState()">Check Current State</button>
+        <div id="currentState"></div>
+    </div>
+
+    <div class="step info">
+        <h3>Step 2: Login (if needed)</h3>
+        <button onclick="goToLogin()">Go to Login Page</button>
+        <div id="loginInfo">
+            <p>Login credentials: huy484820@gmail.com / @Ndh12340987</p>
+        </div>
+    </div>
+
+    <div class="step info">
+        <h3>Step 3: Navigate to Learning Page</h3>
+        <button onclick="goToLearning()">Go to Course 9 Learning</button>
+        <div id="learningInfo"></div>
+    </div>
+
+    <div class="step info">
+        <h3>Step 4: Test API Directly</h3>
+        <button onclick="testAPI()">Test Exam API</button>
+        <div id="apiResults"></div>
+    </div>
+
+    <div class="step info">
+        <h3>Step 5: Check UI Elements</h3>
+        <button onclick="checkUIElements()">Check ExamCard Elements</button>
+        <div id="uiResults"></div>
+    </div>
+
+    <script>
+        function log(elementId, message, type = 'info') {
+            const element = document.getElementById(elementId);
+            const div = document.createElement('div');
+            div.className = type;
+            div.innerHTML = message;
+            element.appendChild(div);
+        }
+
+        function checkCurrentState() {
+            const currentStateDiv = document.getElementById('currentState');
+            currentStateDiv.innerHTML = '';
+            
+            log('currentState', `Current URL: ${window.location.href}`, 'info');
+            
+            const token = localStorage.getItem('authToken');
+            if (token) {
+                log('currentState', `✅ Auth token exists: ${token.substring(0, 50)}...`, 'success');
+                try {
+                    const payload = JSON.parse(atob(token.split('.')[1]));
+                    log('currentState', `User ID: ${payload.userId}, Email: ${payload.email}`, 'info');
+                    log('currentState', `Token expires: ${new Date(payload.exp * 1000)}`, 'info');
+                } catch (e) {
+                    log('currentState', `❌ Invalid token format: ${e.message}`, 'error');
+                }
+            } else {
+                log('currentState', '❌ No auth token found - need to login', 'error');
+            }
+        }
+
+        function goToLogin() {
+            window.location.href = 'http://localhost:5174/login';
+        }
+
+        function goToLearning() {
+            const learningDiv = document.getElementById('learningInfo');
+            learningDiv.innerHTML = '';
+            
+            const token = localStorage.getItem('authToken');
+            if (!token) {
+                log('learningInfo', '❌ No auth token - login first!', 'error');
+                return;
+            }
+            
+            log('learningInfo', '🔄 Navigating to learning page...', 'info');
+            window.location.href = 'http://localhost:5174/learn/9';
+        }
+
+        async function testAPI() {
+            const apiDiv = document.getElementById('apiResults');
+            apiDiv.innerHTML = '';
+            
+            const token = localStorage.getItem('authToken');
+            if (!token) {
+                log('apiResults', '❌ No auth token - login first!', 'error');
+                return;
+            }
+
+            log('apiResults', '🔄 Testing API endpoints...', 'info');
+            
+            const moocs = [52, 53, 54, 55, 56];
+            
+            for (const moocId of moocs) {
+                try {
+                    const response = await fetch(`http://localhost:3001/api/learning/exams/mooc/${moocId}`, {
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        const questions = data.data.total_questions;
+                        const moocName = data.data.mooc_name;
+                        
+                        if (questions > 0) {
+                            log('apiResults', `✅ MOOC ${moocId}: ${moocName} - ${questions} questions`, 'success');
+                        } else {
+                            log('apiResults', `⚠️ MOOC ${moocId}: ${moocName} - ${questions} questions (expected for some MOOCs)`, 'info');
+                        }
+                    } else {
+                        log('apiResults', `❌ MOOC ${moocId}: API error - ${data.error || 'Unknown error'}`, 'error');
+                    }
+                } catch (error) {
+                    log('apiResults', `❌ MOOC ${moocId}: Network error - ${error.message}`, 'error');
+                }
+            }
+        }
+
+        function checkUIElements() {
+            const uiDiv = document.getElementById('uiResults');
+            uiDiv.innerHTML = '';
+            
+            if (!window.location.href.includes('/learn/')) {
+                log('uiResults', '❌ Not on learning page. Navigate to learning page first.', 'error');
+                return;
+            }
+            
+            log('uiResults', '🔍 Checking UI elements on learning page...', 'info');
+            
+            // Check for ExamCard components
+            const examCards = document.querySelectorAll('[class*="exam"], [data-testid*="exam"]');
+            log('uiResults', `Found ${examCards.length} exam-related elements`, 'info');
+            
+            // Check for Take Exam buttons
+            const examButtons = Array.from(document.querySelectorAll('button')).filter(btn => 
+                btn.textContent.toLowerCase().includes('exam') || 
+                btn.textContent.toLowerCase().includes('question')
+            );
+            
+            log('uiResults', `Found ${examButtons.length} exam-related buttons:`, 'info');
+            examButtons.forEach((btn, index) => {
+                const isDisabled = btn.disabled;
+                const text = btn.textContent.trim();
+                const status = isDisabled ? '🔒 Disabled' : '✅ Enabled';
+                log('uiResults', `  Button ${index + 1}: "${text}" - ${status}`, isDisabled ? 'info' : 'success');
+            });
+            
+            // Check for question count displays
+            const bodyText = document.body.innerText;
+            const questionMatches = bodyText.match(/(\d+)\s*questions?/gi);
+            if (questionMatches) {
+                log('uiResults', `Question count patterns found: ${questionMatches.join(', ')}`, 'success');
+            } else {
+                log('uiResults', '⚠️ No question count patterns found in page text', 'info');
+            }
+            
+            // Check console for any errors
+            log('uiResults', '📋 Check browser console for any exam-related logs or errors', 'info');
+        }
+
+        // Auto-check current state on page load
+        window.onload = function() {
+            checkCurrentState();
+        };
+    </script>
+</body>
+</html>

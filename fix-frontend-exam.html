@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fix Frontend Exam API</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .step { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        .warning { background-color: #fff3cd; border-color: #ffeaa7; }
+        button { padding: 10px 20px; margin: 5px; font-size: 16px; }
+        .btn-primary { background-color: #007bff; color: white; border: none; }
+        .btn-danger { background-color: #dc3545; color: white; border: none; }
+        .btn-success { background-color: #28a745; color: white; border: none; }
+    </style>
+</head>
+<body>
+    <h1>🔧 Fix Frontend Exam API Issues</h1>
+    
+    <div class="step warning">
+        <h3>⚠️ Vấn đề đã xác định:</h3>
+        <p>Backend API hoạt động hoàn hảo, nhưng frontend đang sử dụng token cũ hoặc cache không đúng.</p>
+    </div>
+
+    <div class="step">
+        <h3>🗑️ Step 1: Clear All Frontend Cache</h3>
+        <button class="btn-danger" onclick="clearAllCache()">Clear All Cache & Storage</button>
+        <div id="clearResult"></div>
+    </div>
+
+    <div class="step">
+        <h3>🔐 Step 2: Fresh Login</h3>
+        <button class="btn-primary" onclick="doFreshLogin()">Login with Fresh Token</button>
+        <div id="loginResult"></div>
+    </div>
+
+    <div class="step">
+        <h3>🎯 Step 3: Test Exam API</h3>
+        <button class="btn-success" onclick="testExamAPI()">Test Exam Start API</button>
+        <div id="examResult"></div>
+    </div>
+
+    <div class="step">
+        <h3>🚀 Step 4: Go to Exam</h3>
+        <button class="btn-success" onclick="goToExam()" disabled id="goToExamBtn">Go to Exam Page</button>
+    </div>
+
+    <script>
+        function clearAllCache() {
+            const resultDiv = document.getElementById('clearResult');
+            
+            try {
+                // Clear localStorage
+                localStorage.clear();
+                
+                // Clear sessionStorage
+                sessionStorage.clear();
+                
+                // Clear any exam-related data
+                const keysToRemove = ['token', 'user', 'examData', 'authToken', 'currentUser'];
+                keysToRemove.forEach(key => {
+                    localStorage.removeItem(key);
+                    sessionStorage.removeItem(key);
+                });
+                
+                resultDiv.innerHTML = `
+                    <p style="color: green;">✅ Cache cleared successfully!</p>
+                    <p>- localStorage: cleared</p>
+                    <p>- sessionStorage: cleared</p>
+                    <p>- All auth tokens: removed</p>
+                `;
+                
+            } catch (error) {
+                resultDiv.innerHTML = `<p style="color: red;">❌ Error clearing cache: ${error.message}</p>`;
+            }
+        }
+
+        async function doFreshLogin() {
+            const resultDiv = document.getElementById('loginResult');
+            
+            try {
+                resultDiv.innerHTML = '<p>🔄 Logging in...</p>';
+                
+                const response = await fetch('http://localhost:3001/api/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        email: 'huy484820@gmail.com',
+                        password: 'Learner@123'
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Login failed: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                // Save fresh token
+                localStorage.setItem('token', data.token);
+                localStorage.setItem('user', JSON.stringify(data.user));
+                
+                resultDiv.innerHTML = `
+                    <p style="color: green;">✅ Login successful!</p>
+                    <p><strong>User:</strong> ${data.user.fullName} (ID: ${data.user.id})</p>
+                    <p><strong>Email:</strong> ${data.user.email}</p>
+                    <p><strong>Token:</strong> ${data.token.substring(0, 30)}...</p>
+                    <p><strong>Fresh token saved to localStorage</strong></p>
+                `;
+                
+                window.currentToken = data.token;
+                
+            } catch (error) {
+                resultDiv.innerHTML = `<p style="color: red;">❌ Login failed: ${error.message}</p>`;
+            }
+        }
+
+        async function testExamAPI() {
+            const resultDiv = document.getElementById('examResult');
+            
+            try {
+                const token = localStorage.getItem('token') || window.currentToken;
+                
+                if (!token) {
+                    resultDiv.innerHTML = '<p style="color: red;">❌ No token found. Please login first.</p>';
+                    return;
+                }
+                
+                resultDiv.innerHTML = '<p>🔄 Testing exam API...</p>';
+                
+                // Add detailed logging
+                console.log('🔍 Frontend Request Details:');
+                console.log('URL:', 'http://localhost:3001/api/learning/exams/53/start');
+                console.log('Method:', 'POST');
+                console.log('Headers:', {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token.substring(0, 30)}...`
+                });
+                console.log('Body:', JSON.stringify({}));
+                
+                const response = await fetch('http://localhost:3001/api/learning/exams/53/start', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({})
+                });
+                
+                console.log('Response status:', response.status);
+                console.log('Response headers:', response.headers);
+                
+                const responseText = await response.text();
+                console.log('Raw response:', responseText);
+                
+                let data;
+                try {
+                    data = JSON.parse(responseText);
+                } catch (e) {
+                    console.error('Failed to parse JSON:', e);
+                    throw new Error(`Invalid JSON response: ${responseText}`);
+                }
+                
+                if (!response.ok) {
+                    resultDiv.innerHTML = `
+                        <p style="color: red;">❌ Exam API failed</p>
+                        <p><strong>Status:</strong> ${response.status}</p>
+                        <p><strong>Response:</strong> ${responseText}</p>
+                        <p><strong>Error:</strong> ${data.message || data.error || 'Unknown error'}</p>
+                        <p style="font-size: 12px;"><strong>Token:</strong> ${token.substring(0, 50)}...</p>
+                    `;
+                    throw new Error(`API Error ${response.status}: ${data.message || data.error || response.statusText}`);
+                }
+                
+                resultDiv.innerHTML = `
+                    <p style="color: green;">🎉 Exam API SUCCESS!</p>
+                    <p><strong>Attempt ID:</strong> ${data.data.attempt_id}</p>
+                    <p><strong>Questions:</strong> ${data.data.questions.length}</p>
+                    <p><strong>Duration:</strong> ${data.data.duration_minutes} minutes</p>
+                    <p><strong>Status:</strong> Ready to take exam!</p>
+                `;
+                
+                // Enable go to exam button
+                document.getElementById('goToExamBtn').disabled = false;
+                
+            } catch (error) {
+                console.error('Exam API Error:', error);
+                resultDiv.innerHTML += `<p style="color: red;">❌ Exam API failed: ${error.message}</p>`;
+            }
+        }
+
+        function goToExam() {
+            // Navigate to exam page
+            window.location.href = 'http://localhost:5174/learn/9/exam/53';
+        }
+
+        // Auto-clear cache on page load
+        window.addEventListener('load', function() {
+            console.log('🔧 Auto-clearing cache on page load...');
+        });
+    </script>
+</body>
+</html>

@@ -214,6 +214,52 @@ router.get('/my-enrolled', authenticateToken, authorizeRoles('learner'), async (
   }
 });
 
+// Get instructor's courses
+router.get('/instructor/my-courses', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const pool = await getPool();
+
+    console.log('🎓 [instructor/my-courses] Fetching courses for instructor userId:', userId);
+
+    // Get courses created by this instructor
+    const result = await pool.request()
+      .input('instructorId', sql.BigInt, userId)
+      .query(`
+        SELECT 
+          c.course_id as id,
+          c.title,
+          c.description,
+          c.thumbnail_url,
+          c.price,
+          c.level,
+          c.created_at,
+          COUNT(DISTINCT e.enrollment_id) as enrollmentCount,
+          COUNT(DISTINCT m.mooc_id) as totalLessons
+        FROM courses c
+        LEFT JOIN enrollments e ON c.course_id = e.course_id
+        LEFT JOIN moocs m ON c.course_id = m.course_id
+        WHERE c.owner_instructor_id = @instructorId
+        GROUP BY c.course_id, c.title, c.description, c.thumbnail_url, 
+                 c.price, c.level, c.created_at
+        ORDER BY c.created_at DESC
+      `);
+
+    console.log('✅ [instructor/my-courses] Found', result.recordset.length, 'courses');
+
+    res.json({
+      success: true,
+      data: result.recordset
+    });
+  } catch (error) {
+    console.error('❌ [instructor/my-courses] Error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch instructor courses'
+    });
+  }
+});
+
 // Get single course by ID
 router.get('/:id', async (req, res) => {
   try {

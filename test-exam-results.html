@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Exam Results - Exam Workflow</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .button {
+            background-color: #3b82f6;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .button:hover {
+            background-color: #2563eb;
+        }
+        .button.success {
+            background-color: #10b981;
+        }
+        .button.danger {
+            background-color: #ef4444;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .status.success {
+            background-color: #d1fae5;
+            color: #065f46;
+            border: 1px solid #10b981;
+        }
+        .status.error {
+            background-color: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #ef4444;
+        }
+        .status.info {
+            background-color: #dbeafe;
+            color: #1e40af;
+            border: 1px solid #3b82f6;
+        }
+        .code-block {
+            background-color: #f3f4f6;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: monospace;
+            border-left: 4px solid #3b82f6;
+            margin: 10px 0;
+        }
+        .workflow-step {
+            border: 1px solid #e5e7eb;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            background-color: #f9fafb;
+        }
+        .step-number {
+            background-color: #3b82f6;
+            color: white;
+            width: 25px;
+            height: 25px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+        h1, h2 {
+            color: #1f2937;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>🎯 Test Exam Results System</h1>
+        <p><strong>Mục đích:</strong> Test complete exam workflow including submission and results display</p>
+        
+        <div class="status info">
+            <strong>Backend:</strong> http://localhost:3001 <br>
+            <strong>Frontend:</strong> http://localhost:5174 <br>
+            <strong>Test User:</strong> User 5 (huy484820@gmail.com) / password123
+        </div>
+    </div>
+
+    <div class="test-container">
+        <h2>📋 Complete Exam Workflow Test</h2>
+        
+        <div class="workflow-step">
+            <span class="step-number">1</span>
+            <strong>Login & Authentication</strong>
+            <div class="code-block">
+                URL: http://localhost:5174/auth
+                Email: huy484820@gmail.com
+                Password: password123
+            </div>
+            <a href="http://localhost:5174/auth" class="button" target="_blank">🔑 Login</a>
+        </div>
+
+        <div class="workflow-step">
+            <span class="step-number">2</span>
+            <strong>Access Course & Start Exam</strong>
+            <div class="code-block">
+                Course: http://localhost:5174/learn/9
+                Exam URL: http://localhost:5174/learn/9/exam/53
+                (Should redirect to standalone exam page)
+            </div>
+            <a href="http://localhost:5174/learn/9" class="button" target="_blank">📚 Go to Course</a>
+            <a href="http://localhost:5174/learn/9/exam/53" class="button success" target="_blank">🎯 Start Exam Direct</a>
+        </div>
+
+        <div class="workflow-step">
+            <span class="step-number">3</span>
+            <strong>Complete Exam & Submit</strong>
+            <div class="code-block">
+                Expected behavior:
+                - Answer questions
+                - Click "Nộp bài" (Submit) 
+                - Should call API: POST /api/new-exams/53/submit
+                - Navigate to results page: /learn/9/exam/53/results
+            </div>
+            <div class="status info">
+                <strong>Test Points:</strong><br>
+                ✅ Exam loads properly<br>
+                ✅ Questions display correctly<br>
+                ✅ Submit button works<br>
+                ✅ API submission successful<br>
+                ✅ Navigation to results page
+            </div>
+        </div>
+
+        <div class="workflow-step">
+            <span class="step-number">4</span>
+            <strong>View Results Page</strong>
+            <div class="code-block">
+                Results URL: http://localhost:5174/learn/9/exam/53/results
+                Expected data:
+                - Score and percentage
+                - Pass/fail status 
+                - Time spent
+                - Correct/incorrect answers
+                - Retake button (if failed)
+            </div>
+            <a href="http://localhost:5174/learn/9/exam/53/results" class="button danger" target="_blank">📊 Direct Results (Will fail without submission)</a>
+        </div>
+    </div>
+
+    <div class="test-container">
+        <h2>🔧 Debug Tools</h2>
+        
+        <div class="workflow-step">
+            <strong>Backend API Endpoints</strong>
+            <div class="code-block">
+                GET /api/new-exams/53 - Get exam details
+                POST /api/new-exams/53/start - Start exam attempt
+                POST /api/new-exams/53/submit - Submit exam answers
+            </div>
+        </div>
+
+        <div class="workflow-step">
+            <strong>Database Check</strong>
+            <div class="code-block">
+                Table: exam_attempts
+                Columns: attempt_id, user_id, mooc_id, started_at, submitted_at, score, passed
+                Expected: submitted_at should NOT be null after submission
+            </div>
+        </div>
+
+        <div class="workflow-step">
+            <strong>Browser Console</strong>
+            <div class="code-block">
+                Open F12 Developer Tools
+                Check Console for errors
+                Check Network tab for API calls
+                Look for submission API call: POST /api/new-exams/53/submit
+            </div>
+        </div>
+    </div>
+
+    <div class="test-container">
+        <h2>🎯 Expected Test Results</h2>
+        
+        <div class="status success">
+            <strong>SUCCESS CRITERIA:</strong><br>
+            ✅ User can login successfully<br>
+            ✅ Exam loads in standalone page<br>
+            ✅ User can answer questions<br>
+            ✅ Submit button triggers API call<br>
+            ✅ Results page displays score and pass/fail<br>
+            ✅ Navigation works properly<br>
+            ✅ Database updated with submitted_at timestamp
+        </div>
+
+        <div class="status error">
+            <strong>FAILURE INDICATORS:</strong><br>
+            ❌ Exam page shows blank/error<br>
+            ❌ Submit button doesn't work<br>
+            ❌ No navigation to results page<br>
+            ❌ Results page shows "No data found"<br>
+            ❌ submitted_at remains null in database<br>
+            ❌ Console errors during submission
+        </div>
+    </div>
+
+    <div class="test-container">
+        <h2>📝 Test Notes</h2>
+        <div class="status info">
+            <strong>Recent Changes:</strong><br>
+            ✅ Enhanced ExamStandalonePage.jsx with proper submission logic<br>
+            ✅ Updated ExamResultsPage.jsx to use navigation state<br>
+            ✅ Added new route: /learn/:courseId/exam/:examId/results<br>
+            ✅ Fixed routing and parameter handling<br>
+            ✅ Added retake functionality for failed exams
+        </div>
+    </div>
+
+    <script>
+        console.log('🎯 Exam Results Test Page Loaded');
+        console.log('Backend: http://localhost:3001');
+        console.log('Frontend: http://localhost:5174');
+        console.log('Test exam workflow: Login → Course → Exam → Submit → Results');
+    </script>
+</body>
+</html>

@@ -274,4 +274,46 @@ router.get('/lesson/:lessonId/submissions', authenticateToken, async (req, res) 
   }
 });
 
+// Get lesson info (for grading page)
+router.get('/lesson-info/:lessonId', authenticateToken, async (req, res) => {
+  try {
+    const pool = await getPool();
+    const { lessonId } = req.params;
+
+    const result = await pool.request()
+      .input('lessonId', sql.BigInt, lessonId)
+      .query(`
+        SELECT 
+          l.lesson_id,
+          l.title,
+          l.content_type,
+          l.mooc_id,
+          m.title as mooc_title,
+          m.course_id
+        FROM lessons l
+        JOIN moocs m ON l.mooc_id = m.mooc_id
+        WHERE l.lesson_id = @lessonId
+      `);
+
+    if (result.recordset.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Lesson not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: result.recordset[0]
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching lesson:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch lesson'
+    });
+  }
+});
+
 export default router;

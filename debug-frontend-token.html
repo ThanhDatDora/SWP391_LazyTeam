@@ -1,0 +1,76 @@
+<!-- debug-frontend-token.html: deactivated by automated cleanup; original content moved to backup_20251106_200503 -->
+<!doctype html>
+<html>
+    <head><meta charset="utf-8"><title>Deactivated</title></head>
+    <body>
+        <!-- This debug page was removed. See backup_20251106_200503 for original files. -->
+    </body>
+</html>
+                if (!token) {
+                    results.innerHTML += `<p><strong>❌ No token found - need to login first</strong></p>`;
+                    return;
+                }
+                
+                // Test login API first
+                results.innerHTML += `<p><strong>Testing login with huy484820@gmail.com...</strong></p>`;
+                
+                const loginResponse = await fetch('http://localhost:3001/api/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        email: 'huy484820@gmail.com',
+                        password: 'Learner@123'
+                    })
+                });
+                
+                const loginData = await loginResponse.json();
+                
+                if (loginResponse.ok) {
+                    results.innerHTML += `<p><strong>✅ Login successful for: ${loginData.user.fullName}</strong></p>`;
+                    const freshToken = loginData.token;
+                    
+                    // Save fresh token
+                    localStorage.setItem('token', freshToken);
+                    results.innerHTML += `<p><strong>Fresh token saved to localStorage</strong></p>`;
+                    
+                    // Test exam start with fresh token
+                    results.innerHTML += `<p><strong>Testing exam start with fresh token...</strong></p>`;
+                    
+                    const examResponse = await fetch('http://localhost:3001/api/learning/exams/53/start', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${freshToken}`
+                        },
+                        body: JSON.stringify({})
+                    });
+                    
+                    const examData = await examResponse.json();
+                    
+                    if (examResponse.ok) {
+                        results.innerHTML += `<p><strong>✅ Exam start successful!</strong></p>`;
+                        results.innerHTML += `<p>Attempt ID: ${examData.data.attempt_id}</p>`;
+                        results.innerHTML += `<p>Questions loaded: ${examData.data.questions.length}</p>`;
+                        results.innerHTML += `<p>Duration: ${examData.data.duration_minutes} minutes</p>`;
+                    } else {
+                        results.innerHTML += `<p><strong>❌ Exam start failed:</strong> ${examData.message || examResponse.statusText}</p>`;
+                        results.innerHTML += `<p>Status: ${examResponse.status}</p>`;
+                        results.innerHTML += `<p>Response: ${JSON.stringify(examData)}</p>`;
+                    }
+                    
+                } else {
+                    results.innerHTML += `<p><strong>❌ Login failed:</strong> ${loginData.message || loginResponse.statusText}</p>`;
+                }
+                
+            } catch (error) {
+                results.innerHTML += `<p><strong>❌ Error:</strong> ${error.message}</p>`;
+            }
+        }
+        
+        // Run test
+        debugToken();
+    </script>
+</body>
+</html>

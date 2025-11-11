@@ -8,85 +8,44 @@ import {
   apiWithFallback 
 } from '../utils/fallbackData';
 
-// Token management with refresh capability
+// Token management
 const getToken = () => localStorage.getItem('authToken');
 const setToken = (token) => localStorage.setItem('authToken', token);
 const removeToken = () => localStorage.removeItem('authToken');
-
-// JWT token utilities
-const isTokenExpired = (token) => {
-  if (!token) return true;
-  
-  try {
-    const payload = JSON.parse(atob(token.split('.')[1]));
-    const currentTime = Date.now() / 1000;
-    
-    // Check if token expires within 5 minutes (300 seconds)
-    return payload.exp < (currentTime + 300);
-  } catch (error) {
-    console.error('Error checking token expiration:', error);
-    return true;
-  }
-};
-
-const refreshToken = async () => {
-  try {
-    console.log('🔄 Attempting token refresh...');
-    const currentToken = getToken();
-    
-    if (!currentToken) {
-      throw new Error('No token to refresh');
-    }
-    
-    const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${currentToken}`
-      }
-    });
-    
-    if (response.ok) {
-      const data = await response.json();
-      if (data.token) {
-        setToken(data.token);
-        console.log('✅ Token refreshed successfully');
-        return data.token;
-      }
-    }
-    
-    throw new Error('Token refresh failed');
-  } catch (error) {
-    console.error('❌ Token refresh failed:', error);
-    removeToken();
-    // Redirect to login or trigger logout
-    window.location.href = '/login';
-    throw error;
-  }
-};
 
 // Simple in-memory cache for API responses
 const apiCache = new Map();
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
-// API request helper with improved caching and token refresh
-const apiRequest = async (endpoint, options = {}) => {
-  const url = `${API_BASE_URL}${endpoint}`;
-  let token = getToken();
+// Clear cache for specific endpoint or pattern
+export const clearCache = (pattern) => {
+  if (!pattern) {
+    // Clear all cache
+    apiCache.clear();
+    console.log('🗑️ Cleared all API cache');
+    return;
+  }
   
-  // Check if token needs refresh (skip for auth endpoints)
-  const isAuthEndpoint = endpoint.includes('/auth/');
-  if (token && !isAuthEndpoint && isTokenExpired(token)) {
-    try {
-      token = await refreshToken();
-    } catch (error) {
-      // Token refresh failed, user will be redirected to login
-      return;
+  // Clear cache entries matching pattern
+  const keysToDelete = [];
+  for (const key of apiCache.keys()) {
+    if (key.includes(pattern)) {
+      keysToDelete.push(key);
     }
   }
   
+  keysToDelete.forEach(key => apiCache.delete(key));
+  console.log(`🗑️ Cleared ${keysToDelete.length} cache entries matching: ${pattern}`);
+};
+
+// API request helper with improved caching and rate limiting
+const apiRequest = async (endpoint, options = {}) => {
+  const url = `${API_BASE_URL}${endpoint}`;
+  const token = getToken();
+  
   // Check cache for GET requests (unless forced refresh or auth endpoint)
   const cacheKey = `${endpoint}_${JSON.stringify(options.body || {})}`;
+  const isAuthEndpoint = endpoint.includes('/auth/');
   if ((!options.method || options.method === 'GET') && !options.forceRefresh && !isAuthEndpoint) {
     const cached = apiCache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
@@ -111,29 +70,6 @@ const apiRequest = async (endpoint, options = {}) => {
     console.log(`📡 API Request: ${endpoint}`);
     console.log(`📤 Request config:`, { method: config.method, headers: config.headers, body: config.body });
     const response = await fetch(url, config);
-    
-    // Handle 401 unauthorized - try token refresh once
-    if (response.status === 401 && !isAuthEndpoint && !options._retryAttempt) {
-      console.log('🔄 401 detected, attempting token refresh...');
-      try {
-        const newToken = await refreshToken();
-        if (newToken) {
-          // Retry request with new token
-          return await apiRequest(endpoint, { 
-            ...options, 
-            _retryAttempt: true,
-            headers: {
-              ...options.headers,
-              Authorization: `Bearer ${newToken}`
-            }
-          });
-        }
-      } catch (refreshError) {
-        console.error('❌ Token refresh failed on 401:', refreshError);
-        // Let the original 401 response be processed below
-      }
-    }
-    
     const data = await response.json();
     
     if (!response.ok) {
@@ -299,20 +235,12 @@ export const courseAPI = {
     const result = await apiWithFallback(
       async () => await apiRequest(`/courses/${courseId}`),
       () => ({
-        data: {
-          course: getMockCourse(courseId)
-        }
+        success: true,
+        course: getMockCourse(courseId)
       })
     );
     
-    if (result.success) {
-      return {
-        success: true,
-        data: result.data.course,
-        offline: result.offline
-      };
-    }
-    
+    // Return as-is since backend already returns { success: true, course: {...} }
     return result;
   },
 
@@ -337,15 +265,9 @@ export const courseAPI = {
   },
 
   async getMyCourses() {
-    // For learners: get enrolled courses
-    // For instructors: get their own courses
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
-    
-    if (user.role === 'learner') {
-      return await apiRequest('/courses/my-enrolled');
-    } else {
-      return await apiRequest('/courses/instructor/my-courses');
-    }
+    // Always call /courses/my-enrolled for learners
+    // Backend will return appropriate courses based on user's actual role
+    return await apiRequest('/courses/my-enrolled');
   },
 
   async enrollInCourse(courseId) {
@@ -452,10 +374,18 @@ export const newExamAPI = {
   },
 
   async submitExam(examId, attemptId, answers) {
-    return await apiRequest(`/learning/exams/${examId}/submit`, {
+    const result = await apiRequest(`/learning/exams/${examId}/submit`, {
       method: 'POST',
       body: JSON.stringify({ attempt_id: attemptId, answers })
     });
+    
+    // Clear exam cache after submission to ensure fresh data on reload
+    if (result.success) {
+      clearCache('/learning/exams/mooc/');
+      clearCache('/enrollments/course/');
+    }
+    
+    return result;
   },
 
   async getExamResult(attemptId) {

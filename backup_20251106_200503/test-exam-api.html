@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Exam APIs</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 900px; margin: 50px auto; padding: 20px; }
+        .section { background: #f5f5f5; padding: 20px; margin: 20px 0; border-radius: 8px; }
+        button { background: #4CAF50; color: white; border: none; padding: 12px 24px; font-size: 16px; cursor: pointer; border-radius: 4px; margin: 5px; }
+        button:hover { background: #45a049; }
+        button:disabled { background: #ccc; cursor: not-allowed; }
+        .response { background: white; padding: 15px; margin: 10px 0; border-radius: 4px; font-family: monospace; white-space: pre-wrap; }
+        .success { border-left: 4px solid #4CAF50; }
+        .error { border-left: 4px solid #f44336; }
+        input { padding: 8px; font-size: 14px; border: 1px solid #ddd; border-radius: 4px; width: 200px; }
+        h2 { color: #333; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Exam System API Testing</h1>
+    
+    <div class="section">
+        <h2>1. Start Exam</h2>
+        <label>User ID: <input type="number" id="userId" value="1"></label>
+        <label>Exam ID: <input type="number" id="examId" value="7"></label>
+        <button onclick="startExam()">Start Exam</button>
+        <div id="start-response" class="response"></div>
+    </div>
+
+    <div class="section">
+        <h2>2. Get Exam Instance</h2>
+        <label>Instance ID: <input type="number" id="instanceId" value=""></label>
+        <button onclick="getInstance()" id="getInstanceBtn" disabled>Get Instance</button>
+        <div id="instance-response" class="response"></div>
+    </div>
+
+    <div class="section">
+        <h2>3. Save Answer</h2>
+        <label>Question ID: <input type="number" id="questionId" value=""></label>
+        <label>Option IDs (comma-separated): <input type="text" id="optionIds" value="" placeholder="e.g. 123,456"></label>
+        <button onclick="saveAnswer()" id="saveAnswerBtn" disabled>Save Answer</button>
+        <div id="answer-response" class="response"></div>
+    </div>
+
+    <div class="section">
+        <h2>4. Submit Exam</h2>
+        <button onclick="submitExam()" id="submitBtn" disabled>Submit Exam</button>
+        <div id="submit-response" class="response"></div>
+    </div>
+
+    <div class="section">
+        <h2>5. Get Results</h2>
+        <button onclick="getResults()" id="resultsBtn" disabled>Get Results</button>
+        <div id="results-response" class="response"></div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:3001/api/exams';
+        let currentInstanceId = null;
+
+        async function startExam() {
+            const userId = document.getElementById('userId').value;
+            const examId = document.getElementById('examId').value;
+            const responseDiv = document.getElementById('start-response');
+
+            try {
+                responseDiv.textContent = '⏳ Starting exam...';
+                const response = await fetch(`${API_BASE}/${examId}/start`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId: parseInt(userId) })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    currentInstanceId = data.instanceId;
+                    document.getElementById('instanceId').value = currentInstanceId;
+                    
+                    // Enable next buttons
+                    document.getElementById('getInstanceBtn').disabled = false;
+                    document.getElementById('saveAnswerBtn').disabled = false;
+                    document.getElementById('submitBtn').disabled = false;
+                    
+                    responseDiv.className = 'response success';
+                    responseDiv.textContent = `✅ SUCCESS\n\n${JSON.stringify(data, null, 2)}\n\nInstance ID: ${currentInstanceId}\nQuestions: ${data.questions?.length || 0}\nStart Time: ${data.startTime}`;
+                } else {
+                    responseDiv.className = 'response error';
+                    responseDiv.textContent = `❌ ERROR: ${data.error}\nStatus: ${response.status}`;
+                }
+            } catch (error) {
+                responseDiv.className = 'response error';
+                responseDiv.textContent = `❌ FETCH ERROR: ${error.message}`;
+            }
+        }
+
+        async function getInstance() {
+            const instanceId = document.getElementById('instanceId').value || currentInstanceId;
+            const responseDiv = document.getElementById('instance-response');
+
+            try {
+                responseDiv.textContent = '⏳ Fetching instance...';
+                const response = await fetch(`${API_BASE}/instances/${instanceId}`);
+                const data = await response.json();
+
+                if (response.ok) {
+                    // Show first question ID for easy testing
+                    if (data.questions && data.questions.length > 0) {
+                        document.getElementById('questionId').value = data.questions[0].question_id;
+                        
+                        // Show first option ID
+                        if (data.questions[0].options && data.questions[0].options.length > 0) {
+                            document.getElementById('optionIds').value = data.questions[0].options[0].option_id;
+                        }
+                    }
+                    
+                    responseDiv.className = 'response success';
+                    responseDiv.textContent = `✅ SUCCESS\n\n${JSON.stringify(data, null, 2)}`;
+                } else {
+                    responseDiv.className = 'response error';
+                    responseDiv.textContent = `❌ ERROR: ${data.error}`;
+                }
+            } catch (error) {
+                responseDiv.className = 'response error';
+                responseDiv.textContent = `❌ FETCH ERROR: ${error.message}`;
+            }
+        }
+
+        async function saveAnswer() {
+            const instanceId = document.getElementById('instanceId').value || currentInstanceId;
+            const questionId = document.getElementById('questionId').value;
+            const optionIds = document.getElementById('optionIds').value.split(',').map(id => parseInt(id.trim()));
+            const responseDiv = document.getElementById('answer-response');
+
+            try {
+                responseDiv.textContent = '⏳ Saving answer...';
+                const response = await fetch(`${API_BASE}/instances/${instanceId}/answer`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        questionId: parseInt(questionId), 
+                        selectedOptions: optionIds,
+                        timeRemainingSeconds: 3000
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    responseDiv.className = 'response success';
+                    responseDiv.textContent = `✅ SUCCESS\n\n${JSON.stringify(data, null, 2)}`;
+                } else {
+                    responseDiv.className = 'response error';
+                    responseDiv.textContent = `❌ ERROR: ${data.error}`;
+                }
+            } catch (error) {
+                responseDiv.className = 'response error';
+                responseDiv.textContent = `❌ FETCH ERROR: ${error.message}`;
+            }
+        }
+
+        async function submitExam() {
+            const instanceId = document.getElementById('instanceId').value || currentInstanceId;
+            const responseDiv = document.getElementById('submit-response');
+
+            try {
+                responseDiv.textContent = '⏳ Submitting exam...';
+                const response = await fetch(`${API_BASE}/instances/${instanceId}/submit`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    document.getElementById('resultsBtn').disabled = false;
+                    responseDiv.className = 'response success';
+                    responseDiv.textContent = `✅ SUCCESS\n\n${JSON.stringify(data, null, 2)}\n\nScore: ${data.score}/${data.maxScore} (${data.percentage}%)\nCorrect: ${data.correctCount}`;
+                } else {
+                    responseDiv.className = 'response error';
+                    responseDiv.textContent = `❌ ERROR: ${data.error}`;
+                }
+            } catch (error) {
+                responseDiv.className = 'response error';
+                responseDiv.textContent = `❌ FETCH ERROR: ${error.message}`;
+            }
+        }
+
+        async function getResults() {
+            const instanceId = document.getElementById('instanceId').value || currentInstanceId;
+            const responseDiv = document.getElementById('results-response');
+
+            try {
+                responseDiv.textContent = '⏳ Fetching results...';
+                const response = await fetch(`${API_BASE}/instances/${instanceId}/results`);
+                const data = await response.json();
+
+                if (response.ok) {
+                    responseDiv.className = 'response success';
+                    responseDiv.textContent = `✅ SUCCESS\n\n${JSON.stringify(data, null, 2)}`;
+                } else {
+                    responseDiv.className = 'response error';
+                    responseDiv.textContent = `❌ ERROR: ${data.error}`;
+                }
+            } catch (error) {
+                responseDiv.className = 'response error';
+                responseDiv.textContent = `❌ FETCH ERROR: ${error.message}`;
+            }
+        }
+    </script>
+</body>
+</html>

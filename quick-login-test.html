@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Quick Login and Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; }
+        .box { background: #f5f5f5; padding: 20px; margin: 20px 0; border-radius: 8px; }
+        input, button { padding: 12px; margin: 10px 0; width: 100%; }
+        button { background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        .success { background: #d4edda; border: 1px solid #c3e6cb; color: #155724; }
+        .error { background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; }
+    </style>
+</head>
+<body>
+    <h1>🔐 Quick Login and Test</h1>
+    
+    <div class="box">
+        <h3>Try Login with Known Users:</h3>
+        <button onclick="tryLogin('testuser@example.com', 'password123')">✅ Login as testuser@example.com</button>
+        <button onclick="tryLogin('learner@example.com', 'password123')">Login as learner@example.com</button>
+        <button onclick="tryLogin('learner2@example.com', 'password123')">Login as learner2@example.com</button>
+        
+        <h3>Or try custom:</h3>
+        <input type="email" id="email" placeholder="Email" value="testuser@example.com">
+        <input type="password" id="password" placeholder="Password" value="password123">
+        <button onclick="tryCustomLogin()">Login</button>
+    </div>
+    
+    <div id="result" class="box"></div>
+    
+    <script>
+        async function tryLogin(email, password) {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = `🔄 Trying login: ${email} with password: ${password}...`;
+            
+            try {
+                const response = await fetch('http://localhost:3001/api/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ email, password })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    localStorage.setItem('token', data.token);
+                    localStorage.setItem('authData', JSON.stringify(data));
+                    
+                    resultDiv.className = 'box success';
+                    resultDiv.innerHTML = `
+                        ✅ <strong>Login successful!</strong><br>
+                        User: ${data.user.full_name || data.user.email}<br>
+                        Token saved!<br><br>
+                        <button onclick="testExamPage()">🎯 Test Exam Page Now</button>
+                    `;
+                } else {
+                    const errorText = await response.text();
+                    resultDiv.className = 'box error';
+                    resultDiv.innerHTML = `❌ <strong>Login failed:</strong> ${errorText}`;
+                }
+            } catch (error) {
+                resultDiv.className = 'box error';
+                resultDiv.innerHTML = `❌ <strong>Network Error:</strong> ${error.message}`;
+            }
+        }
+        
+        async function tryCustomLogin() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            await tryLogin(email, password);
+        }
+        
+        async function testExamPage() {
+            // Test API call first
+            const token = localStorage.getItem('token');
+            const resultDiv = document.getElementById('result');
+            
+            try {
+                const response = await fetch('http://localhost:3001/api/courses/9', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (response.ok) {
+                    resultDiv.innerHTML += '<br>✅ Course API test successful!<br>';
+                    // Now open exam page
+                    window.open('/learn/9/exam/52', '_blank');
+                } else {
+                    const errorText = await response.text();
+                    resultDiv.innerHTML += `<br>❌ Course API test failed: ${errorText.substring(0, 100)}`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML += `<br>❌ API test error: ${error.message}`;
+            }
+        }
+    </script>
+</body>
+</html>

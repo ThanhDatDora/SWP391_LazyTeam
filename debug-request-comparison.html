@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Frontend vs Backend Request Comparison</title>
+</head>
+<body>
+    <h1>🔍 Frontend vs Backend Request Debug</h1>
+    <!-- debug-request-comparison.html: deactivated by automated cleanup; original content moved to backup_20251106_200503 -->
+    <!doctype html>
+    <html>
+        <head><meta charset="utf-8"><title>Deactivated</title></head>
+        <body>
+            <!-- This debug page was removed. See backup_20251106_200503 for original files. -->
+        </body>
+    </html>
+                    },
+                    body: '{}' // Empty JSON object as string (like PowerShell)
+                });
+                
+                results.innerHTML += `<p>Status: ${powershellStyleResponse.status}</p>`;
+                
+                if (powershellStyleResponse.ok) {
+                    const powershellData = await powershellStyleResponse.json();
+                    results.innerHTML += `<p>✅ PowerShell-style SUCCESS</p>`;
+                    results.innerHTML += `<p>Attempt ID: ${powershellData.data.attempt_id}</p>`;
+                    results.innerHTML += `<p>Questions: ${powershellData.data.questions.length}</p>`;
+                } else {
+                    const errorText = await powershellStyleResponse.text();
+                    results.innerHTML += `<p>❌ PowerShell-style FAILED: ${errorText}</p>`;
+                }
+                
+                // TEST 2: Frontend-style request (might be failing)
+                results.innerHTML += '<h3>Test 2: Frontend-style Request (Current implementation)</h3>';
+                
+                const frontendStyleResponse = await fetch('http://localhost:3001/api/learning/exams/53/start', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    }
+                    // No body at all (how frontend might be sending)
+                });
+                
+                results.innerHTML += `<p>Status: ${frontendStyleResponse.status}</p>`;
+                
+                if (frontendStyleResponse.ok) {
+                    const frontendData = await frontendStyleResponse.json();
+                    results.innerHTML += `<p>✅ Frontend-style SUCCESS</p>`;
+                    results.innerHTML += `<p>Attempt ID: ${frontendData.data.attempt_id}</p>`;
+                    results.innerHTML += `<p>Questions: ${frontendData.data.questions.length}</p>`;
+                } else {
+                    const errorText = await frontendStyleResponse.text();
+                    results.innerHTML += `<p>❌ Frontend-style FAILED: ${errorText}</p>`;
+                }
+                
+                // TEST 3: Check what user ID the token represents
+                results.innerHTML += '<h3>Test 3: Token User ID Check</h3>';
+                
+                try {
+                    // Decode token payload (just for debugging)
+                    const tokenParts = token.split('.');
+                    const payload = JSON.parse(atob(tokenParts[1]));
+                    results.innerHTML += `<p>Token userId: ${payload.userId}</p>`;
+                    results.innerHTML += `<p>Token exp: ${new Date(payload.exp * 1000)}</p>`;
+                } catch (e) {
+                    results.innerHTML += `<p>Could not decode token: ${e.message}</p>`;
+                }
+                
+            } catch (error) {
+                results.innerHTML += `<p>❌ Error: ${error.message}</p>`;
+            }
+        }
+        
+        // Run test
+        debugRequests();
+    </script>
+</body>
+</html>

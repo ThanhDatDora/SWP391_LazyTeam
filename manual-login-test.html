@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Manual Login Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 500px; margin: 50px auto; }
+        input, button { padding: 10px; margin: 10px 0; width: 100%; }
+        .result { background: #f0f0f0; padding: 15px; margin: 15px 0; }
+    </style>
+</head>
+<body>
+    <h1>Manual Login Test</h1>
+    
+    <div>
+        <input type="email" id="email" placeholder="Email" value="student@example.com">
+        <input type="password" id="password" placeholder="Password" value="student123">
+        <button onclick="doLogin()">Login</button>
+    </div>
+    
+    <div id="result" class="result"></div>
+    
+    <script>
+        async function doLogin() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const resultDiv = document.getElementById('result');
+            
+            try {
+                const response = await fetch('http://localhost:3001/api/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ email, password })
+                });
+                
+                resultDiv.innerHTML = `<strong>Status:</strong> ${response.status}<br>`;
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    localStorage.setItem('token', data.token);
+                    localStorage.setItem('authData', JSON.stringify(data));
+                    
+                    resultDiv.innerHTML += `
+                        <strong>✅ Login successful!</strong><br>
+                        Token saved to localStorage<br>
+                        <a href="/learn/9/exam/52" target="_blank">Test Exam Page</a>
+                    `;
+                } else {
+                    const errorText = await response.text();
+                    resultDiv.innerHTML += `<strong>❌ Error:</strong> ${errorText}`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<strong>❌ Network Error:</strong> ${error.message}`;
+            }
+        }
+    </script>
+</body>
+</html>

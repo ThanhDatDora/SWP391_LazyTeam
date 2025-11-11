@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Login Debug</title>
+    <style>
+        body { font-family: Arial; padding: 20px; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+        pre { background: #f5f5f5; padding: 10px; border-radius: 4px; }
+        .success { color: green; }
+        .error { color: red; }
+    </style>
+</head>
+<body>
+    <h1>Login Request Debug Test</h1>
+    
+    <div>
+        <h3>Test 1: Direct fetch with hardcoded credentials</h3>
+        <button onclick="testDirectFetch()">Test Direct Fetch</button>
+        <pre id="result1"></pre>
+    </div>
+
+    <div>
+        <h3>Test 2: Test với form input</h3>
+        <input type="email" id="email" value="learner@example.com" placeholder="Email">
+        <input type="password" id="password" value="Learner@123" placeholder="Password">
+        <button onclick="testWithFormData()">Test With Form</button>
+        <pre id="result2"></pre>
+    </div>
+
+    <script>
+        async function testDirectFetch() {
+            const resultDiv = document.getElementById('result1');
+            resultDiv.textContent = 'Testing...';
+            
+            try {
+                const requestBody = {
+                    email: 'learner@example.com',
+                    password: 'Learner@123'
+                };
+                
+                console.log('📤 Sending request with body:', requestBody);
+                console.log('📤 Stringified:', JSON.stringify(requestBody));
+                
+                const response = await fetch('http://localhost:3001/api/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Cache-Control': 'no-cache'
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+                
+                const data = await response.json();
+                
+                resultDiv.innerHTML = `
+Status: ${response.status}
+Response: ${JSON.stringify(data, null, 2)}
+                `.trim();
+                resultDiv.className = response.ok ? 'success' : 'error';
+                
+            } catch (error) {
+                resultDiv.textContent = `Error: ${error.message}`;
+                resultDiv.className = 'error';
+                console.error('❌ Error:', error);
+            }
+        }
+
+        async function testWithFormData() {
+            const resultDiv = document.getElementById('result2');
+            resultDiv.textContent = 'Testing...';
+            
+            try {
+                const email = document.getElementById('email').value;
+                const password = document.getElementById('password').value;
+                
+                const requestBody = { email, password };
+                
+                console.log('📤 Form data:', { email, password: '***' });
+                console.log('📤 Request body object:', requestBody);
+                console.log('📤 Stringified:', JSON.stringify(requestBody));
+                
+                const response = await fetch('http://localhost:3001/api/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Cache-Control': 'no-cache'
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+                
+                const data = await response.json();
+                
+                resultDiv.innerHTML = `
+Status: ${response.status}
+Response: ${JSON.stringify(data, null, 2)}
+                `.trim();
+                resultDiv.className = response.ok ? 'success' : 'error';
+                
+            } catch (error) {
+                resultDiv.textContent = `Error: ${error.message}`;
+                resultDiv.className = 'error';
+                console.error('❌ Error:', error);
+            }
+        }
+    </script>
+</body>
+</html>

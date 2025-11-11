@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sync Token to Main App</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .step { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        .warning { background-color: #fff3cd; border-color: #ffeaa7; }
+        button { padding: 10px 20px; margin: 5px; font-size: 16px; }
+        .btn-primary { background-color: #007bff; color: white; border: none; }
+        .btn-success { background-color: #28a745; color: white; border: none; }
+    </style>
+</head>
+<body>
+    <h1>🔧 Sync Working Token to Main App</h1>
+    
+    <div class="step warning">
+        <h3>🎯 Problem Identified:</h3>
+        <p>Main app uses <code>authToken</code> but test page uses <code>token</code></p>
+        <p>This script will sync the working token to both keys</p>
+    </div>
+
+    <div class="step">
+        <h3>🔄 Auto Sync Process</h3>
+        <button class="btn-primary" onclick="syncToken()">Sync Working Token</button>
+        <div id="syncResult"></div>
+    </div>
+
+    <div class="step">
+        <h3>🚀 Go to Main App</h3>
+        <button class="btn-success" onclick="goToMainApp()" disabled id="goToMainBtn">Go to Main Exam Page</button>
+    </div>
+
+    <script>
+        async function syncToken() {
+            const resultDiv = document.getElementById('syncResult');
+            
+            try {
+                resultDiv.innerHTML = '<p>🔄 Syncing token...</p>';
+                
+                // Get fresh login and working token
+                const loginResponse = await fetch('http://localhost:3001/api/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        email: 'huy484820@gmail.com',
+                        password: 'Learner@123'
+                    })
+                });
+                
+                if (!loginResponse.ok) {
+                    throw new Error(`Login failed: ${loginResponse.status}`);
+                }
+                
+                const loginData = await loginResponse.json();
+                const token = loginData.token;
+                const user = loginData.user;
+                
+                // Set BOTH token keys for compatibility
+                localStorage.setItem('token', token);      // For test compatibility
+                localStorage.setItem('authToken', token);  // For main app API service
+                localStorage.setItem('user', JSON.stringify(user));
+                
+                // Verify exam API works with synced token
+                const examResponse = await fetch('http://localhost:3001/api/learning/exams/53/start', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({})
+                });
+                
+                if (!examResponse.ok) {
+                    throw new Error(`Exam API failed: ${examResponse.status}`);
+                }
+                
+                const examData = await examResponse.json();
+                
+                resultDiv.innerHTML = `
+                    <div class="success">
+                        <p><strong>✅ Token Sync Successful!</strong></p>
+                        <p><strong>User:</strong> ${user.fullName} (ID: ${user.id})</p>
+                        <p><strong>token:</strong> ${token.substring(0, 30)}... ✅</p>
+                        <p><strong>authToken:</strong> ${token.substring(0, 30)}... ✅</p>
+                        <p><strong>Exam API Test:</strong> SUCCESS (Attempt ${examData.data.attempt_id})</p>
+                        <p><strong>Ready for main app!</strong></p>
+                    </div>
+                `;
+                
+                // Enable go to main app button
+                document.getElementById('goToMainBtn').disabled = false;
+                
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="error">
+                        <p><strong>❌ Sync failed:</strong> ${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        function goToMainApp() {
+            // Navigate to main exam page
+            window.location.href = 'http://localhost:5174/learn/9/exam/53';
+        }
+
+        // Auto-sync on page load
+        window.addEventListener('load', function() {
+            setTimeout(syncToken, 1000);
+        });
+    </script>
+</body>
+</html>

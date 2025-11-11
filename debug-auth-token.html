@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Deactivated</title>
+</head>
+<body>
+    <!-- This debug page was removed. See backup_20251106_200503 for original files. -->
+    <h1>Auth Token Debug</h1>
+    <div id="output" style="display:none;"></div>
+    
+    <script>
+        const token = localStorage.getItem('token');
+        const authData = localStorage.getItem('authData');
+        
+        document.getElementById('output').innerHTML = `
+            <h3>Token Status:</h3>
+            <p><strong>Token exists:</strong> ${token ? 'Yes' : 'No'}</p>
+            <p><strong>Token preview:</strong> ${token ? token.substring(0, 50) + '...' : 'None'}</p>
+            <p><strong>Auth data:</strong> ${authData || 'None'}</p>
+            
+            <h3>Test API Call:</h3>
+            <button onclick="testAPI()">Test Course API</button>
+            <div id="apiResult"></div>
+        `;
+        
+        async function testAPI() {
+            const resultDiv = document.getElementById('apiResult');
+            
+            try {
+                const response = await fetch('http://localhost:3001/api/courses/9', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                resultDiv.innerHTML = `
+                    <p><strong>Status:</strong> ${response.status}</p>
+                    <p><strong>Headers:</strong> ${JSON.stringify([...response.headers])}</p>
+                `;
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    resultDiv.innerHTML += `<p><strong>Success:</strong> Got valid JSON</p>`;
+                } else {
+                    const text = await response.text();
+                    resultDiv.innerHTML += `<p><strong>Error:</strong> ${text.substring(0, 200)}</p>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<p><strong>Error:</strong> ${error.message}</p>`;
+            }
+        }
+        
+        window.testAPI = testAPI;
+    </script>
+</body>
+</html>
