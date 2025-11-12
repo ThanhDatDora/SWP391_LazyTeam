@@ -20,8 +20,15 @@ const ExamResultsPage = () => {
       try {
         setLoading(true);
         
+        console.log('🎯 ExamResultsPage - Initializing results...');
+        console.log('🎯 courseId:', courseId);
+        console.log('🎯 examId:', examId);
+        console.log('🎯 location.state:', location.state);
+        
         // Get exam result from navigation state (passed from ExamStandalonePage)
         const resultData = location.state?.examResult;
+        
+        console.log('🎯 Exam result data from state:', resultData);
         
         if (resultData) {
           // Process the exam result data from API response

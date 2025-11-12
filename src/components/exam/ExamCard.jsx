@@ -29,9 +29,9 @@ const ExamCard = ({
   return (
     <Card className={`
       border-l-4 transition-all duration-200
-      ${hasPassed ? 'border-l-green-500 bg-green-50' : ''}
+      ${hasPassed ? 'border-l-green-500 bg-white shadow-sm' : ''}
       ${isLocked ? 'border-l-gray-300 bg-gray-50 opacity-75' : ''}
-      ${!isLocked && !hasPassed ? 'border-l-blue-500 hover:shadow-md' : ''}
+      ${!isLocked && !hasPassed ? 'border-l-blue-500 hover:shadow-md bg-white' : ''}
     `}>
       <CardContent className="p-4">
         <div className="flex items-start justify-between gap-4">

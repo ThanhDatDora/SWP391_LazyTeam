@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Test Admin Courses API</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #1a1a2e; color: #fff; }
+        pre { background: #16213e; padding: 15px; border-radius: 8px; overflow-x: auto; }
+        button { padding: 10px 20px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; }
+        button:hover { background: #45a049; }
+        .error { color: #ff6b6b; }
+        .success { color: #51cf66; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #444; padding: 10px; text-align: left; }
+        th { background: #16213e; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Test Admin Courses API</h1>
+    <button onclick="testAPI()">Test /api/admin/courses</button>
+    <div id="result"></div>
+
+    <script>
+        async function testAPI() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '<p>Loading...</p>';
+
+            try {
+                const token = localStorage.getItem('token');
+                if (!token) {
+                    resultDiv.innerHTML = '<p class="error">❌ No token found. Please login first.</p>';
+                    return;
+                }
+
+                console.log('🔑 Token:', token);
+
+                const response = await fetch('http://localhost:3001/api/admin/courses', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                console.log('📡 Response status:', response.status);
+
+                if (!response.ok) {
+                    const error = await response.text();
+                    resultDiv.innerHTML = `<p class="error">❌ Error ${response.status}: ${error}</p>`;
+                    return;
+                }
+
+                const data = await response.json();
+                console.log('📦 Full response:', data);
+
+                const courses = data.data?.courses || data.data || data.courses || data;
+                
+                resultDiv.innerHTML = `
+                    <p class="success">✅ Success! Found ${courses.length} courses</p>
+                    <h2>📊 Price Analysis:</h2>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Title</th>
+                                <th>Price (Raw)</th>
+                                <th>Type</th>
+                                <th>Formatted VND</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${courses.slice(0, 10).map(c => `
+                                <tr>
+                                    <td>${c.course_id}</td>
+                                    <td>${c.title}</td>
+                                    <td>${c.price}</td>
+                                    <td>${typeof c.price}</td>
+                                    <td>${new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(c.price || 0)}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                    <h2>🔍 Sample Raw Data:</h2>
+                    <pre>${JSON.stringify(courses[0], null, 2)}</pre>
+                `;
+
+            } catch (error) {
+                console.error('❌ Error:', error);
+                resultDiv.innerHTML = `<p class="error">❌ Error: ${error.message}</p>`;
+            }
+        }
+    </script>
+</body>
+</html>

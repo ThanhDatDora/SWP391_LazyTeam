@@ -146,9 +146,12 @@ const ExamStandalonePage = () => {
       const response = await newExamAPI.submitExam(examId, attemptId, answers);
       
       console.log('📋 Submit exam response:', response);
+      console.log('📋 Response success:', response.success);
+      console.log('📋 Response data:', response.data);
       
       if (response.success && response.data) {
-        console.log('✅ Submit successful:', response.data);
+        console.log('✅ Submit successful, navigating to results page...');
+        console.log('✅ Result data to pass:', response.data);
         
         // Navigate to results page with exam results (use replace to prevent back)
         navigate(`/learn/${courseId}/exam/${examId}/results`, {

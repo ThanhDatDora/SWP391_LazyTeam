@@ -25,11 +25,13 @@ const CoursesPage = () => {
   const [filteredCourses, setFilteredCourses] = useState([]);
   const [categories, setCategories] = useState([]);
   const [recentCourses, setRecentCourses] = useState([]);
+  const [enrolledCourseIds, setEnrolledCourseIds] = useState(new Set());
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
 
   useEffect(() => {
+    loadEnrolledCourses();
     loadCourses();
     loadCategories();
   }, []);
@@ -43,6 +45,24 @@ const CoursesPage = () => {
   useEffect(() => {
     filterCourses();
   }, [courses, searchTerm, selectedCategory]);
+
+  const loadEnrolledCourses = async () => {
+    try {
+      if (!state.user) return;
+      
+      const response = await api.enrollments.getMyEnrollments();
+      console.log('📚 My enrollments:', response);
+      
+      if (response.success && response.data) {
+        const enrollments = response.data.enrollments || response.data || [];
+        const enrolledIds = new Set(enrollments.map(e => e.course_id || e.courseId));
+        console.log('✅ Enrolled course IDs:', Array.from(enrolledIds));
+        setEnrolledCourseIds(enrolledIds);
+      }
+    } catch (error) {
+      console.error('Error loading enrolled courses:', error);
+    }
+  };
 
   const loadCourses = async () => {
     try {
@@ -178,9 +198,18 @@ const CoursesPage = () => {
     return category ? category.name : 'Unknown';
   };
 
-  const CourseCard = ({ course, showProgress = false }) => (
+  const CourseCard = ({ course, showProgress = false }) => {
+    const isEnrolled = enrolledCourseIds.has(course.course_id);
+    
+    return (
     <div 
-      onClick={() => goCourse(course.course_id)}
+      onClick={() => {
+        if (isEnrolled) {
+          navigate(`/learn/${course.course_id}`);
+        } else {
+          goCourse(course.course_id);
+        }
+      }}
       className="group hover:shadow-xl transition-all duration-300 bg-white rounded-2xl overflow-hidden border-0 shadow-md cursor-pointer"
     >
       <div className="relative">
@@ -204,6 +233,11 @@ const CoursesPage = () => {
         {showProgress && (
           <div className="absolute top-3 left-3">
             <span className="bg-emerald-500 text-white font-medium px-2 py-1 rounded text-xs">Continue</span>
+          </div>
+        )}
+        {isEnrolled && !showProgress && (
+          <div className="absolute top-3 left-3">
+            <span className="bg-blue-600 text-white font-medium px-2 py-1 rounded text-xs">Enrolled</span>
           </div>
         )}
         <div className="absolute top-3 right-3">
@@ -259,29 +293,49 @@ const CoursesPage = () => {
         )}
         
         <div className="flex items-center justify-between">
-          <div className="flex flex-col">
-            <span className="text-2xl font-bold text-gray-900">
-              {formatCurrency(course.price)}
-            </span>
-            {course.original_price && course.original_price > course.price && (
-              <span className="text-sm text-gray-500 line-through">
-                {formatCurrency(course.original_price)}
+          {isEnrolled ? (
+            <div className="flex flex-col">
+              <span className="text-lg font-semibold text-blue-600">
+                Đã sở hữu
               </span>
-            )}
-          </div>
+              <span className="text-sm text-gray-500">
+                Click để học tiếp
+              </span>
+            </div>
+          ) : (
+            <div className="flex flex-col">
+              <span className="text-2xl font-bold text-gray-900">
+                {formatCurrency(course.price)}
+              </span>
+              {course.original_price && course.original_price > course.price && (
+                <span className="text-sm text-gray-500 line-through">
+                  {formatCurrency(course.original_price)}
+                </span>
+              )}
+            </div>
+          )}
           <button 
             onClick={(e) => {
               e.stopPropagation();
-              goCourse(course.course_id);
+              if (isEnrolled) {
+                navigate(`/learn/${course.course_id}`);
+              } else {
+                goCourse(course.course_id);
+              }
             }}
-            className="bg-teal-600 hover:bg-teal-700 text-white font-medium px-6 py-2 rounded-lg transition-colors"
+            className={`font-medium px-6 py-2 rounded-lg transition-colors ${
+              isEnrolled 
+                ? 'bg-blue-600 hover:bg-blue-700 text-white' 
+                : 'bg-teal-600 hover:bg-teal-700 text-white'
+            }`}
           >
-            {showProgress ? 'Continue' : 'Enroll Now'}
+            {isEnrolled ? 'Học tiếp' : showProgress ? 'Continue' : 'Enroll Now'}
           </button>
         </div>
       </div>
     </div>
-  );
+    );
+  };
 
   const CategoryCard = ({ category, icon, color, count }) => (
     <div 

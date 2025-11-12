@@ -40,13 +40,25 @@ const CartPage = lazy(() => import('../pages/CartPage'));
 const AboutPage = lazy(() => import('../pages/AboutPage'));
 const ContactPage = lazy(() => import('../pages/ContactPage'));
 
-// Admin Pages - Heavy components, lazy load
+// Admin Layout & Pages - Heavy components, lazy load
 const AdminPanel = lazy(() => import('../pages/admin/AdminPanel'));
+const AdminUsersPage = lazy(() => import('../pages/admin/UsersPage'));
+const AdminLearnersPage = lazy(() => import('../pages/admin/LearnersPage'));
+const AdminInstructorsListPage = lazy(() => import('../pages/admin/InstructorsListPage'));
+const AdminCoursesPage = lazy(() => import('../pages/admin/CoursesPage'));
+const AdminCategoriesPage = lazy(() => import('../pages/admin/CategoriesPage'));
+const CoursePendingPage = lazy(() => import('../pages/admin/CoursePendingPage'));
+const LearningStatsPage = lazy(() => import('../pages/admin/LearningStatsPage'));
+const InstructorReportsPage = lazy(() => import('../pages/admin/InstructorReportsPage'));
+const InstructorRequestsPage = lazy(() => import('../pages/admin/InstructorRequestsPage'));
+const WithdrawalRequestsPage = lazy(() => import('../pages/admin/WithdrawalRequestsPage'));
+const PayoutsPage = lazy(() => import('../pages/admin/PayoutsPage'));
+const AdminProfile = lazy(() => import('../pages/admin/AdminProfile'));
+const AdminSettings = lazy(() => import('../pages/admin/AdminSettings'));
 
 // Instructor Pages
 const InstructorDashboard = lazy(() => import('../pages/instructor/InstructorDashboard'));
 const CourseManagement = lazy(() => import('../pages/instructor/CourseManagement'));
-const AssignmentGradingPage = lazy(() => import('../pages/instructor/AssignmentGradingPage'));
 
 // Legacy Pages (keeping for compatibility) - Lazy load these
 const TestPage = lazy(() => import('../pages/TestPage'));
@@ -118,11 +130,21 @@ const HomePage = () => {
   
   if (isAuthenticated && state.user) {
     const roleId = state.user.role_id;
-    if (roleId === 3) { // Learner
+    
+    // Admin - redirect to admin panel
+    if (roleId === 1) {
+      return <Navigate to="/admin" replace />;
+    }
+    
+    // Instructor - redirect to instructor dashboard
+    if (roleId === 2) {
+      return <Navigate to="/instructor" replace />;
+    }
+    
+    // Learner - show learner landing
+    if (roleId === 3) {
       return <LandingLearner />;
     }
-    // For admin and instructor, show simple landing for now
-    return <LandingSimple />;
   }
   
   // Guest users see main landing page
@@ -410,15 +432,32 @@ const AppRouter = () => {
       <Route path="/player/:moocId" element={<PlayerPage />} />
       <Route path="/legacy-exam/:moocId" element={<LegacyExamPage />} />
       
-      {/* Admin Routes */}
+      {/* Admin Routes - Nested Layout */}
       <Route 
         path="/admin" 
         element={
           <ProtectedRoute allowedRoles={[1]}>
             <AdminPanel />
           </ProtectedRoute>
-        } 
-      />
+        }
+      >
+        {/* Admin nested routes - NO index route since AdminPanel shows Overview by default at /admin */}
+        <Route path="users" element={<AdminUsersPage />} />
+        <Route path="learners" element={<AdminLearnersPage />} />
+        <Route path="instructors-list" element={<AdminInstructorsListPage />} />
+        <Route path="courses" element={<AdminCoursesPage />} />
+        <Route path="categories" element={<AdminCategoriesPage />} />
+        <Route path="course-pending" element={<CoursePendingPage />} />
+        <Route path="learning-stats" element={<LearningStatsPage />} />
+        <Route path="instructor-reports" element={<InstructorReportsPage />} />
+        <Route path="instructor-requests" element={<InstructorRequestsPage />} />
+        <Route path="withdrawal-requests" element={<WithdrawalRequestsPage />} />
+        <Route path="payouts" element={<PayoutsPage />} />
+        <Route path="lock-accounts" element={<div className="p-6">Lock Accounts - Coming Soon</div>} />
+        <Route path="unlock-accounts" element={<div className="p-6">Unlock Accounts - Coming Soon</div>} />
+        <Route path="settings" element={<AdminSettings />} />
+        <Route path="profile" element={<AdminProfile />} />
+      </Route>
       
       {/* Instructor Routes */}
       <Route 
@@ -434,14 +473,6 @@ const AppRouter = () => {
         element={
           <ProtectedRoute allowedRoles={[2, 1]}>
             <CourseManagement />
-          </ProtectedRoute>
-        } 
-      />
-      <Route 
-        path="/instructor/courses/:courseId/assignments/grade" 
-        element={
-          <ProtectedRoute allowedRoles={[2, 1]}>
-            <AssignmentGradingPage />
           </ProtectedRoute>
         } 
       />

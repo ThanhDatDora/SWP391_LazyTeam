@@ -1,0 +1,691 @@
+/**
+ * Unit Tests for Exam Frontend Components
+ * Framework: Jest + React Testing Library
+ * File: testing/unit-tests/exam-components.test.jsx
+ */
+
+import React from 'react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import '@testing-library/jest-dom';
+import { BrowserRouter } from 'react-router-dom';
+
+// Mock components (you'll need to adjust imports based on actual paths)
+import ExamCard from '../../src/components/exam/ExamCard';
+import ExamIntro from '../../src/components/exam/ExamIntro';
+import ExamSession from '../../src/components/exam/ExamSession';
+import ExamResult from '../../src/components/exam/ExamResult';
+import ExamReview from '../../src/components/exam/ExamReview';
+
+// Mock API service
+jest.mock('../../src/services/api', () => ({
+  api: {
+    newExams: {
+      getExamByMooc: jest.fn(),
+      startExam: jest.fn(),
+      submitExam: jest.fn(),
+      getExamResult: jest.fn()
+    }
+  }
+}));
+
+// Helper to wrap components with Router
+const renderWithRouter = (component) => {
+  return render(
+    <BrowserRouter>
+      {component}
+    </BrowserRouter>
+  );
+};
+
+describe('ExamCard Component', () => {
+  const mockExamData = {
+    exam_id: 52,
+    mooc_name: 'Python Basics',
+    total_questions: 10,
+    duration_minutes: 20,
+    passing_score: 70,
+    can_take_exam: true,
+    lessons_completed: 5,
+    total_lessons: 5,
+    previous_attempts: 0,
+    best_score: null
+  };
+
+  test('TC-UT-FC-001: Should render exam information correctly', () => {
+    renderWithRouter(
+      <ExamCard
+        examData={mockExamData}
+        onStartExam={jest.fn()}
+      />
+    );
+
+    expect(screen.getByText(/Python Basics/i)).toBeInTheDocument();
+    expect(screen.getByText(/10/)).toBeInTheDocument(); // Questions
+    expect(screen.getByText(/20/)).toBeInTheDocument(); // Minutes
+    expect(screen.getByText(/70%/)).toBeInTheDocument(); // Passing score
+  });
+
+  test('TC-UT-FC-002: Should show "Take Exam" button when eligible', () => {
+    renderWithRouter(
+      <ExamCard
+        examData={mockExamData}
+        onStartExam={jest.fn()}
+      />
+    );
+
+    const button = screen.getByRole('button', { name: /take exam/i });
+    expect(button).toBeInTheDocument();
+    expect(button).not.toBeDisabled();
+  });
+
+  test('TC-UT-FC-003: Should disable button when not eligible', () => {
+    const ineligibleData = {
+      ...mockExamData,
+      can_take_exam: false,
+      lessons_completed: 3
+    };
+
+    renderWithRouter(
+      <ExamCard
+        examData={ineligibleData}
+        onStartExam={jest.fn()}
+      />
+    );
+
+    const button = screen.getByRole('button', { name: /take exam/i });
+    expect(button).toBeDisabled();
+  });
+
+  test('TC-UT-FC-004: Should display previous attempt info if exists', () => {
+    const attemptedData = {
+      ...mockExamData,
+      previous_attempts: 2,
+      best_score: 85
+    };
+
+    renderWithRouter(
+      <ExamCard
+        examData={attemptedData}
+        onStartExam={jest.fn()}
+      />
+    );
+
+    expect(screen.getByText(/2/)).toBeInTheDocument(); // Attempts
+    expect(screen.getByText(/85%/)).toBeInTheDocument(); // Best score
+  });
+
+  test('TC-UT-FC-005: Should call onStartExam when button clicked', async () => {
+    const mockStartExam = jest.fn();
+
+    renderWithRouter(
+      <ExamCard
+        examData={mockExamData}
+        onStartExam={mockStartExam}
+      />
+    );
+
+    const button = screen.getByRole('button', { name: /take exam/i });
+    await userEvent.click(button);
+
+    expect(mockStartExam).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('ExamIntro Component', () => {
+  const mockExamData = {
+    exam_id: 52,
+    mooc_name: 'Python Basics',
+    total_questions: 10,
+    duration_minutes: 20,
+    passing_score: 70
+  };
+
+  test('TC-UT-FC-006: Should display exam instructions', () => {
+    renderWithRouter(
+      <ExamIntro
+        examData={mockExamData}
+        onStart={jest.fn()}
+        onClose={jest.fn()}
+      />
+    );
+
+    expect(screen.getByText(/instructions/i)).toBeInTheDocument();
+    expect(screen.getByText(/10 questions/i)).toBeInTheDocument();
+    expect(screen.getByText(/20 minutes/i)).toBeInTheDocument();
+  });
+
+  test('TC-UT-FC-007: Should call onStart when Start button clicked', async () => {
+    const mockOnStart = jest.fn();
+
+    renderWithRouter(
+      <ExamIntro
+        examData={mockExamData}
+        onStart={mockOnStart}
+        onClose={jest.fn()}
+      />
+    );
+
+    const startButton = screen.getByRole('button', { name: /start exam/i });
+    await userEvent.click(startButton);
+
+    expect(mockOnStart).toHaveBeenCalledTimes(1);
+  });
+
+  test('TC-UT-FC-008: Should call onClose when Cancel clicked', async () => {
+    const mockOnClose = jest.fn();
+
+    renderWithRouter(
+      <ExamIntro
+        examData={mockExamData}
+        onStart={jest.fn()}
+        onClose={mockOnClose}
+      />
+    );
+
+    const cancelButton = screen.getByRole('button', { name: /cancel/i });
+    await userEvent.click(cancelButton);
+
+    expect(mockOnClose).toHaveBeenCalledTimes(1);
+  });
+
+  test('TC-UT-FC-009: Should display loading state', () => {
+    renderWithRouter(
+      <ExamIntro
+        examData={mockExamData}
+        onStart={jest.fn()}
+        onClose={jest.fn()}
+        loading={true}
+      />
+    );
+
+    const startButton = screen.getByRole('button', { name: /start exam/i });
+    expect(startButton).toBeDisabled();
+  });
+});
+
+describe('ExamSession Component', () => {
+  const mockQuestions = [
+    {
+      question_id: 1,
+      stem: 'What is Python?',
+      options: [
+        { option_id: 1, label: 'A', content: 'A programming language' },
+        { option_id: 2, label: 'B', content: 'A snake' },
+        { option_id: 3, label: 'C', content: 'A framework' },
+        { option_id: 4, label: 'D', content: 'A library' }
+      ]
+    },
+    {
+      question_id: 2,
+      stem: 'What is a variable?',
+      options: [
+        { option_id: 5, label: 'A', content: 'Storage location' },
+        { option_id: 6, label: 'B', content: 'Function' },
+        { option_id: 7, label: 'C', content: 'Class' },
+        { option_id: 8, label: 'D', content: 'Method' }
+      ]
+    }
+  ];
+
+  test('TC-UT-FC-010: Should render first question', () => {
+    renderWithRouter(
+      <ExamSession
+        examId={52}
+        attemptId={123}
+        questions={mockQuestions}
+        duration_minutes={20}
+        onSubmit={jest.fn()}
+        onAutoSubmit={jest.fn()}
+      />
+    );
+
+    expect(screen.getByText(/What is Python?/i)).toBeInTheDocument();
+    expect(screen.getByText(/A programming language/i)).toBeInTheDocument();
+  });
+
+  test('TC-UT-FC-011: Should navigate to next question', async () => {
+    renderWithRouter(
+      <ExamSession
+        examId={52}
+        attemptId={123}
+        questions={mockQuestions}
+        duration_minutes={20}
+        onSubmit={jest.fn()}
+        onAutoSubmit={jest.fn()}
+      />
+    );
+
+    const nextButton = screen.getByRole('button', { name: /next/i });
+    await userEvent.click(nextButton);
+
+    await waitFor(() => {
+      expect(screen.getByText(/What is a variable?/i)).toBeInTheDocument();
+    });
+  });
+
+  test('TC-UT-FC-012: Should navigate to previous question', async () => {
+    renderWithRouter(
+      <ExamSession
+        examId={52}
+        attemptId={123}
+        questions={mockQuestions}
+        duration_minutes={20}
+        onSubmit={jest.fn()}
+        onAutoSubmit={jest.fn()}
+      />
+    );
+
+    // Go to question 2
+    const nextButton = screen.getByRole('button', { name: /next/i });
+    await userEvent.click(nextButton);
+
+    // Go back to question 1
+    const prevButton = screen.getByRole('button', { name: /previous/i });
+    await userEvent.click(prevButton);
+
+    await waitFor(() => {
+      expect(screen.getByText(/What is Python?/i)).toBeInTheDocument();
+    });
+  });
+
+  test('TC-UT-FC-013: Should select answer option', async () => {
+    renderWithRouter(
+      <ExamSession
+        examId={52}
+        attemptId={123}
+        questions={mockQuestions}
+        duration_minutes={20}
+        onSubmit={jest.fn()}
+        onAutoSubmit={jest.fn()}
+      />
+    );
+
+    const optionA = screen.getByRole('radio', { name: /A programming language/i });
+    await userEvent.click(optionA);
+
+    expect(optionA).toBeChecked();
+  });
+
+  test('TC-UT-FC-014: Should update answer when selection changes', async () => {
+    renderWithRouter(
+      <ExamSession
+        examId={52}
+        attemptId={123}
+        questions={mockQuestions}
+        duration_minutes={20}
+        onSubmit={jest.fn()}
+        onAutoSubmit={jest.fn()}
+      />
+    );
+
+    const optionA = screen.getByRole('radio', { name: /A programming language/i });
+    const optionB = screen.getByRole('radio', { name: /A snake/i });
+
+    await userEvent.click(optionA);
+    expect(optionA).toBeChecked();
+
+    await userEvent.click(optionB);
+    expect(optionB).toBeChecked();
+    expect(optionA).not.toBeChecked();
+  });
+
+  test('TC-UT-FC-015: Should display timer countdown', () => {
+    renderWithRouter(
+      <ExamSession
+        examId={52}
+        attemptId={123}
+        questions={mockQuestions}
+        duration_minutes={20}
+        onSubmit={jest.fn()}
+        onAutoSubmit={jest.fn()}
+      />
+    );
+
+    expect(screen.getByText(/20:00/i)).toBeInTheDocument(); // Initial timer
+  });
+
+  test('TC-UT-FC-016: Should show progress (answered/total)', () => {
+    renderWithRouter(
+      <ExamSession
+        examId={52}
+        attemptId={123}
+        questions={mockQuestions}
+        duration_minutes={20}
+        onSubmit={jest.fn()}
+        onAutoSubmit={jest.fn()}
+      />
+    );
+
+    expect(screen.getByText(/0 of 2/i)).toBeInTheDocument(); // 0 answered
+  });
+
+  test('TC-UT-FC-017: Should enable Submit button', () => {
+    renderWithRouter(
+      <ExamSession
+        examId={52}
+        attemptId={123}
+        questions={mockQuestions}
+        duration_minutes={20}
+        onSubmit={jest.fn()}
+        onAutoSubmit={jest.fn()}
+      />
+    );
+
+    const submitButton = screen.getByRole('button', { name: /submit exam/i });
+    expect(submitButton).toBeInTheDocument();
+  });
+
+  test('TC-UT-FC-018: Should call onSubmit when Submit clicked', async () => {
+    const mockOnSubmit = jest.fn();
+
+    renderWithRouter(
+      <ExamSession
+        examId={52}
+        attemptId={123}
+        questions={mockQuestions}
+        duration_minutes={20}
+        onSubmit={mockOnSubmit}
+        onAutoSubmit={jest.fn()}
+      />
+    );
+
+    // Answer a question first
+    const optionA = screen.getByRole('radio', { name: /A programming language/i });
+    await userEvent.click(optionA);
+
+    const submitButton = screen.getByRole('button', { name: /submit exam/i });
+    await userEvent.click(submitButton);
+
+    // Might need to confirm in dialog
+    // await userEvent.click(screen.getByRole('button', { name: /confirm/i }));
+
+    expect(mockOnSubmit).toHaveBeenCalled();
+  });
+});
+
+describe('ExamResult Component', () => {
+  const mockPassedResult = {
+    attempt_id: 123,
+    score: 85,
+    correct_answers: 8,
+    total_questions: 10,
+    passed: true,
+    time_taken: 720
+  };
+
+  const mockFailedResult = {
+    attempt_id: 124,
+    score: 50,
+    correct_answers: 5,
+    total_questions: 10,
+    passed: false,
+    time_taken: 600
+  };
+
+  test('TC-UT-FC-019: Should display passed result correctly', () => {
+    renderWithRouter(
+      <ExamResult
+        result={mockPassedResult}
+        onReviewAnswers={jest.fn()}
+        onRetake={jest.fn()}
+        onContinue={jest.fn()}
+      />
+    );
+
+    expect(screen.getByText(/85%/i)).toBeInTheDocument();
+    expect(screen.getByText(/passed/i)).toBeInTheDocument();
+    expect(screen.getByText(/8.*10/i)).toBeInTheDocument(); // 8/10 or 8 out of 10
+  });
+
+  test('TC-UT-FC-020: Should display failed result correctly', () => {
+    renderWithRouter(
+      <ExamResult
+        result={mockFailedResult}
+        onReviewAnswers={jest.fn()}
+        onRetake={jest.fn()}
+        onContinue={jest.fn()}
+      />
+    );
+
+    expect(screen.getByText(/50%/i)).toBeInTheDocument();
+    expect(screen.getByText(/failed/i)).toBeInTheDocument();
+    expect(screen.getByText(/5.*10/i)).toBeInTheDocument();
+  });
+
+  test('TC-UT-FC-021: Should show success message for pass', () => {
+    renderWithRouter(
+      <ExamResult
+        result={mockPassedResult}
+        onReviewAnswers={jest.fn()}
+        onRetake={jest.fn()}
+        onContinue={jest.fn()}
+      />
+    );
+
+    expect(screen.getByText(/congratulations/i)).toBeInTheDocument();
+  });
+
+  test('TC-UT-FC-022: Should show encouragement for fail', () => {
+    renderWithRouter(
+      <ExamResult
+        result={mockFailedResult}
+        onReviewAnswers={jest.fn()}
+        onRetake={jest.fn()}
+        onContinue={jest.fn()}
+      />
+    );
+
+    expect(screen.getByText(/try again/i)).toBeInTheDocument();
+  });
+
+  test('TC-UT-FC-023: Should call onReviewAnswers when Review clicked', async () => {
+    const mockOnReview = jest.fn();
+
+    renderWithRouter(
+      <ExamResult
+        result={mockPassedResult}
+        onReviewAnswers={mockOnReview}
+        onRetake={jest.fn()}
+        onContinue={jest.fn()}
+      />
+    );
+
+    const reviewButton = screen.getByRole('button', { name: /review answers/i });
+    await userEvent.click(reviewButton);
+
+    expect(mockOnReview).toHaveBeenCalledTimes(1);
+  });
+
+  test('TC-UT-FC-024: Should call onRetake when Retake clicked', async () => {
+    const mockOnRetake = jest.fn();
+
+    renderWithRouter(
+      <ExamResult
+        result={mockFailedResult}
+        onReviewAnswers={jest.fn()}
+        onRetake={mockOnRetake}
+        onContinue={jest.fn()}
+      />
+    );
+
+    const retakeButton = screen.getByRole('button', { name: /retake exam/i });
+    await userEvent.click(retakeButton);
+
+    expect(mockOnRetake).toHaveBeenCalledTimes(1);
+  });
+
+  test('TC-UT-FC-025: Should call onContinue when Continue clicked', async () => {
+    const mockOnContinue = jest.fn();
+
+    renderWithRouter(
+      <ExamResult
+        result={mockPassedResult}
+        onReviewAnswers={jest.fn()}
+        onRetake={jest.fn()}
+        onContinue={mockOnContinue}
+      />
+    );
+
+    const continueButton = screen.getByRole('button', { name: /continue learning/i });
+    await userEvent.click(continueButton);
+
+    expect(mockOnContinue).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('ExamReview Component', () => {
+  const mockReviewData = {
+    attempt_id: 123,
+    score: 70,
+    detailed_results: [
+      {
+        question_id: 1,
+        stem: 'What is Python?',
+        selected_option: 'A',
+        correct_option: 'A',
+        is_correct: true,
+        options: [
+          { label: 'A', content: 'Programming language', is_correct: true },
+          { label: 'B', content: 'Snake', is_correct: false }
+        ]
+      },
+      {
+        question_id: 2,
+        stem: 'What is Java?',
+        selected_option: 'B',
+        correct_option: 'A',
+        is_correct: false,
+        options: [
+          { label: 'A', content: 'Programming language', is_correct: true },
+          { label: 'B', content: 'Coffee', is_correct: false }
+        ]
+      }
+    ]
+  };
+
+  test('TC-UT-FC-026: Should display all reviewed questions', () => {
+    renderWithRouter(
+      <ExamReview
+        reviewData={mockReviewData}
+        onClose={jest.fn()}
+      />
+    );
+
+    expect(screen.getByText(/What is Python?/i)).toBeInTheDocument();
+    expect(screen.getByText(/What is Java?/i)).toBeInTheDocument();
+  });
+
+  test('TC-UT-FC-027: Should mark correct answer with checkmark', () => {
+    renderWithRouter(
+      <ExamReview
+        reviewData={mockReviewData}
+        onClose={jest.fn()}
+      />
+    );
+
+    // First question is correct
+    const correctIndicators = screen.getAllByText(/✓|correct/i);
+    expect(correctIndicators.length).toBeGreaterThan(0);
+  });
+
+  test('TC-UT-FC-028: Should mark incorrect answer with X', () => {
+    renderWithRouter(
+      <ExamReview
+        reviewData={mockReviewData}
+        onClose={jest.fn()}
+      />
+    );
+
+    // Second question is incorrect
+    const incorrectIndicators = screen.getAllByText(/✗|incorrect/i);
+    expect(incorrectIndicators.length).toBeGreaterThan(0);
+  });
+
+  test('TC-UT-FC-029: Should highlight student\'s selected answer', () => {
+    renderWithRouter(
+      <ExamReview
+        reviewData={mockReviewData}
+        onClose={jest.fn()}
+      />
+    );
+
+    // Check if selected options are highlighted (might need data-testid)
+    const selectedOptions = screen.getAllByTestId(/selected-option/i);
+    expect(selectedOptions.length).toBe(2); // 2 questions
+  });
+
+  test('TC-UT-FC-030: Should show correct answer for wrong questions', () => {
+    renderWithRouter(
+      <ExamReview
+        reviewData={mockReviewData}
+        onClose={jest.fn()}
+      />
+    );
+
+    // For question 2, correct is A (Programming language)
+    expect(screen.getAllByText(/Programming language/i).length).toBeGreaterThan(0);
+  });
+
+  test('TC-UT-FC-031: Should call onClose when Close button clicked', async () => {
+    const mockOnClose = jest.fn();
+
+    renderWithRouter(
+      <ExamReview
+        reviewData={mockReviewData}
+        onClose={mockOnClose}
+      />
+    );
+
+    const closeButton = screen.getByRole('button', { name: /close/i });
+    await userEvent.click(closeButton);
+
+    expect(mockOnClose).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('Timer Logic Unit Tests', () => {
+  test('TC-UT-FC-032: Should format time correctly (MM:SS)', () => {
+    const formatTime = (seconds) => {
+      const mins = Math.floor(seconds / 60);
+      const secs = seconds % 60;
+      return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    };
+
+    expect(formatTime(1200)).toBe('20:00'); // 20 minutes
+    expect(formatTime(60)).toBe('01:00'); // 1 minute
+    expect(formatTime(59)).toBe('00:59'); // 59 seconds
+    expect(formatTime(0)).toBe('00:00'); // 0
+  });
+
+  test('TC-UT-FC-033: Should calculate remaining time', () => {
+    const calculateRemaining = (startTime, currentTime, limitSeconds) => {
+      const elapsed = Math.floor((currentTime - startTime) / 1000);
+      return Math.max(0, limitSeconds - elapsed);
+    };
+
+    const start = new Date('2025-01-01T10:00:00').getTime();
+    const after5min = new Date('2025-01-01T10:05:00').getTime();
+
+    expect(calculateRemaining(start, after5min, 1200)).toBe(900); // 15 min remaining
+  });
+});
+
+/**
+ * Test Summary:
+ * - Total Frontend Component Tests: 33
+ * - ExamCard: 5 tests
+ * - ExamIntro: 4 tests
+ * - ExamSession: 9 tests
+ * - ExamResult: 7 tests
+ * - ExamReview: 6 tests
+ * - Timer Logic: 2 tests
+ * 
+ * Coverage:
+ * - Rendering and display
+ * - User interactions (click, select)
+ * - State changes
+ * - Event callbacks
+ * - Edge cases
+ * - Timer and navigation
+ */

@@ -1,0 +1,7 @@
+# Python dependencies for Selenium E2E Testing
+# Install: pip install -r requirements.txt
+
+selenium>=4.15.0
+pytest>=7.4.0
+pytest-html>=4.1.0
+pytest-xdist>=3.5.0  # Parallel test execution

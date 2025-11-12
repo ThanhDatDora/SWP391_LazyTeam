@@ -40,13 +40,37 @@ const CourseDetailPageNew = () => {
   const [activeTab, setActiveTab] = useState('overview');
   const [expandedSections, setExpandedSections] = useState({});
   const [relatedCourses, setRelatedCourses] = useState([]);
+  const [isEnrolled, setIsEnrolled] = useState(false);
 
   useEffect(() => {
     if (courseId) {
+      checkEnrollment();
       loadCourseDetail();
       loadRelatedCourses();
     }
   }, [courseId]);
+
+  const checkEnrollment = async () => {
+    try {
+      if (!authState.user) {
+        setIsEnrolled(false);
+        return;
+      }
+      
+      const response = await api.enrollments.getMyEnrollments();
+      if (response.success && response.data) {
+        const enrollments = response.data.enrollments || response.data || [];
+        const enrolled = enrollments.some(e => 
+          String(e.course_id) === String(courseId) || String(e.courseId) === String(courseId)
+        );
+        console.log('✅ Enrollment check:', { courseId, enrolled, enrollments });
+        setIsEnrolled(enrolled);
+      }
+    } catch (error) {
+      console.error('Error checking enrollment:', error);
+      setIsEnrolled(false);
+    }
+  };
 
   const loadCourseDetail = async () => {
     try {
@@ -382,32 +406,58 @@ const CourseDetailPageNew = () => {
                 <div className="p-6">
                   {/* Price */}
                   <div className="mb-6">
-                    <div className="text-3xl font-bold text-gray-900 mb-2">
-                      {formatCurrency(course.price)}
-                    </div>
-                    {course.price > 0 && (
-                      <p className="text-sm text-gray-500">
-                        <Clock className="w-4 h-4 inline mr-1" />
-                        Khuyến mãi có hạn
-                      </p>
+                    {isEnrolled ? (
+                      <div className="bg-green-50 border-2 border-green-200 rounded-lg p-4">
+                        <div className="flex items-center gap-2 text-green-700 font-semibold mb-1">
+                          <CheckCircle className="w-5 h-5" />
+                          Bạn đã sở hữu khóa học này
+                        </div>
+                        <p className="text-sm text-green-600">
+                          Click "Bắt đầu học" để tiếp tục học tập
+                        </p>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="text-3xl font-bold text-gray-900 mb-2">
+                          {formatCurrency(course.price)}
+                        </div>
+                        {course.price > 0 && (
+                          <p className="text-sm text-gray-500">
+                            <Clock className="w-4 h-4 inline mr-1" />
+                            Khuyến mãi có hạn
+                          </p>
+                        )}
+                      </>
                     )}
                   </div>
 
                   {/* Action Buttons */}
                   <div className="space-y-3 mb-6">
-                    <button
-                      onClick={handleEnroll}
-                      className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors"
-                    >
-                      Ghi danh ngay
-                    </button>
-                    <button
-                      onClick={handleAddToCart}
-                      className="w-full py-3 bg-white border-2 border-gray-300 hover:border-gray-400 text-gray-900 font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
-                    >
-                      <ShoppingCart className="w-5 h-5" />
-                      Thêm vào giỏ hàng
-                    </button>
+                    {isEnrolled ? (
+                      <button
+                        onClick={() => navigate(`/learn/${courseId}`)}
+                        className="w-full py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
+                      >
+                        <BookOpen className="w-5 h-5" />
+                        Bắt đầu học
+                      </button>
+                    ) : (
+                      <>
+                        <button
+                          onClick={handleEnroll}
+                          className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors"
+                        >
+                          Ghi danh ngay
+                        </button>
+                        <button
+                          onClick={handleAddToCart}
+                          className="w-full py-3 bg-white border-2 border-gray-300 hover:border-gray-400 text-gray-900 font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
+                        >
+                          <ShoppingCart className="w-5 h-5" />
+                          Thêm vào giỏ hàng
+                        </button>
+                      </>
+                    )}
                   </div>
 
                   {/* Course Includes */}

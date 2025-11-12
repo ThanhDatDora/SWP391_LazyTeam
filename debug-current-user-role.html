@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Debug Current User Role</title>
+  <style>
+    body { font-family: monospace; padding: 20px; }
+    .info { background: #f0f0f0; padding: 15px; margin: 10px 0; border-radius: 5px; }
+    .error { background: #ffe0e0; color: #c00; padding: 10px; }
+    .success { background: #e0ffe0; color: #080; padding: 10px; }
+    pre { background: #fff; padding: 10px; overflow-x: auto; }
+  </style>
+</head>
+<body>
+  <h1>🔍 Debug Current User Role & Token</h1>
+  
+  <div class="info">
+    <h3>📋 Token từ localStorage:</h3>
+    <pre id="token-display"></pre>
+  </div>
+
+  <div class="info">
+    <h3>🔓 Decoded Token Payload:</h3>
+    <pre id="decoded-token"></pre>
+  </div>
+
+  <div class="info">
+    <h3>👤 User từ Backend:</h3>
+    <pre id="user-info"></pre>
+  </div>
+
+  <div class="info">
+    <h3>🎯 Test Admin API:</h3>
+    <pre id="admin-test"></pre>
+  </div>
+
+  <script>
+    const API_BASE = 'http://localhost:3001/api';
+    
+    // Get token from localStorage
+    const token = localStorage.getItem('token');
+    document.getElementById('token-display').textContent = token || 'NO TOKEN FOUND';
+
+    if (token) {
+      // Decode JWT token (without verification - just to see payload)
+      try {
+        const base64Url = token.split('.')[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const jsonPayload = decodeURIComponent(atob(base64).split('').map(c => 
+          '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)
+        ).join(''));
+        
+        const payload = JSON.parse(jsonPayload);
+        document.getElementById('decoded-token').textContent = JSON.stringify(payload, null, 2);
+
+        // Test backend user info
+        fetch(`${API_BASE}/user/profile`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        })
+        .then(res => res.json())
+        .then(data => {
+          document.getElementById('user-info').textContent = JSON.stringify(data, null, 2);
+        })
+        .catch(err => {
+          document.getElementById('user-info').textContent = 'Error: ' + err.message;
+        });
+
+        // Test admin stats endpoint
+        fetch(`${API_BASE}/admin/stats`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        })
+        .then(async res => {
+          const data = await res.json();
+          const result = {
+            status: res.status,
+            statusText: res.statusText,
+            response: data
+          };
+          document.getElementById('admin-test').textContent = JSON.stringify(result, null, 2);
+        })
+        .catch(err => {
+          document.getElementById('admin-test').textContent = 'Error: ' + err.message;
+        });
+
+      } catch (error) {
+        document.getElementById('decoded-token').textContent = 'Error decoding token: ' + error.message;
+      }
+    } else {
+      document.getElementById('decoded-token').textContent = 'No token to decode';
+      document.getElementById('user-info').innerHTML = '<span class="error">⚠️ No token found - Please login first!</span>';
+      document.getElementById('admin-test').textContent = 'Cannot test without token';
+    }
+  </script>
+</body>
+</html>

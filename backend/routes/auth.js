@@ -47,10 +47,13 @@ const upload = multer({
 
 // Helper function to generate JWT token
 const generateToken = (userId, email, role) => {
+  // Admin (role_id = 1) gets 7 days, others get 24 hours
+  const expiresIn = role === 1 ? '7d' : '24h';
+  
   return jwt.sign(
     { userId, email, role },
     process.env.JWT_SECRET,
-    { expiresIn: '24h' }
+    { expiresIn }
   );
 };
 
@@ -160,7 +163,7 @@ router.post('/login', [
     const result = await pool.request()
       .input('email', sql.NVarChar, email)
       .query(`
-        SELECT u.user_id, u.email, u.password_hash, u.full_name, u.status, r.role_name
+        SELECT u.user_id, u.email, u.password_hash, u.full_name, u.status, u.role_id, r.role_name
         FROM users u
         JOIN roles r ON u.role_id = r.role_id
         WHERE u.email = @email
@@ -195,16 +198,31 @@ router.post('/login', [
     // Generate token
     const token = generateToken(user.user_id, user.email, user.role_name);
 
-    res.json({
+    const responseData = {
+      success: true,
       message: 'Login successful',
-      user: {
-        id: user.user_id,
-        email: user.email,
-        fullName: user.full_name,
-        role: user.role_name
-      },
-      token
-    });
+      data: {
+        user: {
+          id: user.user_id,
+          user_id: user.user_id,
+          email: user.email,
+          full_name: user.full_name,
+          fullName: user.full_name,
+          role_id: user.role_id,
+          role: user.role_id,  // For compatibility
+          role_name: user.role_name,
+          roleName: user.role_name
+        },
+        token
+      }
+    };
+    
+    console.log('📤 === LOGIN RESPONSE DEBUG ===');
+    console.log('📤 Sending response:', JSON.stringify(responseData, null, 2));
+    console.log('📤 user.role_id:', user.role_id, typeof user.role_id);
+    console.log('📤 === END RESPONSE DEBUG ===');
+    
+    res.json(responseData);
 
   } catch (error) {
     console.error('Login error:', error);
