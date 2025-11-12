@@ -88,14 +88,6 @@ const COLORS = {
 
 const CHART_COLORS = ['#3b82f6', '#06b6d4', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444'];
 
-// Utility function: Format number to VND currency
-const formatVND = (n) =>
-  (n ?? 0).toLocaleString("vi-VN", {
-    style: "currency",
-    currency: "VND",
-    maximumFractionDigits: 0,
-  });
-
 // Role mapping constants for consistent role handling
 const ROLE_ID_BY_KEY = {
   admin: 1,
@@ -262,8 +254,8 @@ const Modal = ({ isOpen, onClose, title, children, onConfirm, confirmText = 'Xá
 };
 
 // Card Component
-const Card = ({ children, className = '', style = {} }) => (
-  <div className={`rounded-lg shadow-md ${className}`} style={style}>
+const Card = ({ children, className = '' }) => (
+  <div className={`rounded-lg shadow-md ${className}`}>
     {children}
   </div>
 );
@@ -438,59 +430,6 @@ const AdminPanel = () => {
   };
 
   const currentColors = COLORS[theme];
-
-  // KPI Card Component - Define inside AdminPanel to access theme
-  const KpiCard = ({ title, value, sub, gradientColors, icon: Icon }) => {
-    // Only use gradient in DARK theme
-    const shouldUseGradient = theme === 'dark' && gradientColors && gradientColors.length === 2;
-    
-    // Background style - gradient only in dark theme
-    const bgStyle = shouldUseGradient 
-      ? `linear-gradient(135deg, ${gradientColors[0]} 0%, ${gradientColors[1]} 100%)`
-      : currentColors.card;
-    
-    // Text colors - white for gradient (dark theme), theme colors for light theme
-    const titleColor = shouldUseGradient ? 'rgba(255,255,255,0.9)' : currentColors.textSecondary;
-    const valueColor = shouldUseGradient ? '#ffffff' : currentColors.text;
-    const subColor = shouldUseGradient ? 'rgba(255,255,255,0.8)' : currentColors.textSecondary;
-
-    return (
-      <div 
-        className="p-6 rounded-xl border shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105" 
-        style={{
-          background: bgStyle,
-          borderColor: shouldUseGradient ? 'transparent' : currentColors.border,
-        }}
-      >
-        <div className="flex items-start justify-between">
-          <div className="flex flex-col gap-2 flex-1">
-            <p className="text-sm font-medium" style={{ color: titleColor }}>
-              {title}
-            </p>
-            <p className="text-3xl font-bold" style={{ color: valueColor }}>
-              {value}
-            </p>
-            {sub && (
-              <p className="text-xs" style={{ color: subColor }}>
-                {sub}
-              </p>
-            )}
-          </div>
-          {Icon && shouldUseGradient && (
-            <div 
-              className="p-3 rounded-xl flex items-center justify-center"
-              style={{
-                backgroundColor: 'rgba(255,255,255,0.2)',
-                backdropFilter: 'blur(10px)'
-              }}
-            >
-              <Icon className="w-6 h-6 text-white" />
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  };
 
   // Sidebar state
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -2408,19 +2347,18 @@ const AdminPanel = () => {
         {/* Conditional Rendering: Show Overview ONLY at /admin, else show child route via Outlet */}
         {location.pathname === '/admin' ? (
           <div className="px-8 py-8 space-y-8 w-full"> {/* Increased px from 6 to 8, py from 8 to 8, space-y from 6 to 8 */}
-            {/* Stats Cards - 3 Large KPI Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {/* Stats Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {/* Total Users Card */}
             <Card 
-              className="shadow-2xl hover:shadow-3xl transition-all duration-300 hover:scale-[1.02] border-2" 
+              className="border-0 shadow-lg hover:shadow-xl transition-all" 
               style={{ 
+                isolation: 'isolate', 
+                transform: 'translateZ(0)',
                 background: theme === 'dark' 
                   ? 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)' 
                   : 'linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)',
-                borderColor: theme === 'dark' ? 'rgba(59, 130, 246, 0.5)' : 'rgba(191, 219, 254, 0.8)',
-                boxShadow: theme === 'dark' 
-                  ? '0 20px 50px rgba(59, 130, 246, 0.4), 0 0 20px rgba(59, 130, 246, 0.2)' 
-                  : '0 10px 30px rgba(0, 0, 0, 0.1)'
+                color: theme === 'dark' ? '#ffffff' : '#1e3a8a'
               }}
             >
               <CardContent className="p-6">
@@ -2447,15 +2385,14 @@ const AdminPanel = () => {
 
             {/* Total Courses Card */}
             <Card 
-              className="shadow-2xl hover:shadow-3xl transition-all duration-300 hover:scale-[1.02] border-2" 
+              className="border-0 shadow-lg hover:shadow-xl transition-all" 
               style={{ 
+                isolation: 'isolate', 
+                transform: 'translateZ(0)',
                 background: theme === 'dark' 
                   ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' 
                   : 'linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%)',
-                borderColor: theme === 'dark' ? 'rgba(16, 185, 129, 0.5)' : 'rgba(167, 243, 208, 0.8)',
-                boxShadow: theme === 'dark' 
-                  ? '0 20px 50px rgba(16, 185, 129, 0.4), 0 0 20px rgba(16, 185, 129, 0.2)' 
-                  : '0 10px 30px rgba(0, 0, 0, 0.1)'
+                color: theme === 'dark' ? '#ffffff' : '#065f46'
               }}
             >
               <CardContent className="p-6">
@@ -2485,15 +2422,14 @@ const AdminPanel = () => {
 
             {/* Revenue Card */}
             <Card 
-              className="shadow-2xl hover:shadow-3xl transition-all duration-300 hover:scale-[1.02] border-2" 
+              className="border-0 shadow-lg hover:shadow-xl transition-all" 
               style={{ 
+                isolation: 'isolate', 
+                transform: 'translateZ(0)',
                 background: theme === 'dark' 
                   ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' 
                   : 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)',
-                borderColor: theme === 'dark' ? 'rgba(245, 158, 11, 0.5)' : 'rgba(253, 230, 138, 0.8)',
-                boxShadow: theme === 'dark' 
-                  ? '0 20px 50px rgba(245, 158, 11, 0.4), 0 0 20px rgba(245, 158, 11, 0.2)' 
-                  : '0 10px 30px rgba(0, 0, 0, 0.1)'
+                color: theme === 'dark' ? '#ffffff' : '#78350f'
               }}
             >
               <CardContent className="p-6">
@@ -2517,52 +2453,43 @@ const AdminPanel = () => {
                 </div>
               </CardContent>
             </Card>
-          </div>
 
-          {/* KPI Cards Section - Additional Metrics (No Duplicates) */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 mb-6">
-            <KpiCard 
-              title="Giảng viên đang hoạt động" 
-              value={stats.activeInstructors} 
-              sub="Giảng viên tích cực"
-              gradientColors={['#8b5cf6', '#7c3aed']}
-              icon={GraduationCap}
-            />
-            <KpiCard 
-              title="Học viên đang hoạt động" 
-              value={stats.totalUsers - stats.activeInstructors} 
-              sub="Người dùng với vai trò học viên"
-              gradientColors={['#ec4899', '#db2777']}
-              icon={UserCheck}
-            />
-            <KpiCard 
-              title="Khóa học chờ duyệt" 
-              value={stats.pendingCourses} 
-              sub="Cần xem xét và phê duyệt"
-              gradientColors={['#f59e0b', '#d97706']}
-              icon={Clock}
-            />
-            <KpiCard 
-              title="Tăng trưởng tháng này" 
-              value={`+${stats.monthlySignups}`}
-              sub="Người dùng mới đăng ký"
-              gradientColors={['#10b981', '#059669']}
-              icon={TrendingUp}
-            />
-            <KpiCard 
-              title="Tỉ lệ Giảng viên/Học viên" 
-              value={`1:${Math.round((stats.totalUsers - stats.activeInstructors) / stats.activeInstructors)}`}
-              sub={`${stats.activeInstructors} GV, ${stats.totalUsers - stats.activeInstructors} HV`}
-              gradientColors={['#3b82f6', '#2563eb']}
-              icon={BarChart3}
-            />
-            <KpiCard 
-              title="Khóa học đã duyệt" 
-              value={stats.totalCourses - stats.pendingCourses}
-              sub={`${Math.round(((stats.totalCourses - stats.pendingCourses) / stats.totalCourses) * 100)}% tổng khóa học`}
-              gradientColors={['#06b6d4', '#0891b2']}
-              icon={CheckCircle}
-            />
+            {/* Instructors Card */}
+            <Card 
+              className="border-0 shadow-lg hover:shadow-xl transition-all" 
+              style={{ 
+                isolation: 'isolate', 
+                transform: 'translateZ(0)',
+                background: theme === 'dark' 
+                  ? 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)' 
+                  : 'linear-gradient(135deg, #ede9fe 0%, #ddd6fe 100%)',
+                color: theme === 'dark' ? '#ffffff' : '#5b21b6'
+              }}
+            >
+              <CardContent className="p-6">
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <div 
+                      className="p-3 rounded-xl"
+                      style={{ 
+                        backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.2)' : 'rgba(139,92,246,0.2)',
+                        backdropFilter: 'blur(10px)'
+                      }}
+                    >
+                      <GraduationCap className="w-6 h-6" style={{ color: theme === 'dark' ? '#ffffff' : '#5b21b6' }} />
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-sm opacity-90" style={{ color: theme === 'dark' ? '#ffffff' : '#6d28d9' }}>Giảng viên</p>
+                    <p className="text-3xl font-bold" style={{ color: theme === 'dark' ? '#ffffff' : '#5b21b6' }}>{stats.activeInstructors}</p>
+                    <p className="text-xs opacity-75 mt-1 flex items-center gap-1" style={{ color: theme === 'dark' ? '#ffffff' : '#8b5cf6' }}>
+                      <CheckCircle className="w-3 h-3" style={{ color: theme === 'dark' ? '#ffffff' : '#8b5cf6' }} />
+                      Đang hoạt động
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
 
           {/* Charts Section - Enhanced Design */}
