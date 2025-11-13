@@ -277,6 +277,7 @@ router.get('/profile', authenticateToken, async (req, res) => {
 // Update user profile
 router.put('/profile', authenticateToken, [
   body('fullName').optional({ checkFalsy: true }).trim().isLength({ min: 2 }),
+  body('email').optional({ checkFalsy: true }).trim().isEmail().normalizeEmail(),
   body('phone').optional({ checkFalsy: true }).trim().isMobilePhone('any'),
   body('address').optional({ checkFalsy: true }).trim().isLength({ max: 500 }),
   body('bio').optional({ checkFalsy: true }).trim().isLength({ max: 2000 }),
@@ -292,13 +293,26 @@ router.put('/profile', authenticateToken, [
       });
     }
 
-    const { fullName, phone, address, bio, gender, dateOfBirth } = req.body;
+    const { fullName, email, phone, address, bio, gender, dateOfBirth } = req.body;
     const pool = await getPool();
 
-    // Update user profile (removed OUTPUT because table has triggers)
+    if (email) {
+      const emailCheck = await pool.request()
+        .input('email', sql.NVarChar(255), email)
+        .input('userId', sql.BigInt, req.user.userId)
+        .query('SELECT user_id FROM users WHERE email = @email AND user_id != @userId');
+      
+      if (emailCheck.recordset.length > 0) {
+        return res.status(400).json({ 
+          message: 'Email này đã được sử dụng bởi người dùng khác' 
+        });
+      }
+    }
+
     await pool.request()
       .input('userId', sql.BigInt, req.user.userId)
       .input('fullName', sql.NVarChar(200), fullName || null)
+      .input('email', sql.NVarChar(255), email || null)
       .input('phone', sql.NVarChar(20), phone || null)
       .input('address', sql.NVarChar(500), address || null)
       .input('bio', sql.NVarChar(sql.MAX), bio || null)
@@ -308,6 +322,7 @@ router.put('/profile', authenticateToken, [
         UPDATE users 
         SET 
           full_name = COALESCE(@fullName, full_name),
+          email = COALESCE(@email, email),
           phone = COALESCE(@phone, phone),
           address = COALESCE(@address, address),
           bio = COALESCE(@bio, bio),

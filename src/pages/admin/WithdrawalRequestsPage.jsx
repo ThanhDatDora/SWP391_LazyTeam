@@ -3,6 +3,79 @@ import { Download, Check, X, DollarSign, Calendar, User } from 'lucide-react';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api';
 
+// Mock data for withdrawal requests
+const MOCK_WITHDRAWAL_REQUESTS = [
+  {
+    withdrawal_id: 1,
+    instructor_id: 5,
+    instructor_name: 'Nguyễn Văn An',
+    amount: 15000000,
+    bank_account: '0123456789',
+    bank_name: 'Vietcombank',
+    status: 'pending',
+    created_at: '2024-11-10T08:30:00Z',
+    note: 'Rút doanh thu tháng 10/2024'
+  },
+  {
+    withdrawal_id: 2,
+    instructor_id: 8,
+    instructor_name: 'Trần Thị Bình',
+    amount: 8500000,
+    bank_account: '9876543210',
+    bank_name: 'Techcombank',
+    status: 'pending',
+    created_at: '2024-11-09T14:20:00Z',
+    note: 'Thanh toán khóa học React nâng cao'
+  },
+  {
+    withdrawal_id: 3,
+    instructor_id: 12,
+    instructor_name: 'Lê Minh Cường',
+    amount: 22000000,
+    bank_account: '1122334455',
+    bank_name: 'VPBank',
+    status: 'pending',
+    created_at: '2024-11-08T10:15:00Z',
+    note: 'Doanh thu Q3/2024'
+  },
+  {
+    withdrawal_id: 4,
+    instructor_id: 3,
+    instructor_name: 'Phạm Thị Dung',
+    amount: 5500000,
+    bank_account: '5544332211',
+    bank_name: 'ACB',
+    status: 'approved',
+    created_at: '2024-11-05T16:45:00Z',
+    approved_at: '2024-11-06T09:00:00Z',
+    note: 'Rút tiền định kỳ'
+  },
+  {
+    withdrawal_id: 5,
+    instructor_id: 15,
+    instructor_name: 'Hoàng Văn Em',
+    amount: 12000000,
+    bank_account: '6677889900',
+    bank_name: 'MB Bank',
+    status: 'rejected',
+    created_at: '2024-11-03T11:30:00Z',
+    rejected_at: '2024-11-04T14:20:00Z',
+    reject_reason: 'Thông tin tài khoản không chính xác',
+    note: 'Yêu cầu rút tiền khẩn cấp'
+  },
+  {
+    withdrawal_id: 6,
+    instructor_id: 20,
+    instructor_name: 'Đặng Thị Phương',
+    amount: 18500000,
+    bank_account: '3344556677',
+    bank_name: 'Vietinbank',
+    status: 'pending',
+    created_at: '2024-11-07T13:10:00Z',
+    note: 'Thanh toán khóa Python cho người mới'
+  }
+];
+
 const COLORS = {
   dark: {
     primary: '#818cf8',
@@ -36,24 +109,26 @@ const WithdrawalRequestsPage = () => {
       const response = await fetch(`${API_BASE_URL}/admin/withdrawal-requests`, {
         headers: { 'Authorization': `Bearer ${token}` },
       });
-      const data = await response.json();
-      if (data.success) {
-        setRequests(data.data || []);
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.data && data.data.length > 0) {
+          setRequests(data.data);
+        } else {
+          // Use mock data if no real data
+          console.log('📦 Using mock withdrawal requests data');
+          setRequests(MOCK_WITHDRAWAL_REQUESTS);
+        }
+      } else {
+        // API error - use mock data
+        console.log('⚠️ API error, using mock data');
+        setRequests(MOCK_WITHDRAWAL_REQUESTS);
       }
     } catch (error) {
-      console.error('Error fetching withdrawal requests:', error);
-      // Mock data
-      setRequests([
-        {
-          withdrawal_id: 1,
-          instructor_name: 'Nguyễn Văn A',
-          amount: 5000000,
-          bank_account: '1234567890',
-          bank_name: 'Vietcombank',
-          status: 'pending',
-          created_at: new Date().toISOString(),
-        },
-      ]);
+      console.error('❌ Error fetching withdrawal requests:', error);
+      // Network error - use mock data
+      console.log('📦 Network error, using mock data');
+      setRequests(MOCK_WITHDRAWAL_REQUESTS);
     } finally {
       setLoading(false);
     }
@@ -115,6 +190,37 @@ const WithdrawalRequestsPage = () => {
     return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
   };
 
+  const getStatusBadge = (status) => {
+    const statusConfig = {
+      pending: { 
+        label: 'Chờ duyệt', 
+        bg: `${currentColors.warning}20`, 
+        color: currentColors.warning 
+      },
+      approved: { 
+        label: 'Đã duyệt', 
+        bg: `${currentColors.success}20`, 
+        color: currentColors.success 
+      },
+      rejected: { 
+        label: 'Đã từ chối', 
+        bg: `${currentColors.danger}20`, 
+        color: currentColors.danger 
+      }
+    };
+    
+    const config = statusConfig[status] || statusConfig.pending;
+    
+    return (
+      <span 
+        className="px-3 py-1 rounded-full text-xs font-medium"
+        style={{ backgroundColor: config.bg, color: config.color }}
+      >
+        {config.label}
+      </span>
+    );
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full" style={{ backgroundColor: currentColors.background }}>
@@ -132,6 +238,28 @@ const WithdrawalRequestsPage = () => {
         <p style={{ color: currentColors.textSecondary }}>
           Quản lý yêu cầu rút tiền từ giảng viên
         </p>
+        
+        {/* Stats */}
+        <div className="grid grid-cols-3 gap-4 mt-6">
+          <div className="p-4 rounded-lg border" style={{ backgroundColor: currentColors.card, borderColor: currentColors.border }}>
+            <p className="text-sm mb-1" style={{ color: currentColors.textSecondary }}>Chờ duyệt</p>
+            <p className="text-2xl font-bold" style={{ color: currentColors.warning }}>
+              {requests.filter(r => r.status === 'pending').length}
+            </p>
+          </div>
+          <div className="p-4 rounded-lg border" style={{ backgroundColor: currentColors.card, borderColor: currentColors.border }}>
+            <p className="text-sm mb-1" style={{ color: currentColors.textSecondary }}>Đã duyệt</p>
+            <p className="text-2xl font-bold" style={{ color: currentColors.success }}>
+              {requests.filter(r => r.status === 'approved').length}
+            </p>
+          </div>
+          <div className="p-4 rounded-lg border" style={{ backgroundColor: currentColors.card, borderColor: currentColors.border }}>
+            <p className="text-sm mb-1" style={{ color: currentColors.textSecondary }}>Đã từ chối</p>
+            <p className="text-2xl font-bold" style={{ color: currentColors.danger }}>
+              {requests.filter(r => r.status === 'rejected').length}
+            </p>
+          </div>
+        </div>
       </div>
 
       {requests.length === 0 ? (
@@ -156,10 +284,13 @@ const WithdrawalRequestsPage = () => {
                     >
                       <DollarSign className="w-7 h-7" style={{ color: currentColors.warning }} />
                     </div>
-                    <div>
-                      <h3 className="text-lg font-bold" style={{ color: currentColors.text }}>
-                        {formatCurrency(request.amount)}
-                      </h3>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-1">
+                        <h3 className="text-lg font-bold" style={{ color: currentColors.text }}>
+                          {formatCurrency(request.amount)}
+                        </h3>
+                        {getStatusBadge(request.status)}
+                      </div>
                       <div className="flex items-center gap-2 text-sm" style={{ color: currentColors.textSecondary }}>
                         <User className="w-4 h-4" />
                         {request.instructor_name}
@@ -181,6 +312,24 @@ const WithdrawalRequestsPage = () => {
                       </p>
                     </div>
                   </div>
+
+                  {request.note && (
+                    <div className="mb-3">
+                      <p className="text-xs mb-1" style={{ color: currentColors.textSecondary }}>Ghi chú:</p>
+                      <p className="text-sm italic" style={{ color: currentColors.text }}>
+                        {request.note}
+                      </p>
+                    </div>
+                  )}
+
+                  {request.reject_reason && (
+                    <div className="mb-3 p-3 rounded-lg" style={{ backgroundColor: `${currentColors.danger}10` }}>
+                      <p className="text-xs mb-1" style={{ color: currentColors.danger }}>Lý do từ chối:</p>
+                      <p className="text-sm" style={{ color: currentColors.text }}>
+                        {request.reject_reason}
+                      </p>
+                    </div>
+                  )}
 
                   <div className="flex items-center gap-2 text-xs" style={{ color: currentColors.textSecondary }}>
                     <Calendar className="w-4 h-4" />

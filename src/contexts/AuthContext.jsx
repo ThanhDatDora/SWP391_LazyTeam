@@ -3,6 +3,20 @@ import { api, cacheUtils } from '../services/api';
 
 const AuthContext = createContext();
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api';
+const BACKEND_BASE_URL = API_BASE_URL.replace(/\/api$/, '');
+
+const normalizeAvatarUrl = (avatarUrl) => {
+  if (!avatarUrl) return null;
+  if (avatarUrl.startsWith('http://') || avatarUrl.startsWith('https://')) {
+    return avatarUrl;
+  }
+  if (avatarUrl.startsWith('/')) {
+    return `${BACKEND_BASE_URL}${avatarUrl}`;
+  }
+  return avatarUrl;
+};
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -13,7 +27,7 @@ export const AuthProvider = ({ children }) => {
     checkAuthStatus();
   }, []);
 
-  const checkAuthStatus = () => {
+  const checkAuthStatus = async () => {
     try {
       const token = localStorage.getItem('token');
       const userData = localStorage.getItem('user');
@@ -22,6 +36,36 @@ export const AuthProvider = ({ children }) => {
         const parsedUser = JSON.parse(userData);
         setUser(parsedUser);
         setIsAuthenticated(true);
+
+        try {
+          const response = await fetch(`${API_BASE_URL}/auth/profile`, {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            if (data.user) {
+              const normalizedAvatarUrl = normalizeAvatarUrl(data.user.avatarUrl);
+              const refreshedUser = {
+                ...parsedUser,
+                full_name: data.user.fullName,
+                email: data.user.email,
+                phone: data.user.phone,
+                address: data.user.address,
+                avatar_url: normalizedAvatarUrl,
+                gender: data.user.gender,
+                dateOfBirth: data.user.dateOfBirth
+              };
+              setUser(refreshedUser);
+              localStorage.setItem('user', JSON.stringify(refreshedUser));
+              console.log('✅ Profile refreshed from backend:', refreshedUser);
+            }
+          }
+        } catch (refreshError) {
+          console.warn('Profile refresh failed, using cached data:', refreshError);
+        }
       }
     } catch (error) {
       console.error('Auth check failed:', error);
@@ -48,6 +92,12 @@ export const AuthProvider = ({ children }) => {
           console.log('✅ Login successful, user data:', userData);
           console.log('✅ User role_id:', userData.role_id, 'Type:', typeof userData.role_id);
           console.log('✅ User role:', userData.role, 'Type:', typeof userData.role);
+          
+          if (userData.avatarUrl || userData.avatar_url) {
+            const avatarUrl = userData.avatarUrl || userData.avatar_url;
+            userData.avatar_url = normalizeAvatarUrl(avatarUrl);
+            if (userData.avatarUrl) delete userData.avatarUrl;
+          }
           
           // Store in localStorage - use both keys for compatibility
           localStorage.setItem('token', token);
@@ -209,8 +259,15 @@ export const AuthProvider = ({ children }) => {
   const updateProfile = (updatedUserData) => {
     console.log('🔄 Updating user profile in context:', updatedUserData);
     
+    const normalizedData = { ...updatedUserData };
+    if (normalizedData.avatarUrl || normalizedData.avatar_url) {
+      const avatarUrl = normalizedData.avatarUrl || normalizedData.avatar_url;
+      normalizedData.avatar_url = normalizeAvatarUrl(avatarUrl);
+      if (normalizedData.avatarUrl) delete normalizedData.avatarUrl;
+    }
+    
     // Merge with existing user data
-    const updatedUser = { ...user, ...updatedUserData };
+    const updatedUser = { ...user, ...normalizedData };
     
     // Update state
     setUser(updatedUser);

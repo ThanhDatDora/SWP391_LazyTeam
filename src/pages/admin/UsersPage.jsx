@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { Users, Lock, Unlock, Eye, Search, Filter } from 'lucide-react';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api';
 
 const UsersPage = () => {
   const { theme, currentColors } = useOutletContext();
@@ -14,11 +14,45 @@ const UsersPage = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedUser, setSelectedUser] = useState(null);
   const [showModal, setShowModal] = useState(false);
-  const [actionLoading, setActionLoading] = useState(null);
+  const [toast, setToast] = useState({ show: false, type: '', message: '' });
+  const [modalState, setModalState] = useState({ type: null, isOpen: false, data: null });
+  const [stats, setStats] = useState({ totalUsers: 0, activeUsers: 0, lockedUsers: 0 });
 
   useEffect(() => {
     loadUsers();
+    loadStats();
   }, []);
+
+  const showToast = (type, message) => {
+    setToast({ show: true, type, message });
+    setTimeout(() => {
+      setToast({ show: false, type: '', message: '' });
+    }, 4500);
+  };
+
+  const loadStats = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/admin/stats`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && result.data) {
+          setStats(prev => ({
+            ...prev,
+            totalUsers: result.data.totalUsers || prev.totalUsers || 0
+          }));
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error loading stats:', error);
+    }
+  };
 
   const loadUsers = async () => {
     try {
@@ -55,7 +89,48 @@ const UsersPage = () => {
         }
 
         console.log('✅ Parsed users:', usersList.length);
-        setUsers(usersList);
+        
+        // Sort by user_id in ascending order
+        usersList.sort((a, b) => a.user_id - b.user_id);
+        
+        // CRITICAL: Normalize ALL possible lock status fields
+        // Backend may return: is_locked, locked, isLocked, status
+        const normalizedUsers = usersList.map(user => {
+          // Get raw value from ANY possible field
+          const raw = user.is_locked ?? user.locked ?? user.isLocked ?? user.status;
+          
+          // Normalize to boolean: true if locked, false if active
+          const isLocked = (
+            raw === 1 || 
+            raw === '1' || 
+            raw === true || 
+            raw === 'true' || 
+            raw === 'locked'
+          );
+          
+          console.log(`🔍 User ${user.user_id}: raw=${JSON.stringify(raw)} → locked=${isLocked}`);
+          
+          return {
+            ...user,
+            is_locked: isLocked
+          };
+        });
+        
+        console.log('📊 Normalized users:', normalizedUsers.map(u => `ID:${u.user_id} locked:${u.is_locked}`).join(', '));
+        
+        setUsers(normalizedUsers);
+        
+        // Update stats: totalUsers = active users only (same as AdminPanel)
+        const activeCount = normalizedUsers.filter(u => !u.is_locked).length;
+        const lockedCount = normalizedUsers.filter(u => u.is_locked).length;
+        
+        console.log(`📈 Stats: active=${activeCount}, locked=${lockedCount}, total=${normalizedUsers.length}`);
+        
+        setStats({
+          totalUsers: activeCount,
+          activeUsers: activeCount,
+          lockedUsers: lockedCount
+        });
       } else {
         console.error('❌ Failed to load users:', response.status);
         setUsers([]);
@@ -68,29 +143,87 @@ const UsersPage = () => {
     }
   };
 
-  const handleToggleStatus = async (userId, currentStatus) => {
+  const handleLockUser = async (userId) => {
+    setModalState({
+      type: 'lock',
+      isOpen: true,
+      data: { userId }
+    });
+  };
+
+  const confirmLockUser = async () => {
+    const { userId } = modalState.data;
+    const token = localStorage.getItem('token');
     try {
-      setActionLoading(userId);
-      const token = localStorage.getItem('token');
-      
-      const response = await fetch(`${API_BASE_URL}/admin/users/${userId}/toggle-status`, {
-        method: 'POST',
-        headers: {
+      console.log(`🔒 Locking user ${userId}...`);
+      const response = await fetch(`${API_BASE_URL}/admin/users/${userId}/lock`, {
+        method: 'PUT',
+        headers: { 
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ is_locked: !currentStatus })
+        }
       });
-
-      if (response.ok) {
-        setUsers(prev => prev.map(u => 
-          u.user_id === userId ? { ...u, is_locked: !currentStatus } : u
-        ));
+      
+      const data = await response.json();
+      console.log('Lock response:', data);
+      
+      if (response.ok && data.success) {
+        showToast('success', 'Tài khoản đã bị khóa thành công');
+        // Wait for backend to update, then reload fresh data
+        await new Promise(r => setTimeout(r, 150));
+        await loadUsers();
+      } else {
+        const errorMsg = data.error?.message || 'Không thể khóa tài khoản';
+        console.error('Lock failed:', errorMsg);
+        showToast('error', errorMsg);
       }
     } catch (error) {
-      console.error('Error toggling status:', error);
+      console.error('Lock user error:', error);
+      showToast('error', 'Lỗi khi khóa tài khoản: ' + error.message);
     } finally {
-      setActionLoading(null);
+      setModalState({ type: null, isOpen: false, data: null });
+    }
+  };
+
+  const handleUnlockUser = async (userId) => {
+    setModalState({
+      type: 'unlock',
+      isOpen: true,
+      data: { userId }
+    });
+  };
+
+  const confirmUnlockUser = async () => {
+    const { userId } = modalState.data;
+    const token = localStorage.getItem('token');
+    try {
+      console.log(`🔓 Unlocking user ${userId}...`);
+      const response = await fetch(`${API_BASE_URL}/admin/users/${userId}/unlock`, {
+        method: 'PUT',
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      const data = await response.json();
+      console.log('Unlock response:', data);
+      
+      if (response.ok && data.success) {
+        showToast('success', 'Tài khoản đã mở khóa thành công');
+        // Wait for backend to update, then reload fresh data
+        await new Promise(r => setTimeout(r, 150));
+        await loadUsers();
+      } else {
+        const errorMsg = data.error?.message || 'Không thể mở khóa tài khoản';
+        console.error('Unlock failed:', errorMsg);
+        showToast('error', errorMsg);
+      }
+    } catch (error) {
+      console.error('Unlock user error:', error);
+      showToast('error', 'Lỗi khi mở khóa tài khoản: ' + error.message);
+    } finally {
+      setModalState({ type: null, isOpen: false, data: null });
     }
   };
 
@@ -148,7 +281,7 @@ const UsersPage = () => {
               Quản lý người dùng
             </h1>
             <p style={{ color: currentColors.textSecondary }}>
-              Tổng số: {users.length} người dùng
+              Tổng số: {stats.totalUsers} người dùng
             </p>
           </div>
         </div>
@@ -272,20 +405,25 @@ const UsersPage = () => {
                         </button>
                         
                         {user.role_id !== 1 && (
-                          <button
-                            onClick={() => handleToggleStatus(user.user_id, user.is_locked)}
-                            disabled={actionLoading === user.user_id}
-                            className="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20"
-                            title={user.is_locked ? 'Mở khóa' : 'Khóa tài khoản'}
-                          >
-                            {actionLoading === user.user_id ? (
-                              <div className="w-4 h-4 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin"></div>
-                            ) : user.is_locked ? (
-                              <Unlock className="w-4 h-4 text-green-600" />
+                          <>
+                            {user.is_locked ? (
+                              <button
+                                onClick={() => handleUnlockUser(user.user_id)}
+                                className="p-2 rounded-lg hover:bg-green-50 dark:hover:bg-green-900/20"
+                                title="Mở khóa tài khoản"
+                              >
+                                <Unlock className="w-4 h-4 text-green-600" />
+                              </button>
                             ) : (
-                              <Lock className="w-4 h-4 text-red-600" />
+                              <button
+                                onClick={() => handleLockUser(user.user_id)}
+                                className="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20"
+                                title="Khóa tài khoản"
+                              >
+                                <Lock className="w-4 h-4 text-red-600" />
+                              </button>
                             )}
-                          </button>
+                          </>
                         )}
                       </div>
                     </td>
@@ -361,6 +499,71 @@ const UsersPage = () => {
                 Đóng
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirm Lock/Unlock Modal */}
+      {modalState.isOpen && (modalState.type === 'lock' || modalState.type === 'unlock') && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="rounded-lg max-w-md w-full p-6" style={{ backgroundColor: currentColors.card }}>
+            <h2 className="text-xl font-bold mb-4" style={{ color: currentColors.text }}>
+              {modalState.type === 'lock' ? 'Xác nhận khóa tài khoản' : 'Xác nhận mở khóa tài khoản'}
+            </h2>
+            
+            <p className="mb-6" style={{ color: currentColors.textSecondary }}>
+              {modalState.type === 'lock' 
+                ? 'Bạn có chắc chắn muốn khóa tài khoản này? Người dùng sẽ không thể đăng nhập sau khi bị khóa.'
+                : 'Bạn có chắc chắn muốn mở khóa tài khoản này? Người dùng sẽ có thể đăng nhập lại.'}
+            </p>
+
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setModalState({ type: null, isOpen: false, data: null })}
+                className="px-4 py-2 rounded-lg font-medium transition-colors"
+                style={{
+                  backgroundColor: currentColors.border,
+                  color: currentColors.text
+                }}
+              >
+                Hủy
+              </button>
+              <button
+                onClick={modalState.type === 'lock' ? confirmLockUser : confirmUnlockUser}
+                className="px-4 py-2 rounded-lg font-medium transition-colors"
+                style={{
+                  backgroundColor: modalState.type === 'lock' ? '#dc2626' : '#059669',
+                  color: 'white'
+                }}
+              >
+                Xác nhận
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast Notification */}
+      {toast.show && (
+        <div className="fixed top-4 right-4 z-[9999] animate-in slide-in-from-top fade-in duration-300">
+          <div className={`flex items-center gap-3 p-4 rounded-lg shadow-lg max-w-md ${
+            toast.type === 'success' ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800' :
+            toast.type === 'error' ? 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800' :
+            'bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800'
+          }`}>
+            <span className={`text-sm font-medium ${
+              toast.type === 'success' ? 'text-green-800 dark:text-green-200' :
+              toast.type === 'error' ? 'text-red-800 dark:text-red-200' :
+              'text-blue-800 dark:text-blue-200'
+            }`}>
+              {toast.message}
+            </span>
+            <button
+              onClick={() => setToast({ show: false, type: '', message: '' })}
+              className="ml-auto"
+            >
+              <span className="text-lg">×</span>
+            </button>
           </div>
         </div>
       )}

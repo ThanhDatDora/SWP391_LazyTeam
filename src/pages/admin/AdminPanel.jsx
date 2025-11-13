@@ -7,7 +7,8 @@ import {
   TrendingUp, UserCheck, UserX, Search, LogOut, Menu, X, Home,
   FileText, Settings, Bell, UserCircle, Edit2, ChevronDown, ChevronRight,
   Folder, PieChart, Activity, Moon, Sun, TrendingDown, CreditCard, 
-  ArrowUpRight, Download, Banknote, Clock, FileDown
+  ArrowUpRight, Download, Banknote, Clock, FileDown, User, Info, Hash, 
+  Mail, Calendar, Key, Phone
 } from 'lucide-react';
 import {
   Chart as ChartJS,
@@ -415,7 +416,7 @@ const TabsContent = ({ children, value, className = '' }) => {
 const AdminPanel = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { logout, state: authState } = useAuth();
+  const { logout, updateProfile, state: authState } = useAuth();
 
   // Theme state
   const [theme, setTheme] = useState(() => {
@@ -512,6 +513,19 @@ const AdminPanel = () => {
   // Global Toast state
   const [toast, setToast] = useState({ show: false, type: '', message: '' });
 
+  // Profile Editing States
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [profileForm, setProfileForm] = useState({
+    fullName: '',
+    email: '',
+    phone: '',
+    address: '',
+    gender: '',
+    avatarFile: null
+  });
+  const [avatarPreview, setAvatarPreview] = useState(null);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+
   /**
    * Show global toast notification
    * Replaces all window.alert() calls for consistent UX
@@ -525,6 +539,159 @@ const AdminPanel = () => {
     setTimeout(() => {
       setToast({ show: false, type: '', message: '' });
     }, 4500);
+  };
+
+  /**
+   * Initialize profile form with current user data
+   */
+  const initializeProfileForm = () => {
+    if (authState?.user) {
+      setProfileForm({
+        fullName: authState.user.full_name || '',
+        email: authState.user.email || '',
+        phone: authState.user.phone || '',
+        address: authState.user.address || '',
+        gender: authState.user.gender || '',
+        avatarFile: null
+      });
+      setAvatarPreview(null);
+    }
+  };
+
+  /**
+   * Handle entering edit mode
+   */
+  const handleEditProfile = () => {
+    initializeProfileForm();
+    setIsEditingProfile(true);
+  };
+
+  /**
+   * Handle canceling edit mode
+   */
+  const handleCancelEdit = () => {
+    initializeProfileForm();
+    setIsEditingProfile(false);
+  };
+
+  /**
+   * Handle profile form field changes
+   */
+  const handleProfileChange = (field, value) => {
+    setProfileForm(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  /**
+   * Handle avatar file selection
+   */
+  const handleAvatarChange = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        showToast('error', '❌ Vui lòng chọn file ảnh hợp lệ');
+        return;
+      }
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        showToast('error', '❌ Kích thước ảnh không được vượt quá 5MB');
+        return;
+      }
+      
+      setProfileForm(prev => ({ ...prev, avatarFile: file }));
+      
+      // Create preview URL
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setAvatarPreview(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  /**
+   * Handle saving profile changes
+   */
+  const handleSaveProfile = async () => {
+    try {
+      setIsSavingProfile(true);
+
+      const token = localStorage.getItem('token');
+      if (!token) {
+        showToast('error', '❌ Vui lòng đăng nhập lại');
+        setIsSavingProfile(false);
+        return;
+      }
+
+      const profilePayload = {
+        fullName: profileForm.fullName,
+        email: profileForm.email,
+        phone: profileForm.phone || null,
+        address: profileForm.address || null,
+        gender: profileForm.gender || null
+      };
+
+      const profileResponse = await fetch(`${API_BASE_URL}/auth/profile`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(profilePayload)
+      });
+
+      const profileData = await profileResponse.json();
+
+      if (!profileResponse.ok) {
+        throw new Error(profileData.message || 'Không thể cập nhật hồ sơ');
+      }
+
+      let updatedUser = {
+        ...authState.user,
+        full_name: profileData.user.fullName,
+        email: profileData.user.email,
+        phone: profileData.user.phone,
+        address: profileData.user.address,
+        gender: profileData.user.gender
+      };
+
+      if (profileForm.avatarFile) {
+        const avatarFormData = new FormData();
+        avatarFormData.append('avatar', profileForm.avatarFile);
+
+        const avatarResponse = await fetch(`${API_BASE_URL}/auth/avatar`, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          },
+          body: avatarFormData
+        });
+
+        const avatarData = await avatarResponse.json();
+
+        if (!avatarResponse.ok) {
+          showToast('warning', '⚠️ Hồ sơ đã cập nhật, nhưng avatar không thể tải lên');
+        } else {
+          updatedUser.avatar_url = avatarData.data.avatarUrl;
+        }
+      }
+
+      updateProfile(updatedUser);
+
+      showToast('success', '✅ Cập nhật hồ sơ thành công!');
+      
+      setIsEditingProfile(false);
+      setAvatarPreview(null);
+
+    } catch (error) {
+      console.error('Profile update error:', error);
+      showToast('error', `❌ ${error.message || 'Có lỗi xảy ra khi cập nhật hồ sơ'}`);
+    } finally {
+      setIsSavingProfile(false);
+    }
   };
 
   // Sync activeMenu with activeTab for existing tab content
@@ -586,10 +753,31 @@ const AdminPanel = () => {
   };
 
   useEffect(() => {
-    console.log("🔄 Loading AdminPanel data...");
+    console.log("🔄 AdminPanel mounted - Loading data...");
+    console.log("🔑 Token exists:", !!localStorage.getItem('token'));
+    console.log("📡 API Base URL:", API_BASE_URL);
+    
     loadDashboardData();
     loadInstructorRevenue();
+    
+    // Cleanup function
+    return () => {
+      console.log("🧹 AdminPanel unmounting");
+    };
   }, []);
+
+  // Debug: Log state changes
+  useEffect(() => {
+    console.log('📊 State updated:', {
+      stats: stats.totalUsers,
+      users: users.length,
+      learners: learners.length,
+      instructors: instructors.length,
+      courses: courses.length,
+      pendingCourses: pendingCourses.length,
+      loading
+    });
+  }, [users, learners, instructors, courses, pendingCourses, stats, loading]);
 
   // Sync activeMenu with current location pathname
   useEffect(() => {
@@ -828,8 +1016,33 @@ const AdminPanel = () => {
         console.log('👥 Users data:', usersData);
         
         if (usersData.success && usersData.data) {
-          setUsers(usersData.data.users || []);
-          console.log('✅ Users loaded:', usersData.data.users?.length || 0, 'users');
+          const usersList = usersData.data.users || [];
+          
+          // CRITICAL: Normalize ALL possible lock status fields (same as UsersPage)
+          // Backend may return: is_locked, locked, isLocked, status
+          const normalizedUsers = usersList.map(user => {
+            // Get raw value from ANY possible field
+            const raw = user.is_locked ?? user.locked ?? user.isLocked ?? user.status;
+            
+            // Normalize to boolean: true if locked, false if active
+            const isLocked = (
+              raw === 1 || 
+              raw === '1' || 
+              raw === true || 
+              raw === 'true' || 
+              raw === 'locked'
+            );
+            
+            console.log(`🔍 User ${user.user_id}: raw=${JSON.stringify(raw)} → locked=${isLocked}`);
+            
+            return {
+              ...user,
+              is_locked: isLocked
+            };
+          });
+          
+          setUsers(normalizedUsers);
+          console.log('✅ Users loaded:', normalizedUsers.length, 'users');
         }
       } else {
         const errorText = await usersRes.text();
@@ -941,18 +1154,18 @@ const AdminPanel = () => {
       }
 
       console.log('✅ All admin data fetch attempts completed');
-      console.log('📊 Final state:', {
-        users: users.length,
-        learners: learners.length,
-        instructors: instructors.length,
-        courses: courses.length
-      });
+      // Note: State updates are async, so these logs show OLD state values
+      // The actual updated values will be available on next render
+      console.log('📊 Data fetch completed (state will update on next render)');
         
     } catch (error) {
       console.error('❌ Failed to load dashboard:', error);
       console.error('❌ Error details:', error.message, error.stack);
+      // Show error toast to user
+      showToast('error', '❌ Không thể tải dữ liệu. Vui lòng thử lại hoặc kiểm tra kết nối.');
     } finally {
       setLoading(false);
+      console.log('✅ Loading state set to false');
     }
   };
 
@@ -982,6 +1195,12 @@ const AdminPanel = () => {
   const getRoleColor = (roleId) => {
     const colors = { 1: 'destructive', 2: 'default', 3: 'secondary' };
     return colors[roleId] || 'secondary';
+  };
+
+  const getStatusBadge = (isLocked) => {
+    return isLocked
+      ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
+      : 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300';
   };
 
   // ========== INSTRUCTOR REVENUE MANAGEMENT ==========
@@ -2204,19 +2423,6 @@ const AdminPanel = () => {
                 
                 {expandedSections.revenue && (
                   <div className="mt-1 space-y-1 ml-4">
-                    <button
-                      onClick={() => { setActiveMenu('revenue'); setSidebarOpen(false); }}
-                      className={`sidebar-menu-item ${activeMenu === 'revenue' ? 'active' : ''} w-full flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all duration-200`}
-                      style={{
-                        backgroundColor: activeMenu === 'revenue' ? currentColors.primary + '20' : 'transparent',
-                        color: activeMenu === 'revenue' ? currentColors.primary : currentColors.text,
-                        fontWeight: activeMenu === 'revenue' ? '600' : '500'
-                      }}
-                    >
-                      <PieChart className="w-4 h-4" />
-                      <span className="text-sm">Biểu đồ doanh thu</span>
-                    </button>
-
                     <Link
                       to="/admin/learning-stats"
                       onClick={() => setSidebarOpen(false)}
@@ -2346,7 +2552,532 @@ const AdminPanel = () => {
       <div className="main-content-wrapper min-h-screen transition-all duration-300 lg:pl-64" style={{ paddingTop: '80px', overflow: 'hidden' }}>
         {/* Conditional Rendering: Show Overview ONLY at /admin, else show child route via Outlet */}
         {location.pathname === '/admin' ? (
-          <div className="px-8 py-8 space-y-8 w-full"> {/* Increased px from 6 to 8, py from 8 to 8, space-y from 6 to 8 */}
+          activeMenu === 'profile' ? (
+            // Profile Section
+            <div className="px-8 py-8 space-y-6 w-full max-w-5xl mx-auto">
+              {/* Page Header */}
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3">
+                  <div 
+                    className="p-3 rounded-xl"
+                    style={{ 
+                      background: `linear-gradient(135deg, ${currentColors.primary}, ${currentColors.accent})`,
+                      boxShadow: `0 4px 12px ${currentColors.primary}40`
+                    }}
+                  >
+                    <User className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h1 className="text-3xl font-bold" style={{ color: currentColors.text }}>Hồ sơ Admin</h1>
+                    <p className="text-sm" style={{ color: currentColors.textSecondary }}>Quản lý thông tin cá nhân của bạn</p>
+                  </div>
+                </div>
+                
+                {/* Edit/Save/Cancel Buttons */}
+                {!isEditingProfile ? (
+                  <button
+                    onClick={handleEditProfile}
+                    className="px-6 py-3 rounded-lg font-medium transition-all hover:scale-105 hover:shadow-lg flex items-center gap-2"
+                    style={{ 
+                      background: `linear-gradient(135deg, ${currentColors.primary}, ${currentColors.accent})`,
+                      color: '#ffffff'
+                    }}
+                  >
+                    <Edit2 className="w-4 h-4" />
+                    Chỉnh sửa hồ sơ
+                  </button>
+                ) : (
+                  <div className="flex gap-3">
+                    <button
+                      onClick={handleCancelEdit}
+                      disabled={isSavingProfile}
+                      className="px-6 py-3 rounded-lg font-medium transition-all hover:scale-105 flex items-center gap-2"
+                      style={{ 
+                        backgroundColor: theme === 'dark' ? 'rgba(100, 100, 100, 0.3)' : 'rgba(200, 200, 200, 0.5)',
+                        color: currentColors.text,
+                        border: `1px solid ${currentColors.border}`,
+                        opacity: isSavingProfile ? 0.5 : 1,
+                        cursor: isSavingProfile ? 'not-allowed' : 'pointer'
+                      }}
+                    >
+                      <X className="w-4 h-4" />
+                      Hủy
+                    </button>
+                    <button
+                      onClick={handleSaveProfile}
+                      disabled={isSavingProfile}
+                      className="px-6 py-3 rounded-lg font-medium transition-all hover:scale-105 hover:shadow-lg flex items-center gap-2"
+                      style={{ 
+                        background: `linear-gradient(135deg, ${currentColors.primary}, ${currentColors.accent})`,
+                        color: '#ffffff',
+                        opacity: isSavingProfile ? 0.7 : 1,
+                        cursor: isSavingProfile ? 'not-allowed' : 'pointer'
+                      }}
+                    >
+                      {isSavingProfile ? (
+                        <>
+                          <RefreshCw className="w-4 h-4 animate-spin" />
+                          Đang lưu...
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle className="w-4 h-4" />
+                          Lưu thay đổi
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Profile Card */}
+              <Card 
+                className="border-0 shadow-lg overflow-hidden" 
+                style={{ 
+                  backgroundColor: currentColors.card,
+                  border: `1px solid ${currentColors.border}`,
+                  borderRadius: '16px'
+                }}
+              >
+                <CardContent className="p-0">
+                  {/* Header with Gradient Background */}
+                  <div 
+                    className="px-8 py-12 relative"
+                    style={{ 
+                      background: `linear-gradient(135deg, ${currentColors.primary}20 0%, ${currentColors.accent}20 100%)`,
+                      borderBottom: `1px solid ${currentColors.border}`
+                    }}
+                  >
+                    <div className="flex flex-col md:flex-row items-center gap-6">
+                      {/* Avatar */}
+                      <div className="relative">
+                        <div 
+                          className="w-32 h-32 rounded-full flex items-center justify-center text-4xl font-bold text-white shadow-xl overflow-hidden"
+                          style={{ 
+                            background: avatarPreview || authState?.user?.avatar_url 
+                              ? 'transparent' 
+                              : `linear-gradient(135deg, ${currentColors.primary}, ${currentColors.accent})`
+                          }}
+                        >
+                          {avatarPreview || authState?.user?.avatar_url ? (
+                            <img 
+                              src={avatarPreview || authState.user.avatar_url} 
+                              alt="Avatar" 
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            authState?.user?.full_name?.charAt(0)?.toUpperCase() || 'A'
+                          )}
+                        </div>
+                        
+                        {/* Avatar Upload Button - Only in Edit Mode */}
+                        {isEditingProfile && (
+                          <>
+                            <input
+                              type="file"
+                              id="avatar-upload"
+                              accept="image/*"
+                              onChange={handleAvatarChange}
+                              className="hidden"
+                            />
+                            <label
+                              htmlFor="avatar-upload"
+                              className="absolute bottom-0 right-0 p-2 rounded-full cursor-pointer transition-all hover:scale-110 shadow-lg"
+                              style={{ 
+                                background: `linear-gradient(135deg, ${currentColors.primary}, ${currentColors.accent})`,
+                                color: '#ffffff'
+                              }}
+                              title="Đổi avatar"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </label>
+                          </>
+                        )}
+                      </div>
+                      
+                      {/* Basic Info */}
+                      <div className="flex-1 text-center md:text-left">
+                        <h2 className="text-3xl font-bold mb-2" style={{ color: currentColors.text }}>
+                          {authState?.user?.full_name || 'Admin'}
+                        </h2>
+                        <p className="text-lg mb-3" style={{ color: currentColors.textSecondary }}>
+                          {authState?.user?.email || 'admin@example.com'}
+                        </p>
+                        <div className="flex items-center gap-3 justify-center md:justify-start flex-wrap">
+                          <Badge type="role" value="Admin">
+                            <Shield className="w-3 h-3 mr-1" />
+                            Administrator
+                          </Badge>
+                          <Badge type="status" value={(() => {
+                            const currentUser = users.find(u => u.user_id === authState?.user?.user_id);
+                            return currentUser?.is_locked ? 'locked' : 'active';
+                          })()}>
+                            <CheckCircle className="w-3 h-3 mr-1" />
+                            {(() => {
+                              const currentUser = users.find(u => u.user_id === authState?.user?.user_id);
+                              return currentUser?.is_locked ? 'Bị khóa' : 'Hoạt động';
+                            })()}
+                          </Badge>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Detailed Information */}
+                  <div className="p-8 space-y-6">
+                    <div>
+                      <h3 className="text-xl font-bold mb-4 flex items-center gap-2" style={{ color: currentColors.text }}>
+                        <Info className="w-5 h-5" style={{ color: currentColors.primary }} />
+                        Thông tin chi tiết
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* User ID - Read Only */}
+                        <div className="space-y-2">
+                          <label className="text-sm font-semibold flex items-center gap-2" style={{ color: currentColors.textSecondary }}>
+                            <Hash className="w-4 h-4" />
+                            ID người dùng
+                          </label>
+                          <div 
+                            className="px-4 py-3 rounded-lg font-mono text-sm"
+                            style={{ 
+                              backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)',
+                              color: currentColors.text,
+                              border: `1px solid ${currentColors.border}`
+                            }}
+                          >
+                            #{authState?.user?.user_id || 'N/A'}
+                          </div>
+                        </div>
+
+                        {/* Email - Editable */}
+                        <div className="space-y-2">
+                          <label className="text-sm font-semibold flex items-center gap-2" style={{ color: currentColors.textSecondary }}>
+                            <Mail className="w-4 h-4" />
+                            Email
+                          </label>
+                          {isEditingProfile ? (
+                            <input
+                              type="email"
+                              value={profileForm.email}
+                              onChange={(e) => handleProfileChange('email', e.target.value)}
+                              className="px-4 py-3 rounded-lg text-sm w-full focus:outline-none focus:ring-2 transition-all"
+                              style={{ 
+                                backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,1)',
+                                color: currentColors.text,
+                                border: `1px solid ${currentColors.border}`,
+                                '--tw-ring-color': currentColors.primary
+                              }}
+                              placeholder="Nhập email"
+                            />
+                          ) : (
+                            <div 
+                              className="px-4 py-3 rounded-lg text-sm"
+                              style={{ 
+                                backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)',
+                                color: currentColors.text,
+                                border: `1px solid ${currentColors.border}`
+                              }}
+                            >
+                              {authState?.user?.email || 'admin@example.com'}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Full Name - Editable */}
+                        <div className="space-y-2">
+                          <label className="text-sm font-semibold flex items-center gap-2" style={{ color: currentColors.textSecondary }}>
+                            <User className="w-4 h-4" />
+                            Họ và tên
+                          </label>
+                          {isEditingProfile ? (
+                            <input
+                              type="text"
+                              value={profileForm.fullName}
+                              onChange={(e) => handleProfileChange('fullName', e.target.value)}
+                              className="px-4 py-3 rounded-lg text-sm w-full focus:outline-none focus:ring-2 transition-all"
+                              style={{ 
+                                backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,1)',
+                                color: currentColors.text,
+                                border: `1px solid ${currentColors.border}`,
+                                '--tw-ring-color': currentColors.primary
+                              }}
+                              placeholder="Nhập họ và tên"
+                            />
+                          ) : (
+                            <div 
+                              className="px-4 py-3 rounded-lg text-sm"
+                              style={{ 
+                                backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)',
+                                color: currentColors.text,
+                                border: `1px solid ${currentColors.border}`
+                              }}
+                            >
+                              {authState?.user?.full_name || 'Administrator'}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Phone - Editable */}
+                        <div className="space-y-2">
+                          <label className="text-sm font-semibold flex items-center gap-2" style={{ color: currentColors.textSecondary }}>
+                            <Phone className="w-4 h-4" />
+                            Số điện thoại
+                          </label>
+                          {isEditingProfile ? (
+                            <input
+                              type="tel"
+                              value={profileForm.phone}
+                              onChange={(e) => handleProfileChange('phone', e.target.value)}
+                              className="px-4 py-3 rounded-lg text-sm w-full focus:outline-none focus:ring-2 transition-all"
+                              style={{ 
+                                backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,1)',
+                                color: currentColors.text,
+                                border: `1px solid ${currentColors.border}`,
+                                '--tw-ring-color': currentColors.primary
+                              }}
+                              placeholder="Nhập số điện thoại"
+                            />
+                          ) : (
+                            <div 
+                              className="px-4 py-3 rounded-lg text-sm"
+                              style={{ 
+                                backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)',
+                                color: currentColors.text,
+                                border: `1px solid ${currentColors.border}`
+                              }}
+                            >
+                              {authState?.user?.phone || 'Chưa cập nhật'}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Role - Read Only */}
+                        <div className="space-y-2">
+                          <label className="text-sm font-semibold flex items-center gap-2" style={{ color: currentColors.textSecondary }}>
+                            <Shield className="w-4 h-4" />
+                            Vai trò
+                          </label>
+                          <div 
+                            className="px-4 py-3 rounded-lg text-sm font-semibold"
+                            style={{ 
+                              backgroundColor: theme === 'dark' ? 'rgba(59, 130, 246, 0.2)' : 'rgba(59, 130, 246, 0.1)',
+                              color: currentColors.primary,
+                              border: `1px solid ${currentColors.primary}30`
+                            }}
+                          >
+                            Administrator
+                          </div>
+                        </div>
+
+                        {/* Status - Read Only */}
+                        <div className="space-y-2">
+                          <label className="text-sm font-semibold flex items-center gap-2" style={{ color: currentColors.textSecondary }}>
+                            <Activity className="w-4 h-4" />
+                            Trạng thái
+                          </label>
+                          <div 
+                            className="px-4 py-3 rounded-lg text-sm font-semibold"
+                            style={(() => {
+                              const currentUser = users.find(u => u.user_id === authState?.user?.user_id);
+                              const isLocked = currentUser?.is_locked;
+                              return {
+                                backgroundColor: isLocked 
+                                  ? (theme === 'dark' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(239, 68, 68, 0.1)')
+                                  : (theme === 'dark' ? 'rgba(34, 197, 94, 0.2)' : 'rgba(34, 197, 94, 0.1)'),
+                                color: isLocked ? '#ef4444' : '#22c55e',
+                                border: `1px solid ${isLocked ? '#ef444430' : '#22c55e30'}`
+                              };
+                            })()}
+                          >
+                            {(() => {
+                              const currentUser = users.find(u => u.user_id === authState?.user?.user_id);
+                              return currentUser?.is_locked ? '🔒 Bị khóa' : '✓ Hoạt động';
+                            })()}
+                          </div>
+                        </div>
+
+                        {/* Gender - Editable */}
+                        <div className="space-y-2">
+                          <label className="text-sm font-semibold flex items-center gap-2" style={{ color: currentColors.textSecondary }}>
+                            <User className="w-4 h-4" />
+                            Giới tính
+                          </label>
+                          {isEditingProfile ? (
+                            <select
+                              value={profileForm.gender}
+                              onChange={(e) => handleProfileChange('gender', e.target.value)}
+                              className="px-4 py-3 rounded-lg text-sm w-full focus:outline-none focus:ring-2 transition-all"
+                              style={{ 
+                                backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,1)',
+                                color: currentColors.text,
+                                border: `1px solid ${currentColors.border}`,
+                                '--tw-ring-color': currentColors.primary
+                              }}
+                            >
+                              <option value="">Chọn giới tính</option>
+                              <option value="male">Nam</option>
+                              <option value="female">Nữ</option>
+                              <option value="other">Khác</option>
+                            </select>
+                          ) : (
+                            <div 
+                              className="px-4 py-3 rounded-lg text-sm"
+                              style={{ 
+                                backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)',
+                                color: currentColors.text,
+                                border: `1px solid ${currentColors.border}`
+                              }}
+                            >
+                              {authState?.user?.gender === 'male' ? 'Nam' : 
+                               authState?.user?.gender === 'female' ? 'Nữ' : 
+                               authState?.user?.gender === 'other' ? 'Khác' : 'Chưa cập nhật'}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Address - Editable - Full Width */}
+                        <div className="space-y-2 md:col-span-2">
+                          <label className="text-sm font-semibold flex items-center gap-2" style={{ color: currentColors.textSecondary }}>
+                            <Home className="w-4 h-4" />
+                            Địa chỉ
+                          </label>
+                          {isEditingProfile ? (
+                            <input
+                              type="text"
+                              value={profileForm.address}
+                              onChange={(e) => handleProfileChange('address', e.target.value)}
+                              className="px-4 py-3 rounded-lg text-sm w-full focus:outline-none focus:ring-2 transition-all"
+                              style={{ 
+                                backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,1)',
+                                color: currentColors.text,
+                                border: `1px solid ${currentColors.border}`,
+                                '--tw-ring-color': currentColors.primary
+                              }}
+                              placeholder="Nhập địa chỉ"
+                            />
+                          ) : (
+                            <div 
+                              className="px-4 py-3 rounded-lg text-sm"
+                              style={{ 
+                                backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)',
+                                color: currentColors.text,
+                                border: `1px solid ${currentColors.border}`
+                              }}
+                            >
+                              {authState?.user?.address || 'Chưa cập nhật'}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Security Section */}
+                    <div 
+                      className="pt-6 mt-6"
+                      style={{ borderTop: `1px solid ${currentColors.border}` }}
+                    >
+                      <h3 className="text-xl font-bold mb-4 flex items-center gap-2" style={{ color: currentColors.text }}>
+                        <Lock className="w-5 h-5" style={{ color: currentColors.primary }} />
+                        Bảo mật
+                      </h3>
+                      <div className="flex flex-col sm:flex-row gap-3">
+                        <button
+                          className="px-6 py-3 rounded-lg font-medium transition-all hover:scale-105 hover:shadow-lg flex items-center justify-center gap-2"
+                          style={{ 
+                            background: `linear-gradient(135deg, ${currentColors.primary}, ${currentColors.accent})`,
+                            color: '#ffffff'
+                          }}
+                          onClick={() => {
+                            // TODO: Implement change password functionality
+                            showToast('info', 'ℹ️ Chức năng đổi mật khẩu sẽ được triển khai trong tương lai');
+                          }}
+                        >
+                          <Key className="w-4 h-4" />
+                          Đổi mật khẩu
+                        </button>
+                        <button
+                          className="px-6 py-3 rounded-lg font-medium transition-all hover:scale-105 flex items-center justify-center gap-2"
+                          style={{ 
+                            backgroundColor: theme === 'dark' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(239, 68, 68, 0.1)',
+                            color: '#ef4444',
+                            border: '1px solid #ef444430'
+                          }}
+                          onClick={() => {
+                            showToast('info', 'ℹ️ Đã đăng xuất khỏi tất cả các thiết bị (Demo)');
+                          }}
+                        >
+                          <LogOut className="w-4 h-4" />
+                          Đăng xuất khỏi tất cả thiết bị
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Additional Stats Card (Optional) */}
+              <Card 
+                className="border-0 shadow-lg overflow-hidden" 
+                style={{ 
+                  backgroundColor: currentColors.card,
+                  border: `1px solid ${currentColors.border}`,
+                  borderRadius: '16px'
+                }}
+              >
+                <CardContent className="p-8">
+                  <h3 className="text-xl font-bold mb-4 flex items-center gap-2" style={{ color: currentColors.text }}>
+                    <BarChart3 className="w-5 h-5" style={{ color: currentColors.primary }} />
+                    Thống kê hoạt động
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div 
+                      className="p-4 rounded-lg"
+                      style={{ 
+                        backgroundColor: theme === 'dark' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(59, 130, 246, 0.05)',
+                        border: `1px solid ${currentColors.primary}30`
+                      }}
+                    >
+                      <div className="text-2xl font-bold mb-1" style={{ color: currentColors.primary }}>
+                        {stats.totalUsers}
+                      </div>
+                      <div className="text-sm" style={{ color: currentColors.textSecondary }}>
+                        Tổng người dùng quản lý
+                      </div>
+                    </div>
+                    <div 
+                      className="p-4 rounded-lg"
+                      style={{ 
+                        backgroundColor: theme === 'dark' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(16, 185, 129, 0.05)',
+                        border: '1px solid rgba(16, 185, 129, 0.3)'
+                      }}
+                    >
+                      <div className="text-2xl font-bold mb-1" style={{ color: '#10b981' }}>
+                        {stats.totalCourses}
+                      </div>
+                      <div className="text-sm" style={{ color: currentColors.textSecondary }}>
+                        Tổng khóa học
+                      </div>
+                    </div>
+                    <div 
+                      className="p-4 rounded-lg"
+                      style={{ 
+                        backgroundColor: theme === 'dark' ? 'rgba(245, 158, 11, 0.1)' : 'rgba(245, 158, 11, 0.05)',
+                        border: '1px solid rgba(245, 158, 11, 0.3)'
+                      }}
+                    >
+                      <div className="text-2xl font-bold mb-1" style={{ color: '#f59e0b' }}>
+                        {(stats.totalRevenue / 1000000).toFixed(1)}M
+                      </div>
+                      <div className="text-sm" style={{ color: currentColors.textSecondary }}>
+                        Doanh thu (VND)
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          ) : (
+            <div className="px-8 py-8 space-y-8 w-full"> {/* Increased px from 6 to 8, py from 8 to 8, space-y from 6 to 8 */}
             {/* Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {/* Total Users Card */}
@@ -3741,6 +4472,7 @@ const AdminPanel = () => {
             </Tabs>
           </Card>
           </div>
+          )
         ) : (
           /* Child routes will render here */
           <Outlet context={{ theme, currentColors }} />
@@ -3752,7 +4484,7 @@ const AdminPanel = () => {
         <Modal
           isOpen={modalState.isOpen}
           onClose={() => setModalState({ type: null, isOpen: false, data: null })}
-          title="Chi tiết người dùng"
+          title="Thông tin người dùng"
           currentColors={currentColors}
           theme={theme}
         >

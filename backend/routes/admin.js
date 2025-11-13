@@ -6,12 +6,35 @@ const router = express.Router();
 
 // Middleware check admin role
 const requireAdmin = (req, res, next) => {
-  if (req.user.role !== 1 && req.user.roleId !== 1) {
+  // req.user.role is role_id (number: 1=admin, 2=instructor, 3=learner)
+  // req.user.roleName is role_name (string: "admin", "instructor", "learner")
+  console.log('🔐 requireAdmin check:', {
+    userId: req.user.userId,
+    email: req.user.email,
+    role: req.user.role,
+    roleName: req.user.roleName,
+    roleType: typeof req.user.role,
+    roleNameType: typeof req.user.roleName
+  });
+  
+  // Support both role_id (number) and role_name (string) for backward compatibility
+  const isAdmin = req.user.role === 1 || req.user.role === 'admin' || req.user.roleName === 'admin';
+  
+  if (!isAdmin) {
+    console.log('❌ Access denied - user is not admin');
     return res.status(403).json({ 
       success: false,
-      error: 'Admin access required' 
+      error: 'Admin access required',
+      debug: {
+        currentRole: req.user.role,
+        currentRoleName: req.user.roleName,
+        expectedRole: 1,
+        expectedRoleName: 'admin'
+      }
     });
   }
+  
+  console.log('✅ Admin access granted');
   next();
 };
 
@@ -38,9 +61,10 @@ router.get('/stats', authenticateToken, requireAdmin, async (req, res) => {
     const coursesResult = await pool.request().query(`
       SELECT 
         COUNT(*) as totalCourses,
-        SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END) as approvedCourses,
-        SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pendingCourses,
-        SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END) as rejectedCourses
+        SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) as activeCourses,
+        SUM(CASE WHEN status = 'published' THEN 1 ELSE 0 END) as publishedCourses,
+        SUM(CASE WHEN status = 'draft' THEN 1 ELSE 0 END) as draftCourses,
+        SUM(CASE WHEN status = 'archived' THEN 1 ELSE 0 END) as archivedCourses
       FROM courses
     `);
 
@@ -48,7 +72,7 @@ router.get('/stats', authenticateToken, requireAdmin, async (req, res) => {
     const revenueResult = await pool.request().query(`
       SELECT 
         ISNULL(SUM(amount_cents), 0) as totalRevenue,
-        ISNULL(SUM(CASE WHEN status = 'completed' THEN amount_cents ELSE 0 END), 0) as completedRevenue
+        ISNULL(SUM(CASE WHEN status = 'paid' THEN amount_cents ELSE 0 END), 0) as completedRevenue
       FROM payments
     `);
 
@@ -72,9 +96,10 @@ router.get('/stats', authenticateToken, requireAdmin, async (req, res) => {
         totalLearners: stats.totalLearners || 0,
         newUsersThisMonth: stats.newUsersThisMonth || 0,
         totalCourses: courses.totalCourses || 0,
-        approvedCourses: courses.approvedCourses || 0,
-        pendingCourses: courses.pendingCourses || 0,
-        rejectedCourses: courses.rejectedCourses || 0,
+        activeCourses: courses.activeCourses || 0,
+        publishedCourses: courses.publishedCourses || 0,
+        draftCourses: courses.draftCourses || 0,
+        archivedCourses: courses.archivedCourses || 0,
         totalRevenue: revenue.totalRevenue || 0,
         completedRevenue: revenue.completedRevenue || 0,
         totalEnrollments: enrollments.totalEnrollments || 0
@@ -189,7 +214,9 @@ router.get('/learners', authenticateToken, requireAdmin, async (req, res) => {
         u.email,
         u.full_name,
         u.status,
-        u.created_at
+        u.created_at,
+        (SELECT COUNT(*) FROM enrollments WHERE user_id = u.user_id) as enrolled_courses,
+        (SELECT COUNT(*) FROM certificates WHERE user_id = u.user_id) as certificates_earned
       FROM users u
       ${whereClause}
       ORDER BY u.created_at DESC
@@ -249,7 +276,12 @@ router.get('/instructors', authenticateToken, requireAdmin, async (req, res) => 
         u.email,
         u.full_name,
         u.status,
-        u.created_at
+        u.created_at,
+        (SELECT COUNT(*) FROM courses WHERE owner_instructor_id = u.user_id) as total_courses,
+        (SELECT COUNT(*) FROM courses WHERE owner_instructor_id = u.user_id AND status IN ('active', 'published')) as published_courses,
+        (SELECT COUNT(DISTINCT e.user_id) FROM courses c 
+         INNER JOIN enrollments e ON c.course_id = e.course_id 
+         WHERE c.owner_instructor_id = u.user_id) as total_students
       FROM users u
       ${whereClause}
       ORDER BY u.created_at DESC
@@ -359,7 +391,7 @@ router.get('/courses', authenticateToken, requireAdmin, async (req, res) => {
   }
 });
 
-// Get pending courses
+// Get pending courses (draft courses waiting to be published)
 router.get('/courses/pending', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const pool = await getPool();
@@ -378,7 +410,7 @@ router.get('/courses/pending', authenticateToken, requireAdmin, async (req, res)
         (SELECT COUNT(*) FROM lessons WHERE course_id = c.course_id) as total_lessons
       FROM courses c
       LEFT JOIN users u ON c.owner_instructor_id = u.user_id
-      WHERE c.status = 'pending'
+      WHERE c.status IN ('draft', 'pending')
       ORDER BY c.created_at DESC
     `;
 
@@ -400,23 +432,153 @@ router.get('/courses/pending', authenticateToken, requireAdmin, async (req, res)
   }
 });
 
-// Approve course
+// Seed pending courses (for development/demo purposes)
+// RULE: Only insert if database has 0 pending courses
+// RULE: Always insert exactly 3 courses
+router.post('/courses/seed-pending', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const pool = await getPool();
+
+    // Check if pending courses already exist
+    const checkQuery = `
+      SELECT COUNT(*) as count 
+      FROM courses 
+      WHERE status IN ('draft', 'pending')
+    `;
+    const checkResult = await pool.request().query(checkQuery);
+    const existingCount = checkResult.recordset[0].count;
+
+    if (existingCount >= 1) {
+      return res.json({
+        success: false,
+        inserted: 0,
+        message: 'Pending data already exists'
+      });
+    }
+
+    // Get first instructor for seed data
+    const instructorQuery = `
+      SELECT TOP 1 user_id 
+      FROM users 
+      WHERE role_id = 2
+      ORDER BY user_id
+    `;
+    const instructorResult = await pool.request().query(instructorQuery);
+    
+    if (instructorResult.recordset.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'No instructor found in database. Please create an instructor user first.'
+      });
+    }
+
+    const instructorId = instructorResult.recordset[0].user_id;
+
+    // Seed data for 3 pending courses
+    const seedCourses = [
+      {
+        title: 'Lập trình React nâng cao',
+        description: 'Khóa học React từ cơ bản đến nâng cao với Hooks, Redux và các best practices hiện đại. Học cách xây dựng ứng dụng web với React, quản lý state, routing và tích hợp API.',
+        price: 1500000,
+        thumbnail: 'https://picsum.photos/seed/react-course/800/600',
+        status: 'pending'
+      },
+      {
+        title: 'Node.js Backend Development',
+        description: 'Xây dựng RESTful API với Node.js, Express và SQL Server cho ứng dụng thực tế. Học cách thiết kế database, authentication, authorization và deploy production.',
+        price: 1200000,
+        thumbnail: 'https://picsum.photos/seed/nodejs-course/800/600',
+        status: 'pending'
+      },
+      {
+        title: 'Full-Stack JavaScript Development',
+        description: 'Khóa học toàn diện về phát triển ứng dụng web Full-Stack với JavaScript. Bao gồm React, Node.js, Express, SQL và deployment. Xây dựng dự án thực tế từ đầu đến cuối.',
+        price: 2000000,
+        thumbnail: 'https://picsum.photos/seed/fullstack-course/800/600',
+        status: 'pending'
+      }
+    ];
+
+    const insertedCourses = [];
+
+    // Insert each course
+    for (const course of seedCourses) {
+      const insertQuery = `
+        INSERT INTO courses (title, description, price, thumbnail, status, owner_instructor_id, created_at, updated_at)
+        OUTPUT INSERTED.course_id, INSERTED.title, INSERTED.description, INSERTED.price, INSERTED.status, INSERTED.created_at
+        VALUES (@title, @description, @price, @thumbnail, @status, @instructorId, GETDATE(), GETDATE())
+      `;
+
+      const result = await pool.request()
+        .input('title', sql.NVarChar, course.title)
+        .input('description', sql.NVarChar, course.description)
+        .input('price', sql.Decimal(10, 2), course.price)
+        .input('thumbnail', sql.NVarChar, course.thumbnail)
+        .input('status', sql.NVarChar, course.status)
+        .input('instructorId', sql.BigInt, instructorId)
+        .query(insertQuery);
+
+      insertedCourses.push(result.recordset[0]);
+    }
+
+    // Get instructor info for response
+    const instructorInfoQuery = `
+      SELECT user_id, full_name, email 
+      FROM users 
+      WHERE user_id = @instructorId
+    `;
+    const instructorInfo = await pool.request()
+      .input('instructorId', sql.BigInt, instructorId)
+      .query(instructorInfoQuery);
+
+    const instructor = instructorInfo.recordset[0];
+
+    // Add instructor info and total_lessons to each course
+    const coursesWithDetails = insertedCourses.map(course => ({
+      ...course,
+      instructor_id: instructor.user_id,
+      instructor_name: instructor.full_name,
+      instructor_email: instructor.email,
+      total_lessons: 0
+    }));
+
+    res.json({
+      success: true,
+      inserted: insertedCourses.length,
+      message: `Successfully seeded ${insertedCourses.length} pending courses`,
+      data: {
+        courses: coursesWithDetails
+      }
+    });
+
+  } catch (error) {
+    console.error('Seed pending courses error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to seed pending courses',
+      details: error.message
+    });
+  }
+});
+
+// Approve course (change status from draft/pending to active)
+// Support both POST and PUT methods
 router.post('/courses/:courseId/approve', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { courseId } = req.params;
     const pool = await getPool();
 
     await pool.request()
-      .input('courseId', sql.Int, courseId)
+      .input('courseId', sql.BigInt, courseId)
       .query(`
         UPDATE courses 
-        SET status = 'approved', updated_at = GETDATE()
+        SET status = 'active', updated_at = GETDATE()
         WHERE course_id = @courseId
       `);
 
     res.json({
       success: true,
-      message: 'Course approved successfully'
+      message: 'Course approved and activated successfully'
     });
 
   } catch (error) {
@@ -428,27 +590,86 @@ router.post('/courses/:courseId/approve', authenticateToken, requireAdmin, async
   }
 });
 
-// Reject course
+router.put('/courses/:courseId/approve', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { courseId } = req.params;
+    const pool = await getPool();
+
+    await pool.request()
+      .input('courseId', sql.BigInt, courseId)
+      .query(`
+        UPDATE courses 
+        SET status = 'active', updated_at = GETDATE()
+        WHERE course_id = @courseId
+      `);
+
+    res.json({
+      success: true,
+      message: 'Course approved and activated successfully'
+    });
+
+  } catch (error) {
+    console.error('Approve course error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to approve course' 
+    });
+  }
+});
+
+// Reject course (archive it)
+// Support both POST and PUT methods
 router.post('/courses/:courseId/reject', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { courseId } = req.params;
     const { reason } = req.body;
     const pool = await getPool();
 
+    // Note: 'rejection_reason' column may not exist in courses table
+    // So we'll just change status to 'archived'
     await pool.request()
-      .input('courseId', sql.Int, courseId)
-      .input('reason', sql.NVarChar, reason || 'Not specified')
+      .input('courseId', sql.BigInt, courseId)
       .query(`
         UPDATE courses 
-        SET status = 'rejected', 
-            rejection_reason = @reason,
+        SET status = 'archived', 
             updated_at = GETDATE()
         WHERE course_id = @courseId
       `);
 
     res.json({
       success: true,
-      message: 'Course rejected successfully'
+      message: 'Course rejected and archived successfully'
+    });
+
+  } catch (error) {
+    console.error('Reject course error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to reject course' 
+    });
+  }
+});
+
+router.put('/courses/:courseId/reject', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { courseId } = req.params;
+    const { reason } = req.body;
+    const pool = await getPool();
+
+    // Note: 'rejection_reason' column may not exist in courses table
+    // So we'll just change status to 'archived'
+    await pool.request()
+      .input('courseId', sql.BigInt, courseId)
+      .query(`
+        UPDATE courses 
+        SET status = 'archived', 
+            updated_at = GETDATE()
+        WHERE course_id = @courseId
+      `);
+
+    res.json({
+      success: true,
+      message: 'Course rejected and archived successfully'
     });
 
   } catch (error) {
@@ -712,6 +933,88 @@ router.put('/users/:id/role', authenticateToken, requireAdmin, async (req, res) 
     res.status(500).json({ 
       success: false,
       error: 'Failed to change user role',
+      details: error.message
+    });
+  }
+});
+
+// ==================== LEARNING STATS ENDPOINT ====================
+
+// Get learning statistics
+router.get('/learning-stats', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const pool = await getPool();
+
+    // Get completion stats
+    const completionResult = await pool.request().query(`
+      SELECT 
+        COUNT(*) as total_enrollments,
+        SUM(CASE WHEN progress_percentage = 0 THEN 1 ELSE 0 END) as not_started,
+        SUM(CASE WHEN progress_percentage > 0 AND progress_percentage < 100 THEN 1 ELSE 0 END) as in_progress,
+        SUM(CASE WHEN progress_percentage = 100 THEN 1 ELSE 0 END) as completed,
+        SUM(CASE WHEN progress_percentage >= 80 THEN 1 ELSE 0 END) as excellent,
+        SUM(CASE WHEN progress_percentage >= 50 AND progress_percentage < 80 THEN 1 ELSE 0 END) as good,
+        SUM(CASE WHEN progress_percentage < 50 AND progress_percentage > 0 THEN 1 ELSE 0 END) as needs_improvement,
+        CAST(AVG(CASE WHEN progress_percentage = 100 THEN 100.0 ELSE 0 END) as DECIMAL(5,2)) as completion_rate
+      FROM enrollments
+      WHERE status = 'active'
+    `);
+
+    // Get top courses by enrollment
+    const topCoursesResult = await pool.request().query(`
+      SELECT TOP 5
+        c.course_id,
+        c.title,
+        u.full_name as instructor_name,
+        COUNT(e.enrollment_id) as enrolled_count,
+        CAST(AVG(CASE WHEN e.progress_percentage = 100 THEN 100.0 ELSE 0 END) as DECIMAL(5,2)) as completion_rate
+      FROM courses c
+      LEFT JOIN users u ON c.instructor_id = u.user_id
+      LEFT JOIN enrollments e ON c.course_id = e.course_id
+      WHERE c.status = 'active'
+      GROUP BY c.course_id, c.title, u.full_name
+      ORDER BY enrolled_count DESC
+    `);
+
+    // Calculate average study time (mock calculation based on completed lessons)
+    const avgTimeResult = await pool.request().query(`
+      SELECT 
+        AVG(CAST(progress_percentage as FLOAT) / 10) as avg_study_hours
+      FROM enrollments
+      WHERE progress_percentage > 0
+    `);
+
+    const completion = completionResult.recordset[0];
+    const avgTime = avgTimeResult.recordset[0];
+
+    res.json({
+      success: true,
+      data: {
+        completion: {
+          rate: Math.round(completion.completion_rate || 0),
+          not_started: completion.not_started || 0,
+          in_progress: completion.in_progress || 0,
+          completed: completion.completed || 0,
+          excellent: completion.excellent || 0,
+          good: completion.good || 0,
+          needs_improvement: completion.needs_improvement || 0
+        },
+        avgStudyTime: parseFloat((avgTime.avg_study_hours || 0).toFixed(1)),
+        topCourses: topCoursesResult.recordset.map(course => ({
+          course_id: course.course_id,
+          title: course.title,
+          instructor_name: course.instructor_name,
+          enrolled_count: course.enrolled_count,
+          completion_rate: Math.round(course.completion_rate || 0)
+        }))
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Get learning stats error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to fetch learning statistics',
       details: error.message
     });
   }

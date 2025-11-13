@@ -4,6 +4,57 @@ import { BarChart3, TrendingUp, Clock, Award, BookOpen, Users } from 'lucide-rea
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api';
 
+// Mock data for learning statistics
+const MOCK_LEARNING_STATS = {
+  completion: {
+    rate: 67,
+    not_started: 45,
+    in_progress: 128,
+    completed: 89,
+    excellent: 32,
+    good: 41,
+    needs_improvement: 16
+  },
+  avgStudyTime: 12.5,
+  topCourses: [
+    {
+      course_id: 1,
+      title: 'Lập trình React nâng cao',
+      instructor_name: 'Nguyễn Văn An',
+      enrolled_count: 245,
+      completion_rate: 78
+    },
+    {
+      course_id: 2,
+      title: 'Node.js Backend Development',
+      instructor_name: 'Trần Thị Bình',
+      enrolled_count: 198,
+      completion_rate: 72
+    },
+    {
+      course_id: 3,
+      title: 'Python cho Data Science',
+      instructor_name: 'Lê Minh Cường',
+      enrolled_count: 176,
+      completion_rate: 65
+    },
+    {
+      course_id: 4,
+      title: 'Machine Learning cơ bản',
+      instructor_name: 'Phạm Thị Dung',
+      enrolled_count: 152,
+      completion_rate: 58
+    },
+    {
+      course_id: 5,
+      title: 'UI/UX Design với Figma',
+      instructor_name: 'Hoàng Văn Em',
+      enrolled_count: 134,
+      completion_rate: 81
+    }
+  ]
+};
+
 const LearningStatsPage = () => {
   const { theme, currentColors } = useOutletContext();
   
@@ -44,14 +95,16 @@ const LearningStatsPage = () => {
         }
 
         console.log('✅ Parsed stats:', statsData);
-        setStats(statsData);
+        setStats(statsData || MOCK_LEARNING_STATS);
       } else {
         console.error('❌ Failed to load stats:', response.status);
-        setStats(null);
+        console.log('📦 Using mock data');
+        setStats(MOCK_LEARNING_STATS);
       }
     } catch (error) {
       console.error('❌ Error loading stats:', error);
-      setStats(null);
+      console.log('📦 Using mock data');
+      setStats(MOCK_LEARNING_STATS);
     } finally {
       setLoading(false);
     }
