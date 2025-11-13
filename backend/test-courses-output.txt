@@ -1,0 +1,41 @@
+Changed database context to 'MiniCoursera_Primary'.
+Using Instructor ID: 2
+
+(1 rows affected)
+Created Course 1 (Python): 13
+
+(8 rows affected)
+
+(1 rows affected)
+Created Course 2 (HTML/CSS): 14
+
+(8 rows affected)
+
+(1 rows affected)
+Created Course 3 (Git/GitHub): 15
+
+(8 rows affected)
+ 
+✅ Successfully created 3 cheap test courses!
+ 
+📚 Course Summary:
+1. Python cho người mới bắt đầu - $0.50 (ID: 13) - 8 lessons
+2. HTML & CSS từ Zero đến Hero - $0.75 (ID: 14) - 8 lessons
+3. Git & GitHub thực chiến - $1.00 (ID: 15) - 8 lessons
+ 
+Each course has:
+- 6-7 video lessons
+- 1-2 assignments at the end
+- All approved and ready to purchase
+Msg 137, Level 15, State 2, Server LAPTOP-C9N89KGI\SQLEXPRESS, Line 3
+Must declare the scalar variable "@InstructorId".
+Msg 137, Level 15, State 1, Server LAPTOP-C9N89KGI\SQLEXPRESS, Line 14
+Must declare the scalar variable "@InstructorId".
+Msg 137, Level 15, State 2, Server LAPTOP-C9N89KGI\SQLEXPRESS, Line 17
+Must declare the scalar variable "@InstructorId".
+Msg 137, Level 15, State 2, Server LAPTOP-C9N89KGI\SQLEXPRESS, Line 46
+Must declare the scalar variable "@InstructorId".
+Msg 137, Level 15, State 2, Server LAPTOP-C9N89KGI\SQLEXPRESS, Line 140
+Must declare the scalar variable "@InstructorId".
+Msg 137, Level 15, State 2, Server LAPTOP-C9N89KGI\SQLEXPRESS, Line 223
+Must declare the scalar variable "@InstructorId".
