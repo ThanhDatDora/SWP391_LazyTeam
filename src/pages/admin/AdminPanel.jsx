@@ -461,6 +461,7 @@ const AdminPanel = () => {
     pendingCourses: 0,
     totalRevenue: 0,
     activeInstructors: 0,
+    totalLearners: 0,
     monthlySignups: 0
   });
 
@@ -989,6 +990,7 @@ const AdminPanel = () => {
             pendingCourses: statsData.data.pendingCourses || 0,
             totalRevenue: statsData.data.totalRevenue || 0,
             activeInstructors: statsData.data.totalInstructors || 0,
+            totalLearners: statsData.data.totalLearners || 0,
             monthlySignups: statsData.data.newUsersThisMonth || 0
           });
           console.log('✅ Stats loaded successfully');
@@ -3079,7 +3081,7 @@ const AdminPanel = () => {
           ) : (
             <div className="px-8 py-8 space-y-8 w-full"> {/* Increased px from 6 to 8, py from 8 to 8, space-y from 6 to 8 */}
             {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
             {/* Total Users Card */}
             <Card 
               className="border-0 shadow-lg hover:shadow-xl transition-all" 
@@ -3215,6 +3217,43 @@ const AdminPanel = () => {
                     <p className="text-3xl font-bold" style={{ color: theme === 'dark' ? '#ffffff' : '#5b21b6' }}>{stats.activeInstructors}</p>
                     <p className="text-xs opacity-75 mt-1 flex items-center gap-1" style={{ color: theme === 'dark' ? '#ffffff' : '#8b5cf6' }}>
                       <CheckCircle className="w-3 h-3" style={{ color: theme === 'dark' ? '#ffffff' : '#8b5cf6' }} />
+                      Đang hoạt động
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Learners Card */}
+            <Card 
+              className="border-0 shadow-lg hover:shadow-xl transition-all" 
+              style={{ 
+                isolation: 'isolate', 
+                transform: 'translateZ(0)',
+                background: theme === 'dark' 
+                  ? 'linear-gradient(135deg, #ec4899 0%, #db2777 100%)' 
+                  : 'linear-gradient(135deg, #fce7f3 0%, #fbcfe8 100%)',
+                color: theme === 'dark' ? '#ffffff' : '#831843'
+              }}
+            >
+              <CardContent className="p-6">
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <div 
+                      className="p-3 rounded-xl"
+                      style={{ 
+                        backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.2)' : 'rgba(236,72,153,0.2)',
+                        backdropFilter: 'blur(10px)'
+                      }}
+                    >
+                      <UserCheck className="w-6 h-6" style={{ color: theme === 'dark' ? '#ffffff' : '#831843' }} />
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-sm opacity-90" style={{ color: theme === 'dark' ? '#ffffff' : '#9f1239' }}>Học viên</p>
+                    <p className="text-3xl font-bold" style={{ color: theme === 'dark' ? '#ffffff' : '#831843' }}>{stats.totalLearners}</p>
+                    <p className="text-xs opacity-75 mt-1 flex items-center gap-1" style={{ color: theme === 'dark' ? '#ffffff' : '#ec4899' }}>
+                      <CheckCircle className="w-3 h-3" style={{ color: theme === 'dark' ? '#ffffff' : '#ec4899' }} />
                       Đang hoạt động
                     </p>
                   </div>

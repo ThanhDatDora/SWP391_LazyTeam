@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { Folder, Plus, Edit2, Trash2, BookOpen } from 'lucide-react';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api';
 
 const CategoriesPage = () => {
   const { theme, currentColors } = useOutletContext();
@@ -23,9 +23,9 @@ const CategoriesPage = () => {
       setLoading(true);
       const token = localStorage.getItem('token');
       
-      console.log('📡 Fetching categories from:', `${API_BASE_URL}/admin/categories`);
+      console.log('📡 Fetching categories from:', `${API_BASE_URL}/courses/categories/list`);
       
-      const response = await fetch(`${API_BASE_URL}/admin/categories`, {
+      const response = await fetch(`${API_BASE_URL}/courses/categories/list`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -38,19 +38,9 @@ const CategoriesPage = () => {
         const result = await response.json();
         console.log('📦 Categories response:', result);
 
-        let categoriesList = [];
-        if (result.success && result.data) {
-          if (Array.isArray(result.data)) {
-            categoriesList = result.data;
-          } else if (result.data.categories && Array.isArray(result.data.categories)) {
-            categoriesList = result.data.categories;
-          }
-        } else if (Array.isArray(result)) {
-          categoriesList = result;
-        } else if (result.categories && Array.isArray(result.categories)) {
-          categoriesList = result.categories;
-        }
-
+        // Backend returns { categories: [...] }
+        const categoriesList = result.categories || [];
+        
         console.log('✅ Parsed categories:', categoriesList.length);
         setCategories(categoriesList);
       } else {
@@ -73,7 +63,7 @@ const CategoriesPage = () => {
 
   const handleEdit = (category) => {
     setModalType('edit');
-    setEditingId(category.category_id);
+    setEditingId(category.id);
     setFormData({ name: category.name, description: category.description || '' });
     setShowModal(true);
   };
@@ -167,7 +157,7 @@ const CategoriesPage = () => {
         ) : (
           categories.map((category) => (
             <div 
-              key={category.category_id}
+              key={category.id}
               className="p-6 rounded-lg border"
               style={{ borderColor: currentColors.border, backgroundColor: currentColors.card }}
             >
@@ -183,7 +173,7 @@ const CategoriesPage = () => {
                     <div className="flex items-center gap-1 mt-1">
                       <BookOpen className="w-3 h-3" style={{ color: currentColors.textSecondary }} />
                       <span className="text-xs" style={{ color: currentColors.textSecondary }}>
-                        {category.course_count || 0} khóa học
+                        {category.courseCount || 0} khóa học
                       </span>
                     </div>
                   </div>
@@ -205,7 +195,7 @@ const CategoriesPage = () => {
                 </button>
                 
                 <button
-                  onClick={() => handleDelete(category.category_id)}
+                  onClick={() => handleDelete(category.id)}
                   className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg border hover:bg-red-50 dark:hover:bg-red-900/20"
                   style={{ borderColor: currentColors.border }}
                 >
