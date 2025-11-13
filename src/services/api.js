@@ -524,6 +524,10 @@ export const examAPI = {
 
 // User API
 export const userAPI = {
+  async getProfile() {
+    return await apiRequest('/profile');
+  },
+
   async getAllUsers(params = {}) {
     const queryString = new URLSearchParams(params).toString();
     const endpoint = `/users${queryString ? `?${queryString}` : ''}`;

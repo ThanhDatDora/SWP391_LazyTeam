@@ -50,7 +50,7 @@ const Checkout = () => {
       if (user) {
         try {
           // Try to get full profile
-          const profileResponse = await api.user.getProfile();
+          const profileResponse = await api.users.getProfile();
           const profile = profileResponse.data;
           
           // Split full_name into firstName and lastName
@@ -70,7 +70,7 @@ const Checkout = () => {
           });
         } catch (error) {
           console.error('Error loading user profile:', error);
-          // Fallback to basic user info
+          // Fallback to basic user info from auth context
           const nameParts = (user.full_name || '').split(' ');
           setBillingInfo({
             firstName: nameParts[0] || '',
@@ -242,6 +242,15 @@ const Checkout = () => {
       showError('Thông tin thanh toán chưa đầy đủ. Vui lòng kiểm tra lại.');
       return;
     }
+
+    // Ensure required fields have values (use defaults if empty)
+    const completeBillingInfo = {
+      ...billingInfo,
+      address: billingInfo.address || '123 Main Street',
+      city: billingInfo.city || 'Hồ Chí Minh',
+      country: billingInfo.country || 'VN',
+      zipCode: billingInfo.zipCode || '700000'
+    };
     
     setLoading(true);
     
@@ -251,7 +260,7 @@ const Checkout = () => {
         console.log('📝 Enroll Now flow');
         const response = await api.checkout.enrollNow({
           courseId: parseInt(courseIdParam),
-          billingInfo,
+          billingInfo: completeBillingInfo,
           paymentMethod: paymentInfo.paymentMethod
         });
         setTransactionRef(response.data.transactionRef);
@@ -265,14 +274,14 @@ const Checkout = () => {
         console.log('🛒 Cart flow - Creating order with:', { 
           coursesCount: courses.length,
           courses,
-          billingInfo, 
+          billingInfo: completeBillingInfo, 
           paymentMethod: paymentInfo.paymentMethod 
         });
         
         console.log('🔄 Step 1: Calling api.checkout.createOrder...');
         const apiResponse = await api.checkout.createOrder({
           courses,
-          billingInfo,
+          billingInfo: completeBillingInfo,
           paymentMethod: paymentInfo.paymentMethod
         });
         
