@@ -687,6 +687,13 @@ const checkoutAPI = {
     });
   },
 
+  async verifyPaymentStatus(paymentData) {
+    return await apiRequest('/checkout/verify-payment', {
+      method: 'POST',
+      body: JSON.stringify(paymentData)
+    });
+  },
+
   async getInvoices() {
     return await apiRequest('/checkout/invoices');
   }

@@ -17,26 +17,22 @@ console.log('🔥 Checkout.jsx loaded - VERSION v3.0 - LATEST CODE');
 
 const Checkout = () => {
   const navigate = useNavigation();
-  const { state } = useAuth();
+  const { state, user } = useAuth();
   const { cartItems, removeFromCart, clearCart, getTotalPrice } = useCart();
   const { success: showSuccess, error: showError } = useToast();
-  const [currentStep, setCurrentStep] = useState(1); // 1: Cart, 2: Billing, 3: Payment, 4: Confirmation
+  const [currentStep, setCurrentStep] = useState(1); // 1: Cart, 2: Payment, 3: Confirmation
   const [loading, setLoading] = useState(false);
   const [transactionRef, setTransactionRef] = useState('');
   const [paymentId, setPaymentId] = useState(null);
+  const [paymentVerified, setPaymentVerified] = useState(false);
+  const [checkingPayment, setCheckingPayment] = useState(false);
 
   // Check for enrollNow query parameter
   const searchParams = new URLSearchParams(window.location.search);
   const enrollNow = searchParams.get('enrollNow') === 'true';
   const courseIdParam = searchParams.get('courseId');
 
-  useEffect(() => {
-    // If enrollNow mode, skip to billing step
-    if (enrollNow && courseIdParam) {
-      setCurrentStep(2);
-    }
-  }, [enrollNow, courseIdParam]);
-
+  // Auto-fill billing info from logged-in user
   const [billingInfo, setBillingInfo] = useState({
     firstName: '',
     lastName: '',
@@ -44,9 +40,61 @@ const Checkout = () => {
     phone: '',
     address: '',
     city: '',
-    country: '',
+    country: 'VN',
     zipCode: ''
   });
+
+  // Load user info automatically
+  useEffect(() => {
+    const loadUserInfo = async () => {
+      if (user) {
+        try {
+          // Try to get full profile
+          const profileResponse = await api.user.getProfile();
+          const profile = profileResponse.data;
+          
+          // Split full_name into firstName and lastName
+          const nameParts = (profile.full_name || user.full_name || '').split(' ');
+          const firstName = nameParts[0] || '';
+          const lastName = nameParts.slice(1).join(' ') || '';
+          
+          setBillingInfo({
+            firstName: firstName,
+            lastName: lastName,
+            email: profile.email || user.email || '',
+            phone: profile.phone || user.phone || '',
+            address: profile.address || '',
+            city: profile.city || 'Hồ Chí Minh',
+            country: profile.country || 'VN',
+            zipCode: profile.zipCode || '700000'
+          });
+        } catch (error) {
+          console.error('Error loading user profile:', error);
+          // Fallback to basic user info
+          const nameParts = (user.full_name || '').split(' ');
+          setBillingInfo({
+            firstName: nameParts[0] || '',
+            lastName: nameParts.slice(1).join(' ') || '',
+            email: user.email || '',
+            phone: user.phone || '',
+            address: '',
+            city: 'Hồ Chí Minh',
+            country: 'VN',
+            zipCode: '700000'
+          });
+        }
+      }
+    };
+    
+    loadUserInfo();
+  }, [user]);
+
+  useEffect(() => {
+    // If enrollNow mode, skip to payment step
+    if (enrollNow && courseIdParam) {
+      setCurrentStep(2);
+    }
+  }, [enrollNow, courseIdParam]);
 
   const [paymentInfo, setPaymentInfo] = useState({
     cardNumber: '',
@@ -63,9 +111,30 @@ const Checkout = () => {
   // Convert USD to VND for QR payment (1 USD = ~24,000 VND)
   const totalVND = Math.round(total * 24000);
 
-  const handleBillingSubmit = async (e) => {
-    e.preventDefault();
-    setCurrentStep(3);
+  // Verify payment status with backend
+  const verifyPayment = async () => {
+    if (!paymentId) return false;
+    
+    setCheckingPayment(true);
+    try {
+      const response = await api.checkout.verifyPaymentStatus({ paymentId });
+      const verified = response.data?.verified || response.data?.status === 'completed';
+      setPaymentVerified(verified);
+      
+      if (verified) {
+        showSuccess('✅ Đã xác nhận thanh toán thành công!');
+      } else {
+        showError('⏳ Chưa nhận được thanh toán. Vui lòng thử lại sau 1-2 phút.');
+      }
+      
+      return verified;
+    } catch (error) {
+      console.error('Payment verification error:', error);
+      showError('Không thể kiểm tra thanh toán. Vui lòng thử lại.');
+      return false;
+    } finally {
+      setCheckingPayment(false);
+    }
   };
 
   const handleCompleteQRPayment = async () => {
@@ -74,9 +143,18 @@ const Checkout = () => {
       return;
     }
 
+    // First verify payment
     setLoading(true);
     try {
-      console.log('🔄 Step 1: Calling completePayment API...');
+      const verified = await verifyPayment();
+      
+      if (!verified) {
+        showError('Chưa nhận được thanh toán. Vui lòng chuyển khoản và thử lại sau 1-2 phút.');
+        setLoading(false);
+        return;
+      }
+
+      console.log('🔄 Step 1: Payment verified, calling completePayment API...');
       const apiPaymentResponse = await api.checkout.completePayment({
         paymentId: paymentId,
         paymentDetails: paymentInfo
@@ -142,14 +220,28 @@ const Checkout = () => {
 
   const handlePaymentSubmit = async (e) => {
     e.preventDefault();
-    console.log('🎯 handlePaymentSubmit called [v3.0] - current step:', currentStep);
+    console.log('🎯 handlePaymentSubmit called [v4.0] - current step:', currentStep);
     console.log('📋 Initial state:', {
       enrollNow,
       courseIdParam,
       cartItemsCount: cartItems.length,
       paymentMethod: paymentInfo.paymentMethod,
-      billingInfo
+      billingInfo,
+      user
     });
+    
+    // Validate user is logged in
+    if (!user) {
+      showError('Vui lòng đăng nhập để thanh toán');
+      navigate('/auth');
+      return;
+    }
+
+    // Validate billing info is filled (from auto-load)
+    if (!billingInfo.email || !billingInfo.firstName) {
+      showError('Thông tin thanh toán chưa đầy đủ. Vui lòng kiểm tra lại.');
+      return;
+    }
     
     setLoading(true);
     
@@ -164,8 +256,8 @@ const Checkout = () => {
         });
         setTransactionRef(response.data.transactionRef);
         showSuccess('Đăng ký khóa học thành công!');
-        console.log('✅ Moving to step 4');
-        setCurrentStep(4);
+        console.log('✅ Moving to step 3');
+        setCurrentStep(3);
       } else {
         // Cart flow - multiple courses
         const courses = cartItems.map(item => ({ courseId: item.id }));
@@ -276,9 +368,9 @@ const Checkout = () => {
           } catch (toastError) {
             console.error('⚠️ Toast error (non-critical):', toastError);
           }
-          console.log('🔄 Setting currentStep to 4 (QR display)...');
-          setCurrentStep(4); // Show confirmation page with QR
-          console.log('✅ Step changed to 4 successfully - QR code should display');
+          console.log('🔄 Setting currentStep to 3 (QR display)...');
+          setCurrentStep(3); // Show confirmation page with QR
+          console.log('✅ Step changed to 3 successfully - QR code should display');
         } else {
           // For card payment: complete immediately
           console.log('💳 Card Payment path selected, completing payment immediately...');
@@ -301,8 +393,8 @@ const Checkout = () => {
           setTransactionRef(paymentResponse.data.transactionRef);
           clearCart();
           showSuccess('Thanh toán thành công!');
-          console.log('✅ Card payment complete, moving to step 4');
-          setCurrentStep(4);
+          console.log('✅ Card payment complete, moving to step 3');
+          setCurrentStep(3);
         }
       }
     } catch (error) {
@@ -324,9 +416,8 @@ const Checkout = () => {
 
   const steps = [
     { id: 1, name: 'Giỏ hàng', icon: ShoppingCart },
-    { id: 2, name: 'Thanh toán', icon: User },
-    { id: 3, name: 'Xác nhận', icon: CreditCard },
-    { id: 4, name: 'Hoàn tất', icon: Check }
+    { id: 2, name: 'Thanh toán', icon: CreditCard },
+    { id: 3, name: 'Hoàn tất', icon: Check }
   ];
 
   return (
@@ -431,153 +522,8 @@ const Checkout = () => {
                 </Card>
               )}
 
-              {/* Step 2: Billing Information */}
+              {/* Step 2: Payment - Skip Billing, use auto-loaded user info */}
               {currentStep === 2 && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <User className="w-5 h-5" />
-                      Thông tin thanh toán
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <form onSubmit={handleBillingSubmit} className="space-y-4">
-                      <div className="grid md:grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Họ *
-                          </label>
-                          <Input
-                            required
-                            value={billingInfo.firstName}
-                            onChange={(e) => setBillingInfo(prev => ({...prev, firstName: e.target.value}))}
-                            placeholder="Nguyễn"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Tên *
-                          </label>
-                          <Input
-                            required
-                            value={billingInfo.lastName}
-                            onChange={(e) => setBillingInfo(prev => ({...prev, lastName: e.target.value}))}
-                            placeholder="Văn A"
-                          />
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Email *
-                        </label>
-                        <div className="relative">
-                          <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                          <Input
-                            required
-                            type="email"
-                            className="pl-10"
-                            value={billingInfo.email}
-                            onChange={(e) => setBillingInfo(prev => ({...prev, email: e.target.value}))}
-                            placeholder="john@example.com"
-                          />
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Phone Number
-                        </label>
-                        <div className="relative">
-                          <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                          <Input
-                            type="tel"
-                            className="pl-10"
-                            value={billingInfo.phone}
-                            onChange={(e) => setBillingInfo(prev => ({...prev, phone: e.target.value}))}
-                            placeholder="+1 (555) 123-4567"
-                          />
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Address *
-                        </label>
-                        <div className="relative">
-                          <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                          <Input
-                            required
-                            className="pl-10"
-                            value={billingInfo.address}
-                            onChange={(e) => setBillingInfo(prev => ({...prev, address: e.target.value}))}
-                            placeholder="123 Main Street"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="grid md:grid-cols-3 gap-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                        City *
-                          </label>
-                          <Input
-                            required
-                            value={billingInfo.city}
-                            onChange={(e) => setBillingInfo(prev => ({...prev, city: e.target.value}))}
-                            placeholder="New York"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Country *
-                          </label>
-                          <select
-                            required
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500"
-                            value={billingInfo.country}
-                            onChange={(e) => setBillingInfo(prev => ({...prev, country: e.target.value}))}
-                          >
-                            <option value="">Select Country</option>
-                            <option value="US">United States</option>
-                            <option value="VN">Vietnam</option>
-                            <option value="GB">United Kingdom</option>
-                            <option value="CA">Canada</option>
-                          </select>
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                        ZIP Code *
-                          </label>
-                          <Input
-                            required
-                            value={billingInfo.zipCode}
-                            onChange={(e) => setBillingInfo(prev => ({...prev, zipCode: e.target.value}))}
-                            placeholder="10001"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="flex justify-between pt-4">
-                        <Button 
-                          type="button"
-                          variant="outline" 
-                          onClick={() => setCurrentStep(1)}
-                        >
-                          <ArrowLeft className="w-4 h-4 mr-2" />
-                      Back to Cart
-                        </Button>
-                        <Button type="submit" className="bg-teal-500 hover:bg-teal-600">
-                      Continue to Payment
-                        </Button>
-                      </div>
-                    </form>
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Step 3: Payment */}
-              {currentStep === 3 && (
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
@@ -586,6 +532,32 @@ const Checkout = () => {
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
+                    {/* Show auto-loaded user info */}
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                      <div className="flex items-center gap-2 mb-3">
+                        <User className="w-5 h-5 text-blue-600" />
+                        <h3 className="font-semibold text-gray-900">Thông tin thanh toán</h3>
+                      </div>
+                      <div className="grid md:grid-cols-2 gap-3 text-sm">
+                        <div>
+                          <span className="text-gray-600">Họ tên:</span>{' '}
+                          <span className="font-medium">{billingInfo.firstName} {billingInfo.lastName}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-600">Email:</span>{' '}
+                          <span className="font-medium">{billingInfo.email}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-600">Điện thoại:</span>{' '}
+                          <span className="font-medium">{billingInfo.phone || 'Chưa cập nhật'}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-600">Địa chỉ:</span>{' '}
+                          <span className="font-medium">{billingInfo.city}, {billingInfo.country}</span>
+                        </div>
+                      </div>
+                    </div>
+
                     <form onSubmit={handlePaymentSubmit} className="space-y-6">
                       {/* Payment Method Selection */}
                       <div>
@@ -804,11 +776,11 @@ const Checkout = () => {
                         <Button 
                           type="button"
                           variant="outline" 
-                          onClick={() => setCurrentStep(2)}
+                          onClick={() => setCurrentStep(1)}
                           disabled={loading}
                         >
                           <ArrowLeft className="w-4 h-4 mr-2" />
-                          Quay lại thông tin
+                          Quay lại giỏ hàng
                         </Button>
                         <Button 
                           type="submit" 
@@ -822,7 +794,7 @@ const Checkout = () => {
                             </>
                           ) : (
                             <>
-                              {paymentInfo.paymentMethod === 'qr' ? 'Hoàn tất đơn hàng' : `Thanh toán ${formatCurrency(total)}`}
+                              {paymentInfo.paymentMethod === 'qr' ? 'Tạo mã QR thanh toán' : `Thanh toán ${formatCurrency(total)}`}
                             </>
                           )}
                         </Button>
@@ -832,8 +804,8 @@ const Checkout = () => {
                 </Card>
               )}
 
-              {/* Step 4: Confirmation */}
-              {currentStep === 4 && (
+              {/* Step 3: Confirmation */}
+              {currentStep === 3 && (
                 <Card>
                   <CardContent className="text-center p-8">
                     {transactionRef ? (
@@ -919,24 +891,41 @@ const Checkout = () => {
                         </div>
 
                         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6 text-sm text-yellow-800">
-                          <strong>⚠️ Lưu ý:</strong> Sau khi chuyển khoản thành công, vui lòng nhấn nút 
-                          <strong> "Tôi đã chuyển khoản"</strong> bên dưới để hệ thống xác nhận và kích hoạt khóa học.
+                          <strong>⚠️ Lưu ý:</strong> Sau khi chuyển khoản thành công, vui lòng đợi 1-2 phút 
+                          để hệ thống xác nhận thanh toán. Nhấn nút <strong>"Xác nhận đã thanh toán"</strong> 
+                          bên dưới để kiểm tra trạng thái.
                         </div>
+
+                        {paymentVerified && (
+                          <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6 text-sm text-green-800">
+                            <strong>✅ Đã xác nhận thanh toán!</strong> Bạn có thể hoàn tất đơn hàng ngay bây giờ.
+                          </div>
+                        )}
 
                         <Button 
                           onClick={handleCompleteQRPayment}
-                          className="bg-teal-500 hover:bg-teal-600 w-full sm:w-auto"
-                          disabled={loading}
+                          className={`w-full sm:w-auto ${paymentVerified ? 'bg-green-500 hover:bg-green-600' : 'bg-teal-500 hover:bg-teal-600'}`}
+                          disabled={loading || checkingPayment}
                         >
-                          {loading ? (
+                          {checkingPayment ? (
+                            <>
+                              <span className="animate-spin mr-2">🔍</span>
+                              Đang kiểm tra thanh toán...
+                            </>
+                          ) : loading ? (
                             <>
                               <span className="animate-spin mr-2">⏳</span>
-                              Đang xác nhận...
+                              Đang hoàn tất...
+                            </>
+                          ) : paymentVerified ? (
+                            <>
+                              <Check className="w-5 h-5 mr-2" />
+                              Hoàn tất đơn hàng
                             </>
                           ) : (
                             <>
                               <Check className="w-5 h-5 mr-2" />
-                              Tôi đã chuyển khoản
+                              Xác nhận đã thanh toán
                             </>
                           )}
                         </Button>

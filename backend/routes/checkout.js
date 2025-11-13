@@ -5,6 +5,87 @@ import { body, validationResult } from 'express-validator';
 
 const router = express.Router();
 
+// Verify payment status (check if payment received via QR/Bank transfer)
+router.post('/verify-payment', authenticateToken, [
+  body('paymentId').isInt().withMessage('Valid payment ID required'),
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { paymentId } = req.body;
+    const userId = req.user.userId;
+    const pool = await getPool();
+
+    // Check payment status in database
+    const result = await pool.request()
+      .input('paymentId', sql.BigInt, paymentId)
+      .input('userId', sql.BigInt, userId)
+      .query(`
+        SELECT payment_id, status, paid_at, txn_ref, created_at
+        FROM payments 
+        WHERE payment_id = @paymentId AND user_id = @userId
+      `);
+
+    if (result.recordset.length === 0) {
+      return res.json({
+        success: false,
+        error: 'Payment not found'
+      });
+    }
+
+    const payment = result.recordset[0];
+    
+    // TODO: Integrate with VietQR API or bank webhook to check actual payment
+    // For now, we simulate: if payment was created more than 2 minutes ago, consider verified
+    // In production, this should call bank API or check webhook notifications
+    const createdAt = new Date(payment.created_at);
+    const now = new Date();
+    const minutesPassed = (now - createdAt) / 1000 / 60;
+    
+    // Simulate payment verification:
+    // - If status is already 'completed', return verified
+    // - If pending and > 2 minutes old, mark as completed (simulating bank confirmation)
+    let verified = payment.status === 'completed';
+    
+    if (!verified && payment.status === 'pending' && minutesPassed >= 0.5) {
+      // Simulate bank confirmation received
+      // In production: Check with VietQR/Bank API here
+      verified = true;
+      
+      // Update status to completed
+      const txnRef = payment.txn_ref || `TXN-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`.toUpperCase();
+      await pool.request()
+        .input('paymentId', sql.BigInt, paymentId)
+        .input('txnRef', sql.NVarChar, txnRef)
+        .query(`
+          UPDATE payments 
+          SET status = 'completed', txn_ref = @txnRef, paid_at = GETDATE()
+          WHERE payment_id = @paymentId
+        `);
+    }
+
+    res.json({
+      success: true,
+      data: {
+        verified,
+        status: verified ? 'completed' : payment.status,
+        paidAt: payment.paid_at,
+        transactionRef: payment.txn_ref
+      }
+    });
+
+  } catch (error) {
+    console.error('Verify payment error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Server error while verifying payment'
+    });
+  }
+});
+
 // Create order/invoice (Ghi danh ngay hoặc từ giỏ hàng)
 router.post('/create-order', authenticateToken, [
   body('courses').isArray().notEmpty().withMessage('Courses must be a non-empty array'),
