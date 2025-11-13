@@ -55,7 +55,7 @@ const COLORS = {
 const InstructorLayout = ({ children }) => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { state: authState, logout } = useAuth();
+    const { authState: _authState, clearAuthState } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [theme, setTheme] = useState('light');
   const [expandedSections, setExpandedSections] = useState({

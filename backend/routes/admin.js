@@ -486,7 +486,7 @@ router.put('/courses/:courseId/approve', authenticateToken, requireAdmin, async 
 router.post('/courses/:courseId/reject', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { courseId } = req.params;
-    const { reason } = req.body;
+    const { reason: _reason } = req.body;
     const pool = await getPool();
 
     // Change status to 'inactive' when rejected
@@ -516,7 +516,7 @@ router.post('/courses/:courseId/reject', authenticateToken, requireAdmin, async 
 router.put('/courses/:courseId/reject', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { courseId } = req.params;
-    const { reason } = req.body;
+    const { reason: _reason } = req.body;
     const pool = await getPool();
 
     // Change status to 'inactive' when rejected

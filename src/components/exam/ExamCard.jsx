@@ -1,4 +1,4 @@
-import React from 'react';
+
 import { FileCheck, Lock, CheckCircle, Clock, Award } from 'lucide-react';
 import { Card, CardContent } from '../ui/card';
 import { Button } from '../ui/button';

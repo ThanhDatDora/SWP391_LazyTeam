@@ -521,7 +521,7 @@ router.post('/', authenticateToken, authorizeRoles('instructor', 'admin'), [
     }
 
     // Prepare data for insertion
-    const finalWhatYouWillLearn = what_you_will_learn || whatYouWillLearn || '';
+        const _finalWhatYouWillLearn = Array.isArray(req.body.whatYouWillLearn) ? req.body.whatYouWillLearn : [];
     const finalDuration = duration ? duration.toString() : '0';
 
     // Create course

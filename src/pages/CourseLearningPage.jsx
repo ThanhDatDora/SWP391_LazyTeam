@@ -4,7 +4,6 @@ import {
   ArrowLeft, BookOpen, FileText, Award, Menu, X,
   MessageSquare, HelpCircle, Video
 } from 'lucide-react';
-import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { useNavigation } from '../hooks/useNavigation';
@@ -27,7 +26,7 @@ const CourseLearningPage = () => {
   const { courseId } = useParams();
   const navigate = useNavigation();
   const location = useLocation();
-  const { state: authState } = useAuth();
+  const { state: _authState } = useAuth();
   const { toast } = useToast();
 
   // State

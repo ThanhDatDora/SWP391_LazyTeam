@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Trash2, Plus, Minus, ShoppingCart, CreditCard, MapPin, User, Mail, Phone, Lock, ArrowLeft, Check } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Trash2, ShoppingCart, CreditCard, User, Mail, Phone, Lock, ArrowLeft, Check } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
@@ -17,7 +17,7 @@ console.log('🔥 Checkout.jsx loaded - VERSION v3.0 - LATEST CODE');
 
 const Checkout = () => {
   const navigate = useNavigation();
-  const { state, user } = useAuth();
+  const { state: _state, user } = useAuth();
   const { cartItems, removeFromCart, clearCart, getTotalPrice } = useCart();
   const { success: showSuccess, error: showError } = useToast();
   const [currentStep, setCurrentStep] = useState(1); // 1: Cart, 2: Payment, 3: Confirmation
