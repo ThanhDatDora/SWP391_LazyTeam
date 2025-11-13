@@ -18,16 +18,25 @@ router.get('/revenue/summary', authenticateToken, requireInstructor, async (req,
     const userId = req.user.userId;
     const pool = await getPool();
 
-    // Get instructor ID
-    const instructorResult = await pool.request()
+    // Get or create instructor ID
+    let instructorResult = await pool.request()
       .input('userId', sql.BigInt, userId)
       .query('SELECT instructor_id FROM instructors WHERE user_id = @userId');
 
+    let instructorId;
     if (instructorResult.recordset.length === 0) {
-      return res.status(404).json({ error: 'Instructor profile not found' });
+      // Auto-create instructor profile if not exists
+      const createResult = await pool.request()
+        .input('userId', sql.BigInt, userId)
+        .query(`
+          INSERT INTO instructors (user_id, bio, expertise, rating)
+          OUTPUT INSERTED.instructor_id
+          VALUES (@userId, N'Giảng viên mới', N'Chưa cập nhật', 0)
+        `);
+      instructorId = createResult.recordset[0].instructor_id;
+    } else {
+      instructorId = instructorResult.recordset[0].instructor_id;
     }
-
-    const instructorId = instructorResult.recordset[0].instructor_id;
 
     // Get revenue summary
     const revenueResult = await pool.request()
@@ -36,15 +45,17 @@ router.get('/revenue/summary', authenticateToken, requireInstructor, async (req,
         SELECT 
           COUNT(DISTINCT inv.invoice_id) as totalSales,
           COUNT(DISTINCT inv.course_id) as coursesSold,
-          COUNT(DISTINCT e.enrollment_id) as totalEnrollments,
-          SUM(inv.amount) as totalRevenue,
-          SUM(inv.amount) * 0.8 as instructorShare,
-          SUM(inv.amount) * 0.2 as platformFee
+          (SELECT COUNT(DISTINCT e.userId) 
+           FROM Enrollments e 
+           JOIN courses c2 ON e.courseId = c2.course_id
+           WHERE c2.instructor_id = @instructorId
+          ) as totalStudents,
+          ISNULL(SUM(inv.amount), 0) as totalRevenue,
+          ISNULL(SUM(inv.amount) * 0.8, 0) as instructorShare,
+          ISNULL(SUM(inv.amount) * 0.2, 0) as platformFee
         FROM courses c
-        JOIN invoices inv ON inv.course_id = c.course_id
-        LEFT JOIN enrollments e ON e.course_id = c.course_id
-        WHERE c.instructor_id = @instructorId 
-          AND inv.status = 'paid'
+        LEFT JOIN invoices inv ON inv.course_id = c.course_id AND inv.status = 'paid'
+        WHERE c.instructor_id = @instructorId
       `);
 
     // Get monthly revenue (last 6 months)
@@ -54,12 +65,11 @@ router.get('/revenue/summary', authenticateToken, requireInstructor, async (req,
         SELECT 
           FORMAT(inv.paid_at, 'yyyy-MM') as month,
           COUNT(*) as sales,
-          SUM(inv.amount) as revenue,
-          SUM(inv.amount) * 0.8 as instructorShare
+          ISNULL(SUM(inv.amount), 0) as revenue,
+          ISNULL(SUM(inv.amount) * 0.8, 0) as instructorShare
         FROM courses c
-        JOIN invoices inv ON inv.course_id = c.course_id
-        WHERE c.instructor_id = @instructorId 
-          AND inv.status = 'paid'
+        LEFT JOIN invoices inv ON inv.course_id = c.course_id AND inv.status = 'paid'
+        WHERE c.instructor_id = @instructorId
           AND inv.paid_at >= DATEADD(MONTH, -6, GETDATE())
         GROUP BY FORMAT(inv.paid_at, 'yyyy-MM')
         ORDER BY month DESC
@@ -74,8 +84,8 @@ router.get('/revenue/summary', authenticateToken, requireInstructor, async (req,
           c.title,
           c.price,
           COUNT(inv.invoice_id) as sales,
-          SUM(inv.amount) as totalRevenue,
-          SUM(inv.amount) * 0.8 as instructorShare
+          ISNULL(SUM(inv.amount), 0) as totalRevenue,
+          ISNULL(SUM(inv.amount) * 0.8, 0) as instructorShare
         FROM courses c
         LEFT JOIN invoices inv ON inv.course_id = c.course_id AND inv.status = 'paid'
         WHERE c.instructor_id = @instructorId
@@ -114,16 +124,25 @@ router.get('/revenue/transactions', authenticateToken, requireInstructor, async 
     const { limit = 20, offset = 0 } = req.query;
     const pool = await getPool();
 
-    // Get instructor ID
-    const instructorResult = await pool.request()
+    // Get or create instructor ID
+    let instructorResult = await pool.request()
       .input('userId', sql.BigInt, userId)
       .query('SELECT instructor_id FROM instructors WHERE user_id = @userId');
 
+    let instructorId;
     if (instructorResult.recordset.length === 0) {
-      return res.status(404).json({ error: 'Instructor profile not found' });
+      // Auto-create instructor profile if not exists
+      const createResult = await pool.request()
+        .input('userId', sql.BigInt, userId)
+        .query(`
+          INSERT INTO instructors (user_id, bio, expertise, rating)
+          OUTPUT INSERTED.instructor_id
+          VALUES (@userId, N'Giảng viên mới', N'Chưa cập nhật', 0)
+        `);
+      instructorId = createResult.recordset[0].instructor_id;
+    } else {
+      instructorId = instructorResult.recordset[0].instructor_id;
     }
-
-    const instructorId = instructorResult.recordset[0].instructor_id;
 
     const result = await pool.request()
       .input('instructorId', sql.BigInt, instructorId)
@@ -142,7 +161,8 @@ router.get('/revenue/transactions', authenticateToken, requireInstructor, async 
           p.txn_ref
         FROM invoices inv
         JOIN courses c ON inv.course_id = c.course_id
-        JOIN users u ON inv.user_id = u.user_id
+        LEFT JOIN Enrollments e ON e.courseId = inv.course_id
+        LEFT JOIN users u ON u.user_id = e.userId
         LEFT JOIN payments p ON p.payment_id = inv.payment_id
         WHERE c.instructor_id = @instructorId
         ORDER BY inv.paid_at DESC

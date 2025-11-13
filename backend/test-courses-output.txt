@@ -2,31 +2,47 @@ Changed database context to 'MiniCoursera_Primary'.
 Using Instructor ID: 2
 
 (1 rows affected)
-Created Course 1 (Python): 13
+Created Course 1 (Python): 16
 
 (8 rows affected)
 
 (1 rows affected)
-Created Course 2 (HTML/CSS): 14
+Created Course 2 (HTML/CSS): 17
 
 (8 rows affected)
 
 (1 rows affected)
-Created Course 3 (Git/GitHub): 15
+Created Course 3 (Git/GitHub): 18
 
 (8 rows affected)
  
-✅ Successfully created 3 cheap test courses!
+Successfully created 3 cheap test courses!
  
-📚 Course Summary:
-1. Python cho người mới bắt đầu - $0.50 (ID: 13) - 8 lessons
-2. HTML & CSS từ Zero đến Hero - $0.75 (ID: 14) - 8 lessons
-3. Git & GitHub thực chiến - $1.00 (ID: 15) - 8 lessons
+Course Summary:
+1. Python cho nguoi moi bat dau - $0.50 (ID: 16) - 8 lessons - STATUS: pending
+2. HTML & CSS tu Zero den Hero - $0.75 (ID: 17) - 8 lessons - STATUS: pending
+3. Git & GitHub thuc chien - $1.00 (ID: 18) - 8 lessons - STATUS: pending
  
 Each course has:
 - 6-7 video lessons
 - 1-2 assignments at the end
-- All approved and ready to purchase
+- STATUS: pending (waiting for admin approval/rejection)
+ 
+Admin can:
+- Approve: change status to active
+- Reject: change status to inactive
+Msg 137, Level 15, State 2, Server LAPTOP-C9N89KGI\SQLEXPRESS, Line 3
+Must declare the scalar variable "@InstructorId".
+Msg 137, Level 15, State 1, Server LAPTOP-C9N89KGI\SQLEXPRESS, Line 14
+Must declare the scalar variable "@InstructorId".
+Msg 137, Level 15, State 2, Server LAPTOP-C9N89KGI\SQLEXPRESS, Line 17
+Must declare the scalar variable "@InstructorId".
+Msg 137, Level 15, State 2, Server LAPTOP-C9N89KGI\SQLEXPRESS, Line 41
+Must declare the scalar variable "@InstructorId".
+Msg 137, Level 15, State 2, Server LAPTOP-C9N89KGI\SQLEXPRESS, Line 87
+Must declare the scalar variable "@InstructorId".
+Msg 137, Level 15, State 2, Server LAPTOP-C9N89KGI\SQLEXPRESS, Line 133
+Must declare the scalar variable "@InstructorId".
 Msg 137, Level 15, State 2, Server LAPTOP-C9N89KGI\SQLEXPRESS, Line 3
 Must declare the scalar variable "@InstructorId".
 Msg 137, Level 15, State 1, Server LAPTOP-C9N89KGI\SQLEXPRESS, Line 14

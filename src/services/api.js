@@ -525,7 +525,9 @@ export const examAPI = {
 // User API
 export const userAPI = {
   async getProfile() {
-    return await apiRequest('/profile');
+    const response = await apiRequest('/auth/profile');
+    // Backend returns { user: {...} }
+    return response;
   },
 
   async getAllUsers(params = {}) {
@@ -703,6 +705,16 @@ const checkoutAPI = {
   }
 };
 
+// VNPay API
+const vnpayAPI = {
+  async createPaymentUrl(paymentData) {
+    return await apiRequest('/vnpay/create-payment-url', {
+      method: 'POST',
+      body: JSON.stringify(paymentData)
+    });
+  }
+};
+
 // Assignments API
 const assignmentsAPI = {
   async submit(lessonId, contentText, file) {
@@ -795,6 +807,7 @@ export const api = {
   learner: learnerAPI,
   users: userAPI,
   checkout: checkoutAPI,
+  vnpay: vnpayAPI,
   assignments: assignmentsAPI,
   cache: cacheUtils
 };

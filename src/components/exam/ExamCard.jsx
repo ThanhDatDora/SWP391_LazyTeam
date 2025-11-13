@@ -30,7 +30,7 @@ const ExamCard = ({
     <Card className={`
       border-l-4 transition-all duration-200
       ${hasPassed ? 'border-l-green-500 bg-white shadow-sm' : ''}
-      ${isLocked ? 'border-l-gray-300 bg-gray-50 opacity-75' : ''}
+      ${isLocked ? 'border-l-gray-300 bg-white opacity-60' : ''}
       ${!isLocked && !hasPassed ? 'border-l-blue-500 hover:shadow-md bg-white' : ''}
     `}>
       <CardContent className="p-4">
@@ -56,7 +56,7 @@ const ExamCard = ({
             {/* Content */}
             <div className="flex-1 space-y-2">
               <div className="flex items-center gap-2">
-                <h3 className="font-semibold text-gray-900">
+                <h3 className="font-semibold text-gray-800">
                   Exam: {moocTitle}
                 </h3>
                 {hasPassed && (
@@ -75,7 +75,7 @@ const ExamCard = ({
                     Complete all {totalLessons} lessons to unlock ({lessonsCompleted}/{totalLessons} done)
                   </span>
                 ) : hasPassed ? (
-                  <span className="text-green-600 flex items-center gap-1">
+                  <span className="text-green-700 font-medium flex items-center gap-1">
                     <CheckCircle className="w-4 h-4" />
                     You passed with {bestScore}%
                   </span>
@@ -89,7 +89,7 @@ const ExamCard = ({
 
               {/* Attempts info */}
               {hasAttempts && (
-                <div className="flex items-center gap-4 text-xs text-gray-500">
+                <div className="flex items-center gap-4 text-xs text-gray-700 font-medium">
                   <span>Attempts: {previousAttempts}</span>
                   {bestScore !== null && (
                     <span>Best score: {bestScore}%</span>

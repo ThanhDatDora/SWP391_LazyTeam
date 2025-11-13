@@ -8,7 +8,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Input } from '../../components/ui/input';
 import { Textarea } from '../../components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
+import InstructorLayout from '../../components/layout/InstructorLayout';
 import { useNavigation } from '@/hooks/useNavigation';
+import { useAuth } from '../../contexts/AuthContext';
 import {
   ArrowLeft,
   Plus,
@@ -35,6 +37,7 @@ import { toast } from 'react-hot-toast';
 const InstructorCourseManagement = () => {
   const { courseId } = useParams();
   const navigate = useNavigation();
+  const { state: authState } = useAuth();
 
   const [course, setCourse] = useState(null);
   const [moocs, setMoocs] = useState([]);
@@ -139,14 +142,22 @@ const InstructorCourseManagement = () => {
 
   const loadStudents = async () => {
     try {
-      const response = await fetch(`/api/courses/${courseId}/students`, {
+      const response = await fetch(`/api/instructor/courses/${courseId}/students`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
       });
       const data = await response.json();
       if (data.success) {
-        setStudents(data.data || []);
+        // Transform data to add progress and status
+        const studentsWithProgress = data.data.map(student => ({
+          ...student,
+          progress: student.total_lessons > 0 
+            ? Math.round((student.completed_lessons / student.total_lessons) * 100)
+            : 0,
+          status: student.is_completed ? 'completed' : 'active'
+        }));
+        setStudents(studentsWithProgress);
       }
     } catch (error) {
       console.error('Error loading students:', error);
@@ -348,35 +359,40 @@ const InstructorCourseManagement = () => {
 
   if (loading) {
     return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600 mx-auto mb-4" />
-          <p className="text-gray-600">Đang tải dữ liệu...</p>
+      <InstructorLayout>
+        <div className="container mx-auto px-4 py-8">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600 mx-auto mb-4" />
+            <p className="text-gray-600">Đang tải dữ liệu...</p>
+          </div>
         </div>
-      </div>
+      </InstructorLayout>
     );
   }
 
   if (!course) {
     return (
-      <div className="container mx-auto px-4 py-8">
-        <Card>
-          <CardContent className="p-12 text-center">
-            <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">
-              Không tìm thấy khóa học
-            </h3>
-            <Button onClick={() => navigate('/instructor/dashboard')}>
-              Quay lại dashboard
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
+      <InstructorLayout>
+        <div className="container mx-auto px-4 py-8">
+          <Card>
+            <CardContent className="p-12 text-center">
+              <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                Không tìm thấy khóa học
+              </h3>
+              <Button onClick={() => navigate('/instructor/dashboard')}>
+                Quay lại dashboard
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </InstructorLayout>
     );
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <InstructorLayout>
+      <div className="container mx-auto px-4 py-8">
       {/* Header */}
       <div className="mb-6">
         <Button 
@@ -694,24 +710,97 @@ const InstructorCourseManagement = () => {
             <h2 className="text-xl font-semibold">Học viên đã đăng ký</h2>
             <Button variant="outline">
               <Download className="w-4 h-4 mr-2" />
-              Xuất danh sách
+              Xuất danh sách CSV
             </Button>
           </div>
 
-          <Card>
-            <CardContent className="p-8 text-center">
-              <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">
-                Danh sách học viên
-              </h3>
-              <p className="text-gray-600 mb-4">
-                Tính năng này đang được phát triển
-              </p>
-              <p className="text-sm text-gray-500">
-                Số học viên đã đăng ký: {course.enrolled_count || 0}
-              </p>
-            </CardContent>
-          </Card>
+          {students.length > 0 ? (
+            <Card>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Học viên
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Email
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Ngày đăng ký
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Tiến độ
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Trạng thái
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {students.map((student) => (
+                        <tr key={student.enrollment_id} className="hover:bg-gray-50">
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex items-center">
+                              <div className="flex-shrink-0 h-10 w-10 bg-teal-100 rounded-full flex items-center justify-center">
+                                <span className="text-teal-600 font-medium">
+                                  {student.full_name?.charAt(0).toUpperCase() || 'U'}
+                                </span>
+                              </div>
+                              <div className="ml-4">
+                                <div className="text-sm font-medium text-gray-900">
+                                  {student.full_name || 'Unknown User'}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-900">{student.email}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-500">
+                              {formatDate(student.enrolled_at)}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="w-full bg-gray-200 rounded-full h-2">
+                              <div 
+                                className="bg-teal-600 h-2 rounded-full"
+                                style={{ width: `${student.progress || 0}%` }}
+                              />
+                            </div>
+                            <div className="text-xs text-gray-500 mt-1">
+                              {Math.round(student.progress || 0)}%
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <Badge 
+                              variant={student.status === 'active' ? 'default' : 'secondary'}
+                            >
+                              {student.status === 'active' ? 'Đang học' : student.status}
+                            </Badge>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardContent className="p-8 text-center">
+                <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">
+                  Chưa có học viên nào
+                </h3>
+                <p className="text-gray-600">
+                  Số học viên đã đăng ký: {course.enrolled_count || 0}
+                </p>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         {/* Analytics Tab */}
@@ -1020,7 +1109,8 @@ const InstructorCourseManagement = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+      </div>
+    </InstructorLayout>
   );
 };
 

@@ -90,12 +90,26 @@ router.get('/', [
         cat.category_id as categoryId,
         'https://via.placeholder.com/300x200' as thumbnail,
         '10 hours' as duration,
-        0 as enrollmentCount,
+        ISNULL(COUNT(DISTINCT e.enrollment_id), 0) as enrollmentCount,
         4.5 as rating,
         0 as reviewCount
       FROM courses c
       LEFT JOIN categories cat ON c.category_id = cat.category_id
+      LEFT JOIN enrollments e ON c.course_id = e.course_id
       ${whereClause}
+      GROUP BY 
+        c.course_id,
+        c.title,
+        c.description,
+        c.price,
+        c.level,
+        c.language_code,
+        c.created_at,
+        c.updated_at,
+        c.status,
+        c.owner_instructor_id,
+        cat.name,
+        cat.category_id
       ORDER BY c.created_at DESC
       OFFSET @offset ROWS
       FETCH NEXT @limit ROWS ONLY
@@ -415,72 +429,148 @@ router.post('/', authenticateToken, authorizeRoles('instructor', 'admin'), [
   body('title').trim().isLength({ min: 5, max: 500 }),
   body('description').trim().isLength({ min: 10 }),
   body('shortDescription').optional().trim().isLength({ max: 1000 }),
-  body('categoryId').isInt(),
-  body('price').optional().isFloat({ min: 0 }),
-  body('level').isIn(['Beginner', 'Intermediate', 'Advanced']),
-  body('duration').optional().trim(),
+  body('category').optional().trim(),
+  body('categoryId').optional().isInt(),
+  body('price').optional(),
+  body('level').optional().isIn(['Beginner', 'Intermediate', 'Advanced', 'beginner', 'intermediate', 'advanced']),
+  body('duration').optional(),
   body('language').optional().trim()
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
+      console.error('Validation errors:', errors.array());
       return res.status(400).json({ 
+        success: false,
         message: 'Validation errors', 
         errors: errors.array() 
       });
     }
 
     const {
-      title, description, shortDescription, categoryId, price = 0,
-      originalPrice, level, duration, language = 'Vietnamese',
-      requirements, whatYouWillLearn
+      title, description, shortDescription, category, categoryId, price = 0,
+      originalPrice, level = 'Beginner', duration, language = 'vi',
+      requirements, whatYouWillLearn, what_you_will_learn, is_free, thumbnail_url
     } = req.body;
 
     const pool = await getPool();
 
-    // Verify category exists
-    const categoryResult = await pool.request()
-      .input('categoryId', sql.Int, categoryId)
-      .query('SELECT id FROM Categories WHERE id = @categoryId');
-
-    if (categoryResult.recordset.length === 0) {
-      return res.status(400).json({ message: 'Invalid category ID' });
+    // Map category string to categoryId if not provided
+    let finalCategoryId = categoryId;
+    if (!finalCategoryId && category) {
+      const categoryMap = {
+        'programming': 1,
+        'web-development': 2,
+        'mobile-development': 3,
+        'data-science': 4,
+        'machine-learning': 5,
+        'design': 6,
+        'business': 7,
+        'marketing': 8,
+        'language': 9,
+        'other': 10
+      };
+      finalCategoryId = categoryMap[category] || 1;
     }
+
+    // Default to category 1 if still not found
+    if (!finalCategoryId) {
+      finalCategoryId = 1;
+    }
+
+    // Normalize level
+    const normalizedLevel = level.charAt(0).toUpperCase() + level.slice(1).toLowerCase();
+
+    // Parse price
+    const finalPrice = is_free ? 0 : parseFloat(price) || 0;
+
+    // Get instructor_id from user_id
+    console.log('🔍 Looking for instructor with userId:', req.user.userId);
+    
+    // First check if table exists and what columns it has
+    try {
+      const schemaCheck = await pool.request().query(`
+        SELECT COLUMN_NAME 
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_NAME = 'instructors'
+      `);
+      console.log('📋 Instructors table columns:', schemaCheck.recordset.map(r => r.COLUMN_NAME));
+    } catch (err) {
+      console.error('⚠️ Could not check schema:', err.message);
+    }
+    
+    const instructorResult = await pool.request()
+      .input('userId', sql.BigInt, req.user.userId)
+      .query('SELECT instructor_id FROM instructors WHERE user_id = @userId');
+    
+    console.log('📊 Instructor query result:', instructorResult.recordset);
+
+    let instructorId;
+    if (instructorResult.recordset.length === 0) {
+      // Auto-create instructor if not exists
+      const createInstructor = await pool.request()
+        .input('userId', sql.BigInt, req.user.userId)
+        .query(`
+          INSERT INTO instructors (user_id, bio, expertise, rating)
+          OUTPUT INSERTED.instructor_id
+          VALUES (@userId, N'Giảng viên mới', N'Chưa cập nhật', 0)
+        `);
+      instructorId = createInstructor.recordset[0].instructor_id;
+    } else {
+      instructorId = instructorResult.recordset[0].instructor_id;
+    }
+
+    // Prepare data for insertion
+    const finalWhatYouWillLearn = what_you_will_learn || whatYouWillLearn || '';
+    const finalDuration = duration ? duration.toString() : '0';
 
     // Create course
     const result = await pool.request()
       .input('title', sql.NVarChar, title)
       .input('description', sql.NText, description)
-      .input('shortDescription', sql.NVarChar, shortDescription)
-      .input('instructorId', sql.Int, req.user.id)
-      .input('categoryId', sql.Int, categoryId)
-      .input('price', sql.Decimal(10, 2), price)
-      .input('originalPrice', sql.Decimal(10, 2), originalPrice)
-      .input('level', sql.NVarChar, level)
-      .input('duration', sql.NVarChar, duration)
-      .input('language', sql.NVarChar, language)
-      .input('requirements', sql.NText, requirements)
-      .input('whatYouWillLearn', sql.NText, whatYouWillLearn)
+      .input('instructorId', sql.BigInt, instructorId)
+      .input('categoryId', sql.Int, finalCategoryId)
+      .input('price', sql.Decimal(10, 2), finalPrice)
+      .input('level', sql.NVarChar, normalizedLevel)
+      .input('languageCode', sql.NVarChar(10), language || 'vi')
       .query(`
-        INSERT INTO Courses (
-          title, description, shortDescription, instructorId, categoryId, price, originalPrice,
-          level, duration, language, requirements, whatYouWillLearn
+        INSERT INTO courses (
+          title, description, instructor_id, category_id, price,
+          level, language_code, status, is_approved, created_at, updated_at
         )
         OUTPUT INSERTED.*
         VALUES (
-          @title, @description, @shortDescription, @instructorId, @categoryId, @price, @originalPrice,
-          @level, @duration, @language, @requirements, @whatYouWillLearn
+          @title, @description, @instructorId, @categoryId, @price,
+          @level, @languageCode, 'active', 0, GETDATE(), GETDATE()
         )
       `);
 
+    const newCourse = result.recordset[0];
+
     res.status(201).json({
+      success: true,
       message: 'Course created successfully',
-      course: result.recordset[0]
+      data: {
+        course_id: newCourse.course_id,
+        title: newCourse.title,
+        description: newCourse.description,
+        price: newCourse.price,
+        level: newCourse.level
+      }
     });
 
   } catch (error) {
     console.error('Create course error:', error);
-    res.status(500).json({ message: 'Internal server error' });
+    console.error('Error details:', {
+      message: error.message,
+      stack: error.stack,
+      requestBody: req.body
+    });
+    res.status(500).json({ 
+      success: false,
+      message: 'Internal server error',
+      error: error.message 
+    });
   }
 });
 

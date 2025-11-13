@@ -51,22 +51,40 @@ const Checkout = () => {
         try {
           // Try to get full profile
           const profileResponse = await api.users.getProfile();
-          const profile = profileResponse.data;
+          console.log('🔍 Full Profile API Response:', profileResponse);
           
-          // Split full_name into firstName and lastName
-          const nameParts = (profile.full_name || user.full_name || '').split(' ');
+          // API wrapper returns: { success: true, data: { user: {...} } }
+          // Backend returns: { user: {...} }
+          // So profile is at: profileResponse.data.user
+          const profile = profileResponse.data?.user;
+          console.log('👤 Extracted Profile data:', profile);
+          
+          if (!profile) {
+            throw new Error('Profile data not found in response');
+          }
+          
+          // Split fullName into firstName and lastName
+          const nameParts = (profile.fullName || user.full_name || '').split(' ');
           const firstName = nameParts[0] || '';
           const lastName = nameParts.slice(1).join(' ') || '';
+          
+          console.log('📝 Setting billing info:', {
+            firstName,
+            lastName,
+            email: profile.email,
+            phone: profile.phone,
+            address: profile.address
+          });
           
           setBillingInfo({
             firstName: firstName,
             lastName: lastName,
             email: profile.email || user.email || '',
             phone: profile.phone || user.phone || '',
-            address: profile.address || '',
-            city: profile.city || 'Hồ Chí Minh',
-            country: profile.country || 'VN',
-            zipCode: profile.zipCode || '700000'
+            address: profile.address || '', // Lấy từ DB, không dùng default
+            city: 'Hồ Chí Minh',
+            country: 'VN',
+            zipCode: '700000'
           });
         } catch (error) {
           console.error('Error loading user profile:', error);
@@ -96,12 +114,49 @@ const Checkout = () => {
     }
   }, [enrollNow, courseIdParam]);
 
+  // Auto-polling payment verification when showing QR code
+  useEffect(() => {
+    if (currentStep === 3 && paymentId && !paymentVerified) {
+      console.log('🔄 Starting auto-polling payment verification...', { 
+        currentStep, 
+        paymentId, 
+        paymentVerified 
+      });
+      
+      // Start polling after 10 seconds (bank usually processes within 5-10s)
+      const pollTimer = setTimeout(async () => {
+        console.log('⏰ 10s passed, checking payment status...');
+        
+        try {
+          const response = await api.checkout.verifyPaymentStatus({ paymentId });
+          const verified = response.data?.verified || response.data?.status === 'completed';
+          console.log('💳 Payment status:', { verified, response: response.data });
+          
+          if (verified) {
+            console.log('✅ Payment verified! Setting state...');
+            setPaymentVerified(true);
+            showSuccess('✅ Thanh toán đã được xác nhận! Nhấn nút "Hoàn tất đơn hàng" để tiếp tục.');
+          } else {
+            console.log('⏳ Payment not yet received');
+          }
+        } catch (error) {
+          console.error('❌ Auto-verify error:', error);
+        }
+      }, 10000); // 10 seconds
+
+      return () => {
+        console.log('🧹 Cleaning up polling timer');
+        clearTimeout(pollTimer);
+      };
+    }
+  }, [currentStep, paymentId, paymentVerified]);
+
   const [paymentInfo, setPaymentInfo] = useState({
     cardNumber: '',
     expiryDate: '',
     cvv: '',
     cardholderName: '',
-    paymentMethod: 'qr' // Default to QR code
+    paymentMethod: 'bank_transfer' // Changed to bank transfer (VNPay sandbox credentials expired)
   });
 
   const subtotal = getTotalPrice();
@@ -237,20 +292,19 @@ const Checkout = () => {
       return;
     }
 
-    // Validate billing info is filled (from auto-load)
-    if (!billingInfo.email || !billingInfo.firstName) {
-      showError('Thông tin thanh toán chưa đầy đủ. Vui lòng kiểm tra lại.');
-      return;
-    }
-
     // Ensure required fields have values (use defaults if empty)
     const completeBillingInfo = {
-      ...billingInfo,
+      firstName: billingInfo.firstName || user?.fullName?.split(' ')[0] || 'User',
+      lastName: billingInfo.lastName || user?.fullName?.split(' ').slice(1).join(' ') || 'Name',
+      email: billingInfo.email || user?.email || 'user@example.com',
+      phone: billingInfo.phone || '0933027148',
       address: billingInfo.address || '123 Main Street',
       city: billingInfo.city || 'Hồ Chí Minh',
       country: billingInfo.country || 'VN',
       zipCode: billingInfo.zipCode || '700000'
     };
+    
+    console.log('📋 Complete billing info:', completeBillingInfo);
     
     setLoading(true);
     
@@ -301,6 +355,14 @@ const Checkout = () => {
         
         if (!apiResponse.success) {
           console.error('❌ API call failed with:', apiResponse);
+          console.error('❌ Validation errors:', apiResponse?.validationErrors);
+          
+          // Hiển thị validation errors cụ thể cho user
+          if (apiResponse?.validationErrors && Array.isArray(apiResponse.validationErrors)) {
+            const errorMessages = apiResponse.validationErrors.map(err => err.msg).join(', ');
+            throw new Error(`Lỗi validation: ${errorMessages}`);
+          }
+          
           throw new Error(apiResponse?.error || 'API trả về lỗi');
         }
         
@@ -368,8 +430,36 @@ const Checkout = () => {
           fullPaymentInfo: paymentInfo
         });
         
+        // For VNPay: redirect to VNPay payment gateway
+        if (paymentInfo.paymentMethod === 'vnpay') {
+          console.log('🏦 VNPay Payment path selected');
+          try {
+            const vnpayResponse = await api.vnpay.createPaymentUrl({
+              paymentId: createdPaymentId,
+              amount: total
+            });
+
+            if (!vnpayResponse || !vnpayResponse.success) {
+              throw new Error(vnpayResponse?.error || 'Failed to create VNPay payment URL');
+            }
+
+            const paymentUrl = vnpayResponse.data.paymentUrl;
+            console.log('✅ VNPay URL created, redirecting...');
+            
+            showSuccess('Đang chuyển đến trang thanh toán VNPay...');
+            
+            // Redirect to VNPay payment page
+            setTimeout(() => {
+              window.location.href = paymentUrl;
+            }, 1000);
+            
+          } catch (error) {
+            console.error('❌ VNPay error:', error);
+            throw error;
+          }
+        }
         // For QR payment: show QR code and wait for user confirmation
-        if (paymentInfo.paymentMethod === 'qr') {
+        else if (paymentInfo.paymentMethod === 'qr') {
           console.log('🔄 QR Payment path selected');
           try {
             showSuccess('Vui lòng quét mã QR để thanh toán!');
@@ -562,7 +652,7 @@ const Checkout = () => {
                         </div>
                         <div>
                           <span className="text-gray-600">Địa chỉ:</span>{' '}
-                          <span className="font-medium">{billingInfo.city}, {billingInfo.country}</span>
+                          <span className="font-medium">{billingInfo.address || 'Chưa cập nhật'}</span>
                         </div>
                       </div>
                     </div>
@@ -573,26 +663,94 @@ const Checkout = () => {
                         <label className="block text-sm font-medium text-gray-700 mb-3">
                           Phương thức thanh toán
                         </label>
-                        <div className="grid md:grid-cols-2 gap-4">
+                        <div className="grid md:grid-cols-3 gap-4">
                           {[
-                            { id: 'qr', name: 'Chuyển khoản QR Code', icon: '�' },
-                            { id: 'card', name: 'Thẻ tín dụng/Ghi nợ', icon: '💳' }
+                            { id: 'vnpay', name: 'VNPay (ATM/Visa/QR)', icon: '💳', recommended: true },
+                            { id: 'qr', name: 'Chuyển khoản QR Code', icon: '📱' },
+                            { id: 'card', name: 'Thẻ tín dụng/Ghi nợ', icon: '�' }
                           ].map(method => (
                             <div
                               key={method.id}
-                              className={`p-4 border-2 rounded-lg cursor-pointer text-center transition-all ${
+                              className={`p-4 border-2 rounded-lg cursor-pointer text-center transition-all relative ${
                                 paymentInfo.paymentMethod === method.id
                                   ? 'border-teal-500 bg-teal-50'
                                   : 'border-gray-200 hover:border-gray-300'
                               }`}
                               onClick={() => setPaymentInfo(prev => ({...prev, paymentMethod: method.id}))}
                             >
+                              {method.recommended && (
+                                <div className="absolute -top-2 -right-2 bg-red-500 text-white text-xs px-2 py-1 rounded-full">
+                                  Khuyến nghị
+                                </div>
+                              )}
                               <div className="text-2xl mb-2">{method.icon}</div>
                               <div className="font-medium">{method.name}</div>
                             </div>
                           ))}
                         </div>
                       </div>
+
+                      {/* VNPay Payment */}
+                      {paymentInfo.paymentMethod === 'vnpay' && (
+                        <div className="space-y-4">
+                          <div className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-xl p-6 border-2 border-blue-200">
+                            <div className="text-center mb-4">
+                              <h3 className="text-xl font-bold text-gray-900 mb-2">
+                                🏦 Thanh toán qua VNPay
+                              </h3>
+                              <p className="text-sm text-gray-600">
+                                Hỗ trợ: ATM nội địa, Visa/MasterCard, QR Code, Ví điện tử
+                              </p>
+                            </div>
+
+                            <div className="bg-white rounded-lg p-4 mb-4">
+                              <div className="flex items-center justify-center gap-4 flex-wrap">
+                                <img src="https://stcd02206177151.cloud.edgevnpay.vn/assets/images/logo-icon/logo-primary.svg" alt="VNPay" className="h-8" />
+                                <span className="text-gray-400">|</span>
+                                <div className="flex gap-2">
+                                  <span className="px-2 py-1 bg-blue-50 text-blue-700 rounded text-xs font-medium">ATM</span>
+                                  <span className="px-2 py-1 bg-purple-50 text-purple-700 rounded text-xs font-medium">Visa</span>
+                                  <span className="px-2 py-1 bg-green-50 text-green-700 rounded text-xs font-medium">QR</span>
+                                  <span className="px-2 py-1 bg-orange-50 text-orange-700 rounded text-xs font-medium">Ví</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="bg-blue-50 rounded-lg p-4">
+                              <h4 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
+                                <span className="text-blue-600">ℹ️</span>
+                                Hướng dẫn thanh toán:
+                              </h4>
+                              <ol className="space-y-2 text-sm text-gray-700">
+                                <li className="flex items-start gap-2">
+                                  <span className="font-bold text-blue-600">1.</span>
+                                  <span>Nhấn nút <strong>"Tiếp tục thanh toán"</strong> bên dưới</span>
+                                </li>
+                                <li className="flex items-start gap-2">
+                                  <span className="font-bold text-blue-600">2.</span>
+                                  <span>Bạn sẽ được chuyển đến trang thanh toán VNPay</span>
+                                </li>
+                                <li className="flex items-start gap-2">
+                                  <span className="font-bold text-blue-600">3.</span>
+                                  <span>Chọn phương thức: Thẻ ATM, Visa/Master, QR Code...</span>
+                                </li>
+                                <li className="flex items-start gap-2">
+                                  <span className="font-bold text-blue-600">4.</span>
+                                  <span>Nhập thông tin và xác nhận thanh toán</span>
+                                </li>
+                                <li className="flex items-start gap-2">
+                                  <span className="font-bold text-blue-600">5.</span>
+                                  <span>Sau khi thành công, bạn sẽ tự động quay lại trang này</span>
+                                </li>
+                              </ol>
+                            </div>
+
+                            <div className="mt-4 bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-800">
+                              <strong>✅ An toàn & Bảo mật:</strong> Giao dịch được mã hóa SSL 256-bit bởi VNPay
+                            </div>
+                          </div>
+                        </div>
+                      )}
 
                       {/* QR Code Payment */}
                       {paymentInfo.paymentMethod === 'qr' && (
@@ -651,10 +809,6 @@ const Checkout = () => {
                                     src={`https://img.vietqr.io/image/970448-0933027148-compact2.png?amount=${totalVND}&addInfo=MINICOURSE-${Date.now()}`}
                                     alt="QR Payment Code"
                                     className="w-64 h-64 object-contain"
-                                    onError={(e) => {
-                                      // Fallback to QR Server API
-                                      e.target.src = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=OCB-0933027148-${totalVND}`;
-                                    }}
                                   />
                                 </div>
                               </div>
@@ -803,7 +957,8 @@ const Checkout = () => {
                             </>
                           ) : (
                             <>
-                              {paymentInfo.paymentMethod === 'qr' ? 'Tạo mã QR thanh toán' : `Thanh toán ${formatCurrency(total)}`}
+                              <CreditCard className="w-5 h-5 mr-2" />
+                              Tiếp tục thanh toán
                             </>
                           )}
                         </Button>
@@ -866,9 +1021,6 @@ const Checkout = () => {
                                   src={`https://img.vietqr.io/image/970448-0933027148-compact2.png?amount=${totalVND}&addInfo=MINICOURSE-${Date.now()}`}
                                   alt="QR Payment Code"
                                   className="w-64 h-64 object-contain"
-                                  onError={(e) => {
-                                    e.target.src = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=OCB-0933027148-${totalVND}`;
-                                  }}
                                 />
                               </div>
                             </div>
@@ -900,9 +1052,8 @@ const Checkout = () => {
                         </div>
 
                         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6 text-sm text-yellow-800">
-                          <strong>⚠️ Lưu ý:</strong> Sau khi chuyển khoản thành công, vui lòng đợi 1-2 phút 
-                          để hệ thống xác nhận thanh toán. Nhấn nút <strong>"Xác nhận đã thanh toán"</strong> 
-                          bên dưới để kiểm tra trạng thái.
+                          <strong>⚠️ Lưu ý:</strong> Sau khi chuyển khoản thành công, hệ thống sẽ tự động xác nhận trong vòng 5-15 giây. 
+                          Vui lòng đợi hoặc nhấn nút <strong>"Kiểm tra thanh toán"</strong> bên dưới.
                         </div>
 
                         {paymentVerified && (
@@ -911,33 +1062,62 @@ const Checkout = () => {
                           </div>
                         )}
 
-                        <Button 
-                          onClick={handleCompleteQRPayment}
-                          className={`w-full sm:w-auto ${paymentVerified ? 'bg-green-500 hover:bg-green-600' : 'bg-teal-500 hover:bg-teal-600'}`}
-                          disabled={loading || checkingPayment}
-                        >
-                          {checkingPayment ? (
-                            <>
-                              <span className="animate-spin mr-2">🔍</span>
-                              Đang kiểm tra thanh toán...
-                            </>
-                          ) : loading ? (
-                            <>
-                              <span className="animate-spin mr-2">⏳</span>
-                              Đang hoàn tất...
-                            </>
-                          ) : paymentVerified ? (
-                            <>
-                              <Check className="w-5 h-5 mr-2" />
-                              Hoàn tất đơn hàng
-                            </>
-                          ) : (
-                            <>
-                              <Check className="w-5 h-5 mr-2" />
-                              Xác nhận đã thanh toán
-                            </>
-                          )}
-                        </Button>
+                        {/* Chỉ hiện button khi đã verified hoặc đang check */}
+                        {paymentVerified ? (
+                          <Button 
+                            onClick={handleCompleteQRPayment}
+                            className="w-full sm:w-auto bg-green-500 hover:bg-green-600"
+                            disabled={loading}
+                          >
+                            {loading ? (
+                              <>
+                                <span className="animate-spin mr-2">⏳</span>
+                                Đang hoàn tất...
+                              </>
+                            ) : (
+                              <>
+                                <Check className="w-5 h-5 mr-2" />
+                                Hoàn tất đơn hàng
+                              </>
+                            )}
+                          </Button>
+                        ) : (
+                          <Button 
+                            onClick={async () => {
+                              setCheckingPayment(true);
+                              try {
+                                const response = await api.checkout.verifyPaymentStatus({ paymentId });
+                                const verified = response.data?.verified || response.data?.status === 'completed';
+                                setPaymentVerified(verified);
+                                
+                                if (verified) {
+                                  showSuccess('✅ Đã xác nhận thanh toán thành công!');
+                                } else {
+                                  showError('⏳ Chưa nhận được thanh toán. Vui lòng thử lại sau vài giây.');
+                                }
+                              } catch (error) {
+                                console.error('Verify error:', error);
+                                showError('Không thể kiểm tra thanh toán');
+                              } finally {
+                                setCheckingPayment(false);
+                              }
+                            }}
+                            className="w-full sm:w-auto bg-blue-500 hover:bg-blue-600"
+                            disabled={checkingPayment}
+                          >
+                            {checkingPayment ? (
+                              <>
+                                <span className="animate-spin mr-2">🔍</span>
+                                Đang kiểm tra...
+                              </>
+                            ) : (
+                              <>
+                                <Check className="w-5 h-5 mr-2" />
+                                Kiểm tra thanh toán
+                              </>
+                            )}
+                          </Button>
+                        )}
                       </>
                     )}
                   </CardContent>

@@ -31,6 +31,8 @@ import quizRoutes from './routes/quizzes.js';
 import examRoutes from './routes/exams.js';
 import newExamRoutes from './routes/new-exam-routes.js';
 import assignmentsRoutes from './routes/assignments.js';
+import webhookRoutes from './routes/webhook.js';
+import vnpayRoutes from './routes/vnpay.js';
 
 // Load environment variables
 dotenv.config();
@@ -212,6 +214,9 @@ app.get('/api/status', asyncHandler(async (req, res) => {
 }));
 
 // API Routes
+app.use('/api/webhook', webhookRoutes); // MUST be before other routes (no auth)
+app.use('/api/vnpay', vnpayRoutes); // VNPay payment gateway (public routes)
+console.log('✅ VNPay routes registered at /api/vnpay');
 app.use('/api/auth', authRoutes);
 app.use('/api/courses', courseRoutes);
 app.use('/api/database', databaseRoutes);

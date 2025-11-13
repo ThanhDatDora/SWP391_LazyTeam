@@ -39,18 +39,18 @@ router.post('/verify-payment', authenticateToken, [
     const payment = result.recordset[0];
     
     // TODO: Integrate with VietQR API or bank webhook to check actual payment
-    // For now, we simulate: if payment was created more than 2 minutes ago, consider verified
+    // For now, we simulate: if payment was created more than 5 seconds ago, consider verified
     // In production, this should call bank API or check webhook notifications
     const createdAt = new Date(payment.created_at);
     const now = new Date();
-    const minutesPassed = (now - createdAt) / 1000 / 60;
+    const secondsPassed = (now - createdAt) / 1000;
     
     // Simulate payment verification:
     // - If status is already 'completed', return verified
-    // - If pending and > 2 minutes old, mark as completed (simulating bank confirmation)
+    // - If pending and > 5 seconds old, mark as completed (simulating instant bank confirmation)
     let verified = payment.status === 'completed';
     
-    if (!verified && payment.status === 'pending' && minutesPassed >= 0.5) {
+    if (!verified && payment.status === 'pending' && secondsPassed >= 5) {
       // Simulate bank confirmation received
       // In production: Check with VietQR/Bank API here
       verified = true;

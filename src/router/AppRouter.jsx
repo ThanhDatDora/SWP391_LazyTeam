@@ -59,6 +59,8 @@ const AdminSettings = lazy(() => import('../pages/admin/AdminSettings'));
 // Instructor Pages
 const InstructorDashboard = lazy(() => import('../pages/instructor/InstructorDashboard'));
 const CourseManagement = lazy(() => import('../pages/instructor/CourseManagement'));
+const InstructorCourseManagement = lazy(() => import('../pages/instructor/InstructorCourseManagement'));
+const CourseCreateForm = lazy(() => import('../pages/instructor/CourseCreateForm'));
 
 // Legacy Pages (keeping for compatibility) - Lazy load these
 const TestPage = lazy(() => import('../pages/TestPage'));
@@ -67,6 +69,7 @@ const BlogList = lazy(() => import('../pages/BlogList'));
 const BlogDetail = lazy(() => import('../pages/BlogDetail'));
 const Pricing = lazy(() => import('../pages/Pricing'));
 const Checkout = lazy(() => import('../pages/Checkout'));
+const VNPayReturn = lazy(() => import('../pages/VNPayReturn'));
 const Exam = lazy(() => import('../pages/Exam'));
 
 // Course Components - Lazy load
@@ -428,6 +431,9 @@ const AppRouter = () => {
       <Route path="/blog/:slug" element={<BlogDetail />} />
       <Route path="/pricing" element={<Pricing />} />
       <Route path="/checkout" element={<Checkout />} />
+      <Route path="/checkout/vnpay-return" element={<VNPayReturn />} />
+      <Route path="/checkout/success" element={<VNPayReturn />} />
+      <Route path="/checkout/failure" element={<VNPayReturn />} />
       <Route path="/course/:courseId/detail" element={<LegacyCourseDetailPage />} />
       <Route path="/player/:moocId" element={<PlayerPage />} />
       <Route path="/legacy-exam/:moocId" element={<LegacyExamPage />} />
@@ -465,6 +471,30 @@ const AppRouter = () => {
         element={
           <ProtectedRoute allowedRoles={[2, 1]}>
             <InstructorDashboard />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/instructor/dashboard" 
+        element={
+          <ProtectedRoute allowedRoles={[2, 1]}>
+            <InstructorDashboard />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/instructor/courses/create" 
+        element={
+          <ProtectedRoute allowedRoles={[2, 1]}>
+            <CourseCreateForm />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/instructor/courses/:courseId" 
+        element={
+          <ProtectedRoute allowedRoles={[2, 1]}>
+            <InstructorCourseManagement />
           </ProtectedRoute>
         } 
       />

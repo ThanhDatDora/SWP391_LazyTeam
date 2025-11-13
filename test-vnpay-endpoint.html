@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test VNPay Endpoint</title>
+</head>
+<body>
+    <h1>Test VNPay API Endpoint</h1>
+    <button onclick="testVNPayAPI()">Test /api/vnpay/create-payment-url</button>
+    <pre id="result"></pre>
+
+    <script>
+        async function testVNPayAPI() {
+            const resultEl = document.getElementById('result');
+            resultEl.textContent = 'Testing...';
+            
+            try {
+                const response = await fetch('http://localhost:3001/api/vnpay/create-payment-url', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        paymentId: '26',
+                        amount: 0.55
+                    })
+                });
+                
+                const data = await response.json();
+                
+                resultEl.textContent = JSON.stringify({
+                    status: response.status,
+                    statusText: response.statusText,
+                    data: data
+                }, null, 2);
+                
+            } catch (error) {
+                resultEl.textContent = 'Error: ' + error.message;
+            }
+        }
+    </script>
+</body>
+</html>

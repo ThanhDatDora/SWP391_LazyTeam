@@ -531,6 +531,100 @@ router.get('/courses/:courseId/students', authenticateToken, authorizeRoles('ins
   }
 });
 
+// ==================== REVENUE & ANALYTICS ====================
+
+/**
+ * GET /api/instructor/revenue/summary
+ * Get revenue summary for instructor
+ */
+router.get('/revenue/summary', authenticateToken, authorizeRoles('instructor', 'admin'), async (req, res) => {
+  try {
+    const instructorId = req.user.userId;
+    const pool = await getPool();
+
+    // Get total revenue from paid enrollments (80% instructor share)
+    const revenueQuery = await pool.request()
+      .input('instructor_id', sql.Int, instructorId)
+      .query(`
+        SELECT 
+          COUNT(DISTINCT e.enrollment_id) as total_sales,
+          COUNT(DISTINCT e.enrollment_id) as total_students,
+          ISNULL(SUM(p.amount), 0) as total_revenue,
+          ISNULL(SUM(p.amount * 0.8), 0) as instructor_share
+        FROM courses c
+        LEFT JOIN enrollments e ON c.course_id = e.course_id
+        LEFT JOIN invoices i ON e.enrollment_id = i.enrollment_id
+        LEFT JOIN payments p ON i.invoice_id = p.invoice_id AND p.status = 'paid'
+        WHERE c.owner_instructor_id = @instructor_id
+      `);
+
+    // Get monthly revenue for last 6 months
+    const monthlyQuery = await pool.request()
+      .input('instructor_id', sql.Int, instructorId)
+      .query(`
+        SELECT 
+          FORMAT(p.payment_date, 'yyyy-MM') as month,
+          COUNT(DISTINCT e.enrollment_id) as sales,
+          ISNULL(SUM(p.amount), 0) as revenue,
+          ISNULL(SUM(p.amount * 0.8), 0) as instructor_share
+        FROM courses c
+        LEFT JOIN enrollments e ON c.course_id = e.course_id
+        LEFT JOIN invoices i ON e.enrollment_id = i.enrollment_id
+        LEFT JOIN payments p ON i.invoice_id = p.invoice_id AND p.status = 'paid'
+        WHERE c.owner_instructor_id = @instructor_id
+          AND p.payment_date >= DATEADD(MONTH, -6, GETDATE())
+        GROUP BY FORMAT(p.payment_date, 'yyyy-MM')
+        ORDER BY month DESC
+      `);
+
+    // Get top courses by revenue
+    const topCoursesQuery = await pool.request()
+      .input('instructor_id', sql.Int, instructorId)
+      .query(`
+        SELECT TOP 5
+          c.course_id,
+          c.title,
+          COUNT(DISTINCT e.enrollment_id) as enrollments,
+          ISNULL(SUM(p.amount), 0) as revenue
+        FROM courses c
+        LEFT JOIN enrollments e ON c.course_id = e.course_id
+        LEFT JOIN invoices i ON e.enrollment_id = i.enrollment_id
+        LEFT JOIN payments p ON i.invoice_id = p.invoice_id AND p.status = 'paid'
+        WHERE c.owner_instructor_id = @instructor_id
+        GROUP BY c.course_id, c.title
+        ORDER BY revenue DESC
+      `);
+
+    const summary = revenueQuery.recordset[0] || {
+      total_sales: 0,
+      total_students: 0,
+      total_revenue: 0,
+      instructor_share: 0
+    };
+
+    res.json({
+      success: true,
+      data: {
+        summary: {
+          totalSales: summary.total_sales,
+          totalStudents: summary.total_students,
+          totalRevenue: summary.total_revenue,
+          instructorShare: summary.instructor_share
+        },
+        monthlyRevenue: monthlyQuery.recordset,
+        topCourses: topCoursesQuery.recordset
+      }
+    });
+
+  } catch (error) {
+    console.error('Error getting revenue summary:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Không thể lấy thống kê doanh thu'
+    });
+  }
+});
+
 export default router;
 
 

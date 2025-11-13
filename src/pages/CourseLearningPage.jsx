@@ -643,10 +643,10 @@ const CourseLearningPage = () => {
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium text-gray-900 text-sm">
+                      <p className="font-semibold text-gray-900 text-sm">
                         Week {moocIdx + 1}
                       </p>
-                      <p className="text-xs text-gray-600 truncate">{mooc.title}</p>
+                      <p className="text-xs text-gray-700 truncate font-medium">{mooc.title}</p>
                     </div>
                     <Badge variant="outline" className="flex-shrink-0 text-xs">
                       {mooc.lessons.filter(l => l.completed).length}/{mooc.lessons.length}

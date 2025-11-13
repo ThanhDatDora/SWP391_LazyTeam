@@ -1,6 +1,7 @@
 -- =====================================================
 -- Tạo 3 khóa học giá rẻ ($0.5, $0.75, $1) để test thanh toán
 -- Mỗi khóa có: 6-8 lessons, cuối course có 1-2 assignments
+-- STATUS: 'pending' - chờ admin duyệt/từ chối
 -- =====================================================
 
 USE MiniCoursera_Primary;
@@ -10,6 +11,185 @@ GO
 -- Lấy instructor_id từ user có role_id = 2 (instructor)
 DECLARE @InstructorId BIGINT;
 SELECT TOP 1 @InstructorId = user_id FROM users WHERE role_id = 2;
+
+-- Nếu không có instructor, tạo một instructor test
+IF @InstructorId IS NULL
+BEGIN
+    INSERT INTO users (full_name, email, password_hash, role_id, status, created_at)
+    VALUES (
+        N'Nguyen Van Giang',
+        'giang.test@minicourse.com',
+        '$2a$10$abcdefghijklmnopqrstuvwxyz1234567890ABCDEF', -- dummy hash
+        2, -- instructor
+        'active',
+        GETDATE()
+    );
+    SET @InstructorId = SCOPE_IDENTITY();
+END
+
+PRINT N'Using Instructor ID: ' + CAST(@InstructorId AS NVARCHAR(10));
+
+-- Lấy category_id cho Programming
+DECLARE @CategoryIdProg INT = 1; -- Programming
+DECLARE @CategoryIdWeb INT = 2;  -- Web Development  
+DECLARE @CategoryIdDevOps INT = 3; -- DevOps/Tools
+
+-- =====================================================
+-- KHÓA HỌC 1: Lập trình Python cơ bản ($0.50)
+-- =====================================================
+DECLARE @Course1Id BIGINT;
+
+INSERT INTO courses (
+    owner_instructor_id,
+    category_id,
+    title, 
+    description, 
+    language_code,
+    level, 
+    price,
+    status,
+    created_at,
+    updated_at
+) VALUES (
+    @InstructorId,
+    @CategoryIdProg,
+    N'Python cho nguoi moi bat dau',
+    N'Khoa hoc Python co ban danh cho nguoi chua co kinh nghiem lap trinh. Hoc cu phap, bien, vong lap, ham va xu ly du lieu. Hoan hao cho beginners!',
+    'vi',
+    'beginner',
+    0.50,
+    'pending',
+    GETDATE(),
+    GETDATE()
+);
+
+SET @Course1Id = SCOPE_IDENTITY();
+PRINT N'Created Course 1 (Python): ' + CAST(@Course1Id AS NVARCHAR(10));
+
+-- Lessons cho Python course
+INSERT INTO lessons (mooc_id, title, content_type, content_url, order_no, is_preview)
+VALUES 
+-- Video lessons
+(@Course1Id, N'Bai 1: Python la gi? Tai sao hoc Python?', 'video', 'https://www.youtube.com/watch?v=kqtD5dpn9C8', 1, 1),
+(@Course1Id, N'Bai 2: Cai dat Python va VS Code', 'video', 'https://www.youtube.com/watch?v=YYXdXT2l-Gg', 2, 0),
+(@Course1Id, N'Bai 3: Chuong trinh Hello World dau tien', 'video', 'https://www.youtube.com/watch?v=KSiRzuSx120', 3, 0),
+(@Course1Id, N'Bai 4: Bien va kieu du lieu', 'video', 'https://www.youtube.com/watch?v=cQT33yu9pY8', 4, 0),
+(@Course1Id, N'Bai 5: Toan tu va bieu thuc', 'video', 'https://www.youtube.com/watch?v=v5MR5JnKcZI', 5, 0),
+(@Course1Id, N'Bai 6: Vong lap for va while', 'video', 'https://www.youtube.com/watch?v=94UHCEmprCY', 6, 0),
+-- Assignments
+(@Course1Id, N'[Bai tap] Assignment 1: In ra man hinh va tinh toan', 'assignment', NULL, 7, 0),
+(@Course1Id, N'[Bai tap] Assignment 2: Vong lap va dieu kien', 'assignment', NULL, 8, 0);
+
+-- =====================================================
+-- KHÓA HỌC 2: HTML/CSS cho Web Designer ($0.75)
+-- =====================================================
+DECLARE @Course2Id BIGINT;
+
+INSERT INTO courses (
+    owner_instructor_id,
+    category_id,
+    title, 
+    description, 
+    language_code,
+    level, 
+    price,
+    status,
+    created_at,
+    updated_at
+) VALUES (
+    @InstructorId,
+    @CategoryIdWeb,
+    N'HTML & CSS tu Zero den Hero',
+    N'Hoc cach tao trang web tu dau voi HTML va CSS. Xay dung layout, styling, responsive design. Thuc hanh voi du an thuc te!',
+    'vi',
+    'beginner',
+    0.75,
+    'pending',
+    GETDATE(),
+    GETDATE()
+);
+
+SET @Course2Id = SCOPE_IDENTITY();
+PRINT N'Created Course 2 (HTML/CSS): ' + CAST(@Course2Id AS NVARCHAR(10));
+
+-- Lessons cho HTML/CSS course
+INSERT INTO lessons (mooc_id, title, content_type, content_url, order_no, is_preview)
+VALUES 
+-- Video lessons
+(@Course2Id, N'Bai 1: HTML la gi? Cau truc co ban', 'video', 'https://www.youtube.com/watch?v=qz0aGYrrlhU', 1, 1),
+(@Course2Id, N'Bai 2: HTML Tags va Elements', 'video', 'https://www.youtube.com/watch?v=salY_Sm6mv4', 2, 0),
+(@Course2Id, N'Bai 3: HTML Forms va Input', 'video', 'https://www.youtube.com/watch?v=fNcJuPIZ2WE', 3, 0),
+(@Course2Id, N'Bai 4: CSS Selectors va Properties', 'video', 'https://www.youtube.com/watch?v=l1mER1bV0N0', 4, 0),
+(@Course2Id, N'Bai 5: CSS Box Model', 'video', 'https://www.youtube.com/watch?v=rIO5326FgPE', 5, 0),
+(@Course2Id, N'Bai 6: Flexbox Layout', 'video', 'https://www.youtube.com/watch?v=JJSoEo8JSnc', 6, 0),
+(@Course2Id, N'Bai 7: Responsive Design voi Media Queries', 'video', 'https://www.youtube.com/watch?v=srvUrASNj0s', 7, 0),
+-- Assignment
+(@Course2Id, N'[Bai tap] Tao Landing Page Responsive', 'assignment', NULL, 8, 0);
+
+-- =====================================================
+-- KHÓA HỌC 3: Git & GitHub cho Developer ($1.00)
+-- =====================================================
+DECLARE @Course3Id BIGINT;
+
+INSERT INTO courses (
+    owner_instructor_id,
+    category_id,
+    title, 
+    description, 
+    language_code,
+    level, 
+    price,
+    status,
+    created_at,
+    updated_at
+) VALUES (
+    @InstructorId,
+    @CategoryIdDevOps,
+    N'Git & GitHub thuc chien',
+    N'Quan ly ma nguon chuyen nghiep voi Git va GitHub. Pull request, merge conflicts, GitHub Actions. Lam viec nhom hieu qua!',
+    'vi',
+    'beginner',
+    1.00,
+    'pending',
+    GETDATE(),
+    GETDATE()
+);
+
+SET @Course3Id = SCOPE_IDENTITY();
+PRINT N'Created Course 3 (Git/GitHub): ' + CAST(@Course3Id AS NVARCHAR(10));
+
+-- Lessons cho Git/GitHub course
+INSERT INTO lessons (mooc_id, title, content_type, content_url, order_no, is_preview)
+VALUES 
+-- Video lessons
+(@Course3Id, N'Bai 1: Git la gi? Tai sao can Git?', 'video', 'https://www.youtube.com/watch?v=8JJ101D3knE', 1, 1),
+(@Course3Id, N'Bai 2: Cai dat va cau hinh Git', 'video', 'https://www.youtube.com/watch?v=nbFwejIsHlY', 2, 0),
+(@Course3Id, N'Bai 3: Git add, commit, push co ban', 'video', 'https://www.youtube.com/watch?v=HVsySz-h9r4', 3, 0),
+(@Course3Id, N'Bai 4: Git Branch va Merge', 'video', 'https://www.youtube.com/watch?v=FyAAIHHClqI', 4, 0),
+(@Course3Id, N'Bai 5: GitHub va Remote Repository', 'video', 'https://www.youtube.com/watch?v=nhNq2kIvi9s', 5, 0),
+(@Course3Id, N'Bai 6: Fork va Pull Request', 'video', 'https://www.youtube.com/watch?v=8lGpZkjnkt4', 6, 0),
+(@Course3Id, N'Bai 7: Xu ly Merge Conflicts', 'video', 'https://www.youtube.com/watch?v=xNVM5UxlFSA', 7, 0),
+-- Assignment
+(@Course3Id, N'[Bai tap] Tao Pull Request dau tien', 'assignment', NULL, 8, 0);
+
+PRINT N'';
+PRINT N'Successfully created 3 cheap test courses!';
+PRINT N'';
+PRINT N'Course Summary:';
+PRINT N'1. Python cho nguoi moi bat dau - $0.50 (ID: ' + CAST(@Course1Id AS NVARCHAR(10)) + N') - 8 lessons - STATUS: pending';
+PRINT N'2. HTML & CSS tu Zero den Hero - $0.75 (ID: ' + CAST(@Course2Id AS NVARCHAR(10)) + N') - 8 lessons - STATUS: pending';
+PRINT N'3. Git & GitHub thuc chien - $1.00 (ID: ' + CAST(@Course3Id AS NVARCHAR(10)) + N') - 8 lessons - STATUS: pending';
+PRINT N'';
+PRINT N'Each course has:';
+PRINT N'- 6-7 video lessons';
+PRINT N'- 1-2 assignments at the end';
+PRINT N'- STATUS: pending (waiting for admin approval/rejection)';
+PRINT N'';
+PRINT N'Admin can:';
+PRINT N'- Approve: change status to active';
+PRINT N'- Reject: change status to inactive';
+
+GO
 
 -- Nếu không có instructor, tạo một instructor test
 IF @InstructorId IS NULL

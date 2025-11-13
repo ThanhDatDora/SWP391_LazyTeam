@@ -481,7 +481,7 @@ router.put('/courses/:courseId/approve', authenticateToken, requireAdmin, async 
   }
 });
 
-// Reject course (archive it)
+// Reject course (set to inactive)
 // Support both POST and PUT methods
 router.post('/courses/:courseId/reject', authenticateToken, requireAdmin, async (req, res) => {
   try {
@@ -489,20 +489,19 @@ router.post('/courses/:courseId/reject', authenticateToken, requireAdmin, async 
     const { reason } = req.body;
     const pool = await getPool();
 
-    // Note: 'rejection_reason' column may not exist in courses table
-    // So we'll just change status to 'archived'
+    // Change status to 'inactive' when rejected
     await pool.request()
       .input('courseId', sql.BigInt, courseId)
       .query(`
         UPDATE courses 
-        SET status = 'archived', 
+        SET status = 'inactive', 
             updated_at = GETDATE()
         WHERE course_id = @courseId
       `);
 
     res.json({
       success: true,
-      message: 'Course rejected and archived successfully'
+      message: 'Course rejected successfully'
     });
 
   } catch (error) {
@@ -520,20 +519,19 @@ router.put('/courses/:courseId/reject', authenticateToken, requireAdmin, async (
     const { reason } = req.body;
     const pool = await getPool();
 
-    // Note: 'rejection_reason' column may not exist in courses table
-    // So we'll just change status to 'archived'
+    // Change status to 'inactive' when rejected
     await pool.request()
       .input('courseId', sql.BigInt, courseId)
       .query(`
         UPDATE courses 
-        SET status = 'archived', 
+        SET status = 'inactive', 
             updated_at = GETDATE()
         WHERE course_id = @courseId
       `);
 
     res.json({
       success: true,
-      message: 'Course rejected and archived successfully'
+      message: 'Course rejected successfully'
     });
 
   } catch (error) {
