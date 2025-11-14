@@ -172,8 +172,28 @@ app.use('/api/auth', (req, res, next) => {
 // Serve static files for testing
 app.use(express.static('.'));
 
-// Serve uploaded files (avatars)
-app.use('/uploads', express.static('uploads'));
+// Serve uploaded files (avatars) with CORS headers
+app.use('/uploads', (req, res, next) => {
+  console.log(`🖼️ [AVATAR] Request: ${req.method} ${req.url}`);
+  console.log(`🖼️ [AVATAR] Origin: ${req.headers.origin}`);
+  
+  // Set CORS headers for static files
+  res.header('Access-Control-Allow-Origin', req.headers.origin || 'http://localhost:5173');
+  res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Cross-Origin-Resource-Policy', 'cross-origin');
+  
+  console.log(`✅ [AVATAR] CORS headers set`);
+  
+  // Handle preflight
+  if (req.method === 'OPTIONS') {
+    console.log(`✅ [AVATAR] Preflight handled`);
+    return res.sendStatus(200);
+  }
+  
+  next();
+}, express.static('uploads'));
 
 // Health check route
 app.get('/api/health', asyncHandler(async (req, res) => {

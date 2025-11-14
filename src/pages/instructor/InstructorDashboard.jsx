@@ -4,6 +4,7 @@ import { Button } from '../../components/ui/button';
 import { Badge } from '../../components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs';
 import { useNavigation } from '@/hooks/useNavigation';
+import { InstructorAdminChat } from '../../components/chat/InstructorAdminChat';
 import { 
   BookOpen, 
   Users, 
@@ -488,6 +489,9 @@ const InstructorDashboard = () => {
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* Floating Chat Widget - Instructors can contact Admin support */}
+      <InstructorAdminChat />
     </div>
   );
 };

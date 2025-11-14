@@ -6,7 +6,7 @@
 import React, { createContext, useContext, useEffect, useReducer, useCallback } from 'react';
 import { io } from 'socket.io-client';
 import { useAuth } from './AuthContext';
-import { useToast } from '../components/ui/toast';
+import { useToast } from '../components/ui/Toast';
 
 // WebSocket connection state
 const initialState = {
@@ -19,7 +19,9 @@ const initialState = {
   messages: {},
   typingUsers: {},
   studySessions: {},
-  isReconnecting: false
+  isReconnecting: false,
+  chatMessages: {}, // { conversationId: [messages] }
+  conversationTyping: {} // { conversationId: { userId: boolean } }
 };
 
 // Action types
@@ -36,7 +38,9 @@ const WS_ACTIONS = {
   ADD_MESSAGE: 'ADD_MESSAGE',
   SET_TYPING_USERS: 'SET_TYPING_USERS',
   UPDATE_STUDY_SESSION: 'UPDATE_STUDY_SESSION',
-  SET_RECONNECTING: 'SET_RECONNECTING'
+  SET_RECONNECTING: 'SET_RECONNECTING',
+  ADD_CHAT_MESSAGE: 'ADD_CHAT_MESSAGE',
+  SET_CONVERSATION_TYPING: 'SET_CONVERSATION_TYPING'
 };
 
 // Reducer function
@@ -123,6 +127,25 @@ function websocketReducer(state, action) {
       return {
         ...state,
         isReconnecting: action.payload
+      };
+    
+    case WS_ACTIONS.ADD_CHAT_MESSAGE:
+      const { conversationId, message: chatMessage } = action.payload;
+      return {
+        ...state,
+        chatMessages: {
+          ...state.chatMessages,
+          [conversationId]: [...(state.chatMessages[conversationId] || []), chatMessage]
+        }
+      };
+    
+    case WS_ACTIONS.SET_CONVERSATION_TYPING:
+      return {
+        ...state,
+        conversationTyping: {
+          ...state.conversationTyping,
+          [action.payload.conversationId]: action.payload.typing
+        }
       };
     
     default:
@@ -258,6 +281,32 @@ export function WebSocketProvider({ children }) {
       });
     });
 
+    // Chat conversation events
+    socket.on('new_chat_message', (message) => {
+      dispatch({
+        type: WS_ACTIONS.ADD_CHAT_MESSAGE,
+        payload: { conversationId: message.conversation_id, message }
+      });
+    });
+
+    socket.on('user_typing_in_conversation', (data) => {
+      dispatch({
+        type: WS_ACTIONS.SET_CONVERSATION_TYPING,
+        payload: { 
+          conversationId: data.conversationId, 
+          typing: { [data.userId]: data.typing }
+        }
+      });
+    });
+
+    socket.on('new_message_notification', (data) => {
+      toast({
+        title: '💬 New Message',
+        description: 'You have a new message',
+        variant: 'info'
+      });
+    });
+
     socket.on('user_typing', (data) => {
       const { courseId, userId, typing } = data;
       dispatch({
@@ -385,6 +434,33 @@ export function WebSocketProvider({ children }) {
     }
   }, [state.socket, state.isConnected]);
 
+  // Conversation chat methods
+  const joinConversation = useCallback((conversationId) => {
+    if (state.socket && state.isConnected) {
+      state.socket.emit('join_conversation', { conversationId });
+      console.log('📞 Joined conversation:', conversationId);
+    }
+  }, [state.socket, state.isConnected]);
+
+  const leaveConversation = useCallback((conversationId) => {
+    if (state.socket && state.isConnected) {
+      state.socket.emit('leave_conversation', { conversationId });
+      console.log('📞 Left conversation:', conversationId);
+    }
+  }, [state.socket, state.isConnected]);
+
+  const sendChatMessage = useCallback((conversationId, message) => {
+    if (state.socket && state.isConnected) {
+      state.socket.emit('send_chat_message', { conversationId, message });
+    }
+  }, [state.socket, state.isConnected]);
+
+  const typingInConversation = useCallback((conversationId, typing) => {
+    if (state.socket && state.isConnected) {
+      state.socket.emit('typing_in_conversation', { conversationId, typing });
+    }
+  }, [state.socket, state.isConnected]);
+
   // Study session methods
   const joinStudySession = useCallback((sessionId, courseId) => {
     if (state.socket && state.isConnected) {
@@ -425,6 +501,12 @@ export function WebSocketProvider({ children }) {
     sendMessage,
     startTyping,
     stopTyping,
+    
+    // Conversation chat methods
+    joinConversation,
+    leaveConversation,
+    sendChatMessage,
+    typingInConversation,
     
     // Study session methods
     joinStudySession,

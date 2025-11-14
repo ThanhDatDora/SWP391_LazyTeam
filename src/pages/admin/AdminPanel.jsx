@@ -8,7 +8,7 @@ import {
   FileText, Settings, Bell, UserCircle, Edit2, ChevronDown, ChevronRight,
   Folder, PieChart, Activity, Moon, Sun, TrendingDown, CreditCard, 
   ArrowUpRight, Download, Banknote, Clock, FileDown, User, Info, Hash, 
-  Mail, Calendar, Key, Phone
+  Mail, Calendar, Key, Phone, MessageCircle
 } from 'lucide-react';
 import {
   Chart as ChartJS,
@@ -526,6 +526,7 @@ const AdminPanel = () => {
     avatarFile: null
   });
   const [avatarPreview, setAvatarPreview] = useState(null);
+  const [avatarLoadError, setAvatarLoadError] = useState(false);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
 
   /**
@@ -574,6 +575,7 @@ const AdminPanel = () => {
   const handleCancelEdit = () => {
     initializeProfileForm();
     setIsEditingProfile(false);
+    setAvatarPreview(null); // Clear avatar preview when cancel
   };
 
   /**
@@ -677,16 +679,56 @@ const AdminPanel = () => {
         if (!avatarResponse.ok) {
           showToast('warning', '⚠️ Hồ sơ đã cập nhật, nhưng avatar không thể tải lên');
         } else {
-          updatedUser.avatar_url = avatarData.data.avatarUrl;
+          // Normalize avatar URL to include full domain
+          const avatarUrl = avatarData.data.avatarUrl;
+          const normalizedAvatarUrl = avatarUrl.startsWith('http') 
+            ? avatarUrl 
+            : `${API_BASE_URL.replace(/\/api$/, '')}${avatarUrl}`;
+          updatedUser.avatar_url = normalizedAvatarUrl;
+          
+          console.log('✅ Avatar uploaded:', normalizedAvatarUrl);
         }
       }
 
+      // Update auth context with new user data
       updateProfile(updatedUser);
+
+      // Force re-fetch profile to get fresh avatar URL from server
+      if (profileForm.avatarFile) {
+        try {
+          const profileRefreshResponse = await fetch(`${API_BASE_URL}/auth/profile`, {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
+          
+          if (profileRefreshResponse.ok) {
+            const refreshData = await profileRefreshResponse.json();
+            if (refreshData.user && refreshData.user.avatarUrl) {
+              const freshAvatarUrl = refreshData.user.avatarUrl.startsWith('http') 
+                ? refreshData.user.avatarUrl 
+                : `${API_BASE_URL.replace(/\/api$/, '')}${refreshData.user.avatarUrl}`;
+              
+              updatedUser.avatar_url = freshAvatarUrl;
+              updateProfile(updatedUser);
+              
+              console.log('✅ Avatar refreshed from server:', freshAvatarUrl);
+            }
+          }
+        } catch (refreshError) {
+          console.warn('Failed to refresh avatar from server:', refreshError);
+        }
+      }
 
       showToast('success', '✅ Cập nhật hồ sơ thành công!');
       
+      // Reset edit mode and clear preview
       setIsEditingProfile(false);
       setAvatarPreview(null);
+      setAvatarLoadError(false); // Reset error state
+      
+      // Clear avatar file from form
+      setProfileForm(prev => ({ ...prev, avatarFile: null }));
 
     } catch (error) {
       console.error('Profile update error:', error);
@@ -724,6 +766,7 @@ const AdminPanel = () => {
     { id: 'overview', label: 'Tổng quan', icon: Home, path: '/admin', isOverview: true },
     { id: 'statistics', label: 'Thống kê', icon: BarChart3, path: '/admin/statistics' },
     { id: 'pending', label: 'Duyệt khóa học', icon: FileText, path: '/admin/course-pending' },
+    { id: 'conversations', label: 'Hỗ trợ Giảng viên', icon: MessageCircle, path: '/admin/conversations' },
     { id: 'users', label: 'Người dùng', icon: Users, path: '/admin/users' },
     { id: 'learners', label: 'Học viên', icon: UserCheck, path: '/admin/learners' },
     { id: 'instructors', label: 'Giảng viên', icon: GraduationCap, path: '/admin/instructors' },
@@ -2620,16 +2663,24 @@ const AdminPanel = () => {
                         <div 
                           className="w-32 h-32 rounded-full flex items-center justify-center text-4xl font-bold text-white shadow-xl overflow-hidden"
                           style={{ 
-                            background: avatarPreview || authState?.user?.avatar_url 
-                              ? 'transparent' 
-                              : `linear-gradient(135deg, ${currentColors.primary}, ${currentColors.accent})`
+                            background: `linear-gradient(135deg, ${currentColors.primary}, ${currentColors.accent})`
                           }}
                         >
-                          {avatarPreview || authState?.user?.avatar_url ? (
+                          {(avatarPreview || authState?.user?.avatar_url) && !avatarLoadError ? (
                             <img 
-                              src={avatarPreview || authState.user.avatar_url} 
+                              src={
+                                avatarPreview 
+                                  ? avatarPreview 
+                                  : `${authState.user.avatar_url}?t=${Date.now()}`
+                              }
                               alt="Avatar" 
                               className="w-full h-full object-cover"
+                              crossOrigin="anonymous"
+                              onLoad={() => setAvatarLoadError(false)}
+                              onError={(e) => {
+                                console.error('❌ Avatar load failed:', e.target.src);
+                                setAvatarLoadError(true);
+                              }}
                             />
                           ) : (
                             authState?.user?.full_name?.charAt(0)?.toUpperCase() || 'A'

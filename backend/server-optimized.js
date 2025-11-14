@@ -70,6 +70,7 @@ import authRoutes from './routes/auth.js';
 import courseRoutes from './routes/courses.js';
 import adminRoutes from './routes/admin.js';
 import adminRevenueRoutes from './routes/admin-revenue.js';
+import chatRoutes from './routes/chat.js';
 // TODO: Create these route files when needed
 // import userRoutes from './routes/users.js';
 // import enrollmentRoutes from './routes/enrollments.js';
@@ -83,6 +84,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/courses', courseRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/admin', adminRevenueRoutes);
+app.use('/api/chat', chatRoutes);
 // TODO: Uncomment when route files are created
 // app.use('/api/users', userRoutes);
 // app.use('/api/enrollments', enrollmentRoutes);
@@ -275,7 +277,7 @@ process.on('SIGTERM', async () => {
 
 const PORT = process.env.PORT || 3001;
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log('📊 Performance monitoring available at /api/performance/metrics');
   console.log('🏥 Health check available at /health');
@@ -284,5 +286,14 @@ app.listen(PORT, () => {
     console.log('📈 Prometheus metrics available at /metrics');
   }
 });
+
+// Initialize WebSocket service
+import WebSocketService from './services/websocketService.js';
+const websocketService = new WebSocketService(server);
+
+// Make websocket service globally available for chat routes
+global.websocketService = websocketService;
+
+console.log('✅ WebSocket service initialized for chat');
 
 export default app;

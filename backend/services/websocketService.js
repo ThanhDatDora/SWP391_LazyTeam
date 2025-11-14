@@ -111,6 +111,23 @@ class WebSocketService {
         this.handleAdminBroadcast(socket, data);
       });
 
+      // Handle chat conversations (Instructor-Admin Chat)
+      socket.on('join_conversation', (data) => {
+        this.handleJoinConversation(socket, data);
+      });
+
+      socket.on('leave_conversation', (data) => {
+        this.handleLeaveConversation(socket, data);
+      });
+
+      socket.on('send_chat_message', (data) => {
+        this.handleSendChatMessage(socket, data);
+      });
+
+      socket.on('typing_in_conversation', (data) => {
+        this.handleTypingInConversation(socket, data);
+      });
+
       // Handle disconnection
       socket.on('disconnect', () => {
         this.handleDisconnect(socket);
@@ -480,6 +497,137 @@ class WebSocketService {
       }
     } catch (error) {
       console.error('[WebSocket] Error emitting account-locked:', error);
+      return false;
+    }
+  }
+
+  // ===== CHAT CONVERSATION HANDLERS =====
+
+  handleJoinConversation(socket, data) {
+    try {
+      const { conversationId } = data;
+      if (!conversationId) return;
+
+      const roomName = `conversation:${conversationId}`;
+      socket.join(roomName);
+
+      console.log(`[WebSocket] User ${socket.userId} joined conversation ${conversationId}`);
+
+      // Notify others in conversation
+      socket.to(roomName).emit('user_joined_conversation', {
+        userId: socket.userId,
+        userEmail: socket.userEmail,
+        conversationId,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error('[WebSocket] Error joining conversation:', error);
+    }
+  }
+
+  handleLeaveConversation(socket, data) {
+    try {
+      const { conversationId } = data;
+      if (!conversationId) return;
+
+      const roomName = `conversation:${conversationId}`;
+      socket.leave(roomName);
+
+      console.log(`[WebSocket] User ${socket.userId} left conversation ${conversationId}`);
+
+      // Notify others
+      socket.to(roomName).emit('user_left_conversation', {
+        userId: socket.userId,
+        conversationId,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error('[WebSocket] Error leaving conversation:', error);
+    }
+  }
+
+  handleSendChatMessage(socket, data) {
+    try {
+      const { conversationId, message } = data;
+      const roomName = `conversation:${conversationId}`;
+
+      const chatMessage = {
+        ...message,
+        userId: socket.userId,
+        userEmail: socket.userEmail,
+        timestamp: new Date().toISOString()
+      };
+
+      // Broadcast to conversation room (excluding sender)
+      socket.to(roomName).emit('new_chat_message', chatMessage);
+
+      // Send confirmation to sender
+      socket.emit('message_sent', chatMessage);
+
+      console.log(`[WebSocket] Chat message in conversation ${conversationId} from ${socket.userEmail}`);
+    } catch (error) {
+      console.error('[WebSocket] Error sending chat message:', error);
+      socket.emit('error', { message: 'Failed to send message', error: error.message });
+    }
+  }
+
+  handleTypingInConversation(socket, data) {
+    try {
+      const { conversationId, typing } = data;
+      const roomName = `conversation:${conversationId}`;
+
+      socket.to(roomName).emit('user_typing_in_conversation', {
+        userId: socket.userId,
+        userEmail: socket.userEmail,
+        conversationId,
+        typing,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error('[WebSocket] Error handling typing:', error);
+    }
+  }
+
+  /**
+   * Emit new chat message notification
+   * @param {number} conversationId - Conversation ID
+   * @param {object} message - Message data
+   */
+  emitNewChatMessage(conversationId, message) {
+    try {
+      const roomName = `conversation:${conversationId}`;
+      
+      this.io.to(roomName).emit('new_chat_message', {
+        ...message,
+        timestamp: new Date().toISOString()
+      });
+
+      console.log(`[WebSocket] New chat message emitted to conversation ${conversationId}`);
+      return true;
+    } catch (error) {
+      console.error('[WebSocket] Error emitting chat message:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Send notification to user about new message
+   * @param {number} userId - User ID to notify
+   * @param {number} conversationId - Conversation ID
+   * @param {object} message - Message preview
+   */
+  sendNewMessageNotification(userId, conversationId, message) {
+    try {
+      this.io.to(`user:${userId}`).emit('new_message_notification', {
+        conversationId,
+        message,
+        timestamp: new Date().toISOString()
+      });
+
+      console.log(`[WebSocket] New message notification sent to user ${userId}`);
+      return true;
+    } catch (error) {
+      console.error('[WebSocket] Error sending notification:', error);
       return false;
     }
   }

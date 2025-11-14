@@ -48,6 +48,7 @@ const AdminCoursesPage = lazy(() => import('../pages/admin/CoursesPage'));
 const AdminCategoriesPage = lazy(() => import('../pages/admin/CategoriesPage'));
 const CoursePendingPage = lazy(() => import('../pages/admin/CoursePendingPage'));
 const LearningStatsPage = lazy(() => import('../pages/admin/LearningStatsPage'));
+const ConversationsPage = lazy(() => import('../pages/admin/ConversationsPage'));
 const InstructorReportsPage = lazy(() => import('../pages/admin/InstructorReportsPage'));
 const InstructorRequestsPage = lazy(() => import('../pages/admin/InstructorRequestsPage'));
 const PayoutsPage = lazy(() => import('../pages/admin/PayoutsPage'));
@@ -428,6 +429,7 @@ const AppRouter = () => {
         <Route path="courses" element={<AdminCoursesPage />} />
         <Route path="categories" element={<AdminCategoriesPage />} />
         <Route path="course-pending" element={<CoursePendingPage />} />
+        <Route path="conversations" element={<ConversationsPage />} />
         <Route path="learning-stats" element={<LearningStatsPage />} />
         <Route path="instructor-reports" element={<InstructorReportsPage />} />
         <Route path="instructor-requests" element={<InstructorRequestsPage />} />
