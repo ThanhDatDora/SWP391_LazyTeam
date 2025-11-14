@@ -2,58 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { BarChart3, TrendingUp, Clock, Award, BookOpen, Users } from 'lucide-react';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api';
-
-// Mock data for learning statistics
-const MOCK_LEARNING_STATS = {
-  completion: {
-    rate: 67,
-    not_started: 45,
-    in_progress: 128,
-    completed: 89,
-    excellent: 32,
-    good: 41,
-    needs_improvement: 16
-  },
-  avgStudyTime: 12.5,
-  topCourses: [
-    {
-      course_id: 1,
-      title: 'Lập trình React nâng cao',
-      instructor_name: 'Nguyễn Văn An',
-      enrolled_count: 245,
-      completion_rate: 78
-    },
-    {
-      course_id: 2,
-      title: 'Node.js Backend Development',
-      instructor_name: 'Trần Thị Bình',
-      enrolled_count: 198,
-      completion_rate: 72
-    },
-    {
-      course_id: 3,
-      title: 'Python cho Data Science',
-      instructor_name: 'Lê Minh Cường',
-      enrolled_count: 176,
-      completion_rate: 65
-    },
-    {
-      course_id: 4,
-      title: 'Machine Learning cơ bản',
-      instructor_name: 'Phạm Thị Dung',
-      enrolled_count: 152,
-      completion_rate: 58
-    },
-    {
-      course_id: 5,
-      title: 'UI/UX Design với Figma',
-      instructor_name: 'Hoàng Văn Em',
-      enrolled_count: 134,
-      completion_rate: 81
-    }
-  ]
-};
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api';
 
 const LearningStatsPage = () => {
   const { theme, currentColors } = useOutletContext();
@@ -95,16 +44,14 @@ const LearningStatsPage = () => {
         }
 
         console.log('✅ Parsed stats:', statsData);
-        setStats(statsData || MOCK_LEARNING_STATS);
+        setStats(statsData);
       } else {
         console.error('❌ Failed to load stats:', response.status);
-        console.log('📦 Using mock data');
-        setStats(MOCK_LEARNING_STATS);
+        setStats(null);
       }
     } catch (error) {
       console.error('❌ Error loading stats:', error);
-      console.log('📦 Using mock data');
-      setStats(MOCK_LEARNING_STATS);
+      setStats(null);
     } finally {
       setLoading(false);
     }
@@ -114,6 +61,24 @@ const LearningStatsPage = () => {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  if (!stats) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 space-y-4">
+        <BarChart3 className="w-16 h-16 text-gray-400" />
+        <p className="text-lg font-medium" style={{ color: currentColors.textSecondary }}>
+          Không thể tải dữ liệu thống kê
+        </p>
+        <button
+          onClick={loadStats}
+          className="px-4 py-2 rounded-lg text-white"
+          style={{ backgroundColor: currentColors.primary }}
+        >
+          Thử lại
+        </button>
       </div>
     );
   }

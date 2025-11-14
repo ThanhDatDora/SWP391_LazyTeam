@@ -505,11 +505,12 @@ const AdminPanel = () => {
 
   // NEW: States for missing features
   const [instructorRequests, setInstructorRequests] = useState([]);
-  const [withdrawalRequests, setWithdrawalRequests] = useState([]);
   const [pendingPayouts, setPendingPayouts] = useState([]);
   const [selectedCourse, setSelectedCourse] = useState(null);
   const [instructorRevenue, setInstructorRevenue] = useState([]);
   const [payModal, setPayModal] = useState({ isOpen: false, instructor: null, amount: '' });
+  const [openCourse, setOpenCourse] = useState(null); // For course detail modal
+  const [actionLoading, setActionLoading] = useState(false); // For action buttons loading state
   
   // Global Toast state
   const [toast, setToast] = useState({ show: false, type: '', message: '' });
@@ -729,7 +730,6 @@ const AdminPanel = () => {
     { id: 'courses', label: 'Khóa học', icon: BookOpen, path: '/admin/courses' },
     { id: 'revenue', label: 'Doanh thu', icon: DollarSign, path: '/admin/revenue' },
     { id: 'instructor-requests', label: 'Yêu cầu giảng viên', icon: UserCircle, path: '/admin/instructor-requests' },
-    { id: 'withdrawal-requests', label: 'Yêu cầu rút tiền', icon: Download, path: '/admin/withdrawal-requests' },
     { id: 'payouts', label: 'Chi trả doanh thu', icon: CreditCard, path: '/admin/payouts' },
     { id: 'lock', label: 'Khóa tài khoản', icon: Lock, path: '/admin/lock-accounts' },
     { id: 'unlock', label: 'Mở khóa', icon: Unlock, path: '/admin/unlock-accounts' },
@@ -785,6 +785,9 @@ const AdminPanel = () => {
     const path = location.pathname;
     if (path === '/admin') {
       setActiveMenu('overview');
+      // Reload data when returning to overview (e.g., after lock/unlock from UsersPage)
+      console.log('🔄 Returning to overview - Reloading dashboard data...');
+      loadDashboardData();
     } else if (path.includes('/admin/users')) {
       setActiveMenu('all-users');
     } else if (path.includes('/admin/learners')) {
@@ -803,8 +806,6 @@ const AdminPanel = () => {
       setActiveMenu('instructor-reports');
     } else if (path.includes('/admin/instructor-requests')) {
       setActiveMenu('instructor-requests');
-    } else if (path.includes('/admin/withdrawal-requests')) {
-      setActiveMenu('withdrawal-requests');
     } else if (path.includes('/admin/payouts')) {
       setActiveMenu('payouts');
     } else if (path.includes('/admin/settings')) {
@@ -848,41 +849,6 @@ const AdminPanel = () => {
     // TODO: Implement real API call
     // await fetch(`${API_BASE_URL}/admin/instructor-requests/${userId}/reject`, {...});
     showToast('error', `❌ [STUB] Instructor request rejected (waiting for BE implementation)`);
-  };
-
-  /**
-   * STUB: Fetch withdrawal requests from instructors
-   * @returns {Promise<Array>} List of pending withdrawals
-   */
-  const fetchWithdrawalRequests = async () => {
-    console.log('💰 [STUB] Fetching withdrawal requests...');
-    // TODO: Implement real API call
-    // const response = await fetch(`${API_BASE_URL}/admin/withdrawals/pending`, {...});
-    // return await response.json();
-    return []; // Placeholder
-  };
-
-  /**
-   * STUB: Approve withdrawal request
-   * @param {number} requestId - Withdrawal request ID
-   */
-  const approveWithdrawal = async (requestId) => {
-    console.log(`✅ [STUB] Approving withdrawal request ${requestId}`);
-    // TODO: Implement real API call
-    // await fetch(`${API_BASE_URL}/admin/withdrawals/${requestId}/approve`, {...});
-    showToast('success', '✅ [STUB] Withdrawal approved (waiting for BE implementation)');
-  };
-
-  /**
-   * STUB: Reject withdrawal request
-   * @param {number} requestId - Withdrawal request ID
-   * @param {string} reason - Rejection reason
-   */
-  const rejectWithdrawal = async (requestId, reason) => {
-    console.log(`❌ [STUB] Rejecting withdrawal request ${requestId}. Reason: ${reason}`);
-    // TODO: Implement real API call
-    // await fetch(`${API_BASE_URL}/admin/withdrawals/${requestId}/reject`, {...});
-    showToast('error', `❌ [STUB] Withdrawal rejected (waiting for BE implementation)`);
   };
 
   /**
@@ -1567,39 +1533,49 @@ const AdminPanel = () => {
     const { courseId } = modalState.data;
     const token = localStorage.getItem('token');
     try {
+      setActionLoading(true);
       const response = await fetch(`${API_BASE_URL}/admin/courses/${courseId}/approve`, {
-        method: 'PUT',
+        method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (response.ok) {
-        showToast('success', 'Khóa học đã được duyệt thành công');
+        showToast('success', 'Đã duyệt khóa học thành công');
         loadDashboardData();
+        setModalState({ type: null, isOpen: false, data: null });
       } else {
-        showToast('error', 'Không thể duyệt khóa học');
+        const errorData = await response.json().catch(() => ({}));
+        showToast('error', errorData.message || errorData.error || 'Không thể duyệt khóa học');
       }
     } catch (error) {
       console.error('Approve course error:', error);
-      showToast('error', 'Lỗi khi duyệt khóa học');
+      showToast('error', 'Lỗi kết nối đến server');
     } finally {
-      setModalState({ type: null, isOpen: false, data: null });
+      setActionLoading(false);
     }
   };
 
-  // Reject course
-  const handleRejectCourse = async (courseId, courseTitle) => {
+  // Reject course - Open modal with reason input
+  const handleRejectCourse = async (courseId) => {
+    const course = pendingCourses.find(c => c.course_id === courseId);
     setModalState({
-      type: 'reject',
+      type: 'rejectCourse',
       isOpen: true,
-      data: { courseId, courseTitle }
+      data: { courseId, courseTitle: course?.title || '' }
     });
   };
 
   const confirmRejectCourse = async (reason) => {
+    if (!reason || !reason.trim()) {
+      showToast('warning', 'Vui lòng nhập lý do từ chối');
+      return;
+    }
+
     const { courseId } = modalState.data;
     const token = localStorage.getItem('token');
     try {
+      setActionLoading(true);
       const response = await fetch(`${API_BASE_URL}/admin/courses/${courseId}/reject`, {
-        method: 'PUT',
+        method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -1607,16 +1583,18 @@ const AdminPanel = () => {
         body: JSON.stringify({ reason })
       });
       if (response.ok) {
-        showToast('success', 'Khóa học đã bị từ chối');
+        showToast('success', 'Đã từ chối khóa học');
         loadDashboardData();
+        setModalState({ type: null, isOpen: false, data: null });
       } else {
-        showToast('error', 'Không thể từ chối khóa học');
+        const errorData = await response.json().catch(() => ({}));
+        showToast('error', errorData.message || errorData.error || 'Không thể từ chối khóa học');
       }
     } catch (error) {
       console.error('Reject course error:', error);
-      showToast('error', 'Lỗi khi từ chối khóa học');
+      showToast('error', 'Lỗi kết nối đến server');
     } finally {
-      setModalState({ type: null, isOpen: false, data: null });
+      setActionLoading(false);
     }
   };
 
@@ -2465,20 +2443,6 @@ const AdminPanel = () => {
                     >
                       <UserCheck className="w-4 h-4" />
                       <span className="text-sm">Duyệt giảng viên</span>
-                    </button>
-
-                    {/* NEW: Withdrawal Requests */}
-                    <button
-                      onClick={() => handleMenuClick(menuItems.find(m => m.id === 'withdrawal-requests'))}
-                      className={`sidebar-menu-item ${activeMenu === 'withdrawal-requests' ? 'active' : ''} w-full flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all duration-200`}
-                      style={{
-                        backgroundColor: activeMenu === 'withdrawal-requests' ? currentColors.primary + '20' : 'transparent',
-                        color: activeMenu === 'withdrawal-requests' ? currentColors.primary : currentColors.text,
-                        fontWeight: activeMenu === 'withdrawal-requests' ? '600' : '500'
-                      }}
-                    >
-                      <Download className="w-4 h-4" />
-                      <span className="text-sm">Yêu cầu rút tiền</span>
                     </button>
 
                     {/* NEW: Payouts */}
@@ -3671,18 +3635,6 @@ const AdminPanel = () => {
                     Yêu cầu giảng viên
                   </TabsTrigger>
                   <TabsTrigger 
-                    value="withdrawals" 
-                    className="rounded-none border-b-2 border-transparent px-4 py-4 transition-colors whitespace-nowrap"
-                    style={{
-                      borderBottomColor: activeTab === 'withdrawals' ? currentColors.primary : 'transparent',
-                      backgroundColor: activeTab === 'withdrawals' ? currentColors.primary + '15' : 'transparent',
-                      color: activeTab === 'withdrawals' ? currentColors.primary : currentColors.textSecondary
-                    }}
-                  >
-                    <CreditCard className="w-4 h-4 mr-2" />
-                    Rút tiền
-                  </TabsTrigger>
-                  <TabsTrigger 
                     value="payouts" 
                     className="rounded-none border-b-2 border-transparent px-4 py-4 transition-colors whitespace-nowrap"
                     style={{
@@ -3741,7 +3693,7 @@ const AdminPanel = () => {
                             </div>
                             <div className="flex gap-2">
                               <button
-                                onClick={() => setModalState({ type: 'viewCourse', isOpen: true, data: course })}
+                                onClick={() => setOpenCourse(course)}
                                 className="px-4 py-2.5 flex items-center gap-2 rounded-lg font-medium transition-all hover:scale-105"
                                 style={{ 
                                   backgroundColor: currentColors.primary + '15',
@@ -4143,118 +4095,6 @@ const AdminPanel = () => {
                 )}
               </TabsContent>
 
-              {/* WITHDRAWAL REQUESTS TAB */}
-              <TabsContent value="withdrawals" className="p-6 space-y-4">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-xl font-bold" style={{ color: currentColors.text }}>
-                    Yêu cầu rút tiền ({withdrawalRequests.length})
-                  </h3>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => exportToCSV(withdrawalRequests, 'withdrawal-requests')}
-                  >
-                    <FileDown className="w-4 h-4 mr-2" />
-                    Xuất CSV
-                  </Button>
-                </div>
-
-                {withdrawalRequests.length === 0 ? (
-                  <div className="text-center py-12">
-                    <CreditCard className="w-16 h-16 mx-auto mb-4 opacity-50" style={{ color: currentColors.textSecondary }} />
-                    <p className="text-lg font-medium" style={{ color: currentColors.text }}>Không có yêu cầu rút tiền</p>
-                    <p className="text-sm mt-2" style={{ color: currentColors.textSecondary }}>
-                      Các yêu cầu rút tiền từ giảng viên sẽ hiển thị ở đây
-                    </p>
-                  </div>
-                ) : (
-                  <>
-                    <Card className="border-2 border-orange-200 bg-orange-50 mb-4">
-                      <CardContent className="p-4">
-                        <p className="text-sm" style={{ color: currentColors.textSecondary }}>Tổng số tiền chờ xử lý</p>
-                        <p className="text-2xl font-bold text-orange-600">
-                          {withdrawalRequests
-                            .filter(w => w.status === 'pending')
-                            .reduce((sum, w) => sum + (w.amount || 0), 0)
-                            .toLocaleString()} VND
-                        </p>
-                      </CardContent>
-                    </Card>
-
-                    <div className="overflow-x-auto">
-                      <table className="w-full border-collapse">
-                        <thead className="table-header bg-gray-50 border-b-2 border-gray-200">
-                          <tr>
-                            <th className="table-cell px-4 py-3 text-left text-sm font-semibold border" style={{ color: currentColors.text }}>ID</th>
-                            <th className="table-cell px-4 py-3 text-left text-sm font-semibold border" style={{ color: currentColors.text }}>Giảng viên</th>
-                            <th className="table-cell px-4 py-3 text-left text-sm font-semibold border" style={{ color: currentColors.text }}>Số tiền</th>
-                            <th className="table-cell px-4 py-3 text-left text-sm font-semibold border" style={{ color: currentColors.text }}>Thông tin ngân hàng</th>
-                            <th className="table-cell px-4 py-3 text-left text-sm font-semibold border" style={{ color: currentColors.text }}>Ngày yêu cầu</th>
-                            <th className="table-cell px-4 py-3 text-left text-sm font-semibold border" style={{ color: currentColors.text }}>Trạng thái</th>
-                            <th className="table-cell px-4 py-3 text-left text-sm font-semibold border" style={{ color: currentColors.text }}>Hành động</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-200">
-                          {withdrawalRequests.map(withdrawal => (
-                            <tr key={withdrawal.request_id} className="table-row hover:bg-gray-50">
-                              <td className="table-cell px-4 py-3 text-sm border">{withdrawal.request_id}</td>
-                              <td className="table-cell px-4 py-3 text-sm font-medium border">{withdrawal.instructor_name}</td>
-                              <td className="table-cell px-4 py-3 text-sm font-bold text-orange-600 border">
-                                {(withdrawal.amount || 0).toLocaleString()} VND
-                              </td>
-                              <td className="table-cell px-4 py-3 text-sm border">
-                                <div className="text-xs" style={{ color: currentColors.textSecondary }}>
-                                  <div>{withdrawal.bank_name}</div>
-                                  <div>{withdrawal.account_number}</div>
-                                </div>
-                              </td>
-                              <td className="table-cell px-4 py-3 text-sm border">
-                                {new Date(withdrawal.request_date).toLocaleDateString('vi-VN')}
-                              </td>
-                              <td className="table-cell px-4 py-3 border">
-                                <Badge variant={withdrawal.status === 'pending' ? 'secondary' : 'default'}>
-                                  {withdrawal.status === 'pending' ? 'Chờ xử lý' : 
-                                   withdrawal.status === 'approved' ? 'Đã duyệt' : 
-                                   withdrawal.status === 'rejected' ? 'Từ chối' : withdrawal.status}
-                                </Badge>
-                              </td>
-                              <td className="table-cell px-4 py-3 border">
-                                {withdrawal.status === 'pending' && (
-                                  <div className="flex gap-2">
-                                    <Button 
-                                      size="sm" 
-                                      variant="default"
-                                      onClick={() => approveWithdrawal(withdrawal.request_id)}
-                                    >
-                                      <CheckCircle className="w-4 h-4 mr-1" />
-                                      Duyệt
-                                    </Button>
-                                    <Button 
-                                      size="sm" 
-                                      variant="destructive"
-                                      onClick={() => {
-                                        setModalState({ 
-                                          type: 'rejectWithdrawal', 
-                                          isOpen: true, 
-                                          data: { requestId: withdrawal.request_id } 
-                                        });
-                                      }}
-                                    >
-                                      <XCircle className="w-4 h-4 mr-1" />
-                                      Từ chối
-                                    </Button>
-                                  </div>
-                                )}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </>
-                )}
-              </TabsContent>
-
               {/* PAYOUTS TAB */}
               <TabsContent value="payouts" className="p-6 space-y-4">
                 <div className="flex items-center justify-between mb-4">
@@ -4532,7 +4372,7 @@ const AdminPanel = () => {
             <p className="text-inherit"><strong>Họ tên:</strong> {modalState.data.full_name}</p>
             <p className="text-inherit"><strong>Email:</strong> {modalState.data.email}</p>
             <p className="text-inherit"><strong>Vai trò:</strong> 
-              <Badge type="role" value={modalState.data.role_name}>{modalState.data.role_name || 'Chưa xác định'}</Badge>
+              <Badge type="role" value={getRoleName(modalState.data.role_id)}>{getRoleName(modalState.data.role_id) || 'Chưa xác định'}</Badge>
             </p>
             <p className="text-inherit"><strong>Trạng thái:</strong> 
               <Badge type="status" value={modalState.data.is_locked ? 'locked' : 'active'}>
@@ -4636,22 +4476,204 @@ const AdminPanel = () => {
         </Modal>
       )}
 
-      {/* Reject Course Modal */}
-      {modalState.type === 'reject' && (
-        <Modal
-          isOpen={modalState.isOpen}
-          onClose={() => setModalState({ type: null, isOpen: false, data: null })}
-          title="Xác nhận từ chối khóa học"
-          onConfirm={confirmRejectCourse}
-          confirmText="Từ chối"
-          confirmVariant="danger"
-          currentColors={currentColors}
-          theme={theme}
-        >
-          <p className="text-inherit opacity-90">
-            Bạn có chắc chắn muốn từ chối khóa học này? Giảng viên sẽ cần chỉnh sửa lại.
-          </p>
-        </Modal>
+      {/* View Course Detail Modal */}
+      {openCourse && createPortal(
+        <div className={`fixed inset-0 z-[9998] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 ${theme === 'dark' ? 'modal-dark' : 'modal-light'}`}>
+          <div 
+            className="modal-surface rounded-xl shadow-2xl w-full max-w-3xl animate-in fade-in zoom-in duration-200"
+            style={{ backgroundColor: currentColors.card }}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="view-course-title"
+          >
+            {/* Header */}
+            <div className="p-6 border-b flex items-center justify-between" style={{ borderColor: currentColors.border }}>
+              <h3 id="view-course-title" className="text-xl font-bold text-inherit flex items-center gap-2">
+                <Eye className="w-5 h-5" />
+                Chi tiết khóa học
+              </h3>
+              <button
+                onClick={() => setOpenCourse(null)}
+                className="hover:opacity-70 transition-opacity text-inherit opacity-70"
+                aria-label="Đóng modal"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-6 max-h-[60vh] overflow-y-auto modal-content-wrapper space-y-4">
+              {/* Course Image */}
+              {openCourse.thumbnail && (
+                <img
+                  src={openCourse.thumbnail}
+                  alt={openCourse.title}
+                  className="w-full h-48 object-cover rounded-lg"
+                />
+              )}
+
+              {/* Course Title */}
+              <div>
+                <h4 className="text-2xl font-bold text-inherit">{openCourse.title}</h4>
+                {openCourse.category_name && (
+                  <span className="inline-block mt-2 px-3 py-1 rounded-full text-sm font-medium"
+                    style={{ 
+                      backgroundColor: currentColors.primary + '15',
+                      color: currentColors.primary 
+                    }}
+                  >
+                    {openCourse.category_name}
+                  </span>
+                )}
+              </div>
+
+              {/* Course Description */}
+              <div>
+                <h5 className="font-semibold text-inherit mb-2">📝 Mô tả</h5>
+                <p className="text-inherit opacity-80 whitespace-pre-wrap">
+                  {openCourse.description || 'Không có mô tả'}
+                </p>
+              </div>
+
+              {/* Course Details Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 rounded-lg" 
+                style={{ backgroundColor: currentColors.background }}
+              >
+                <div>
+                  <p className="text-sm text-inherit opacity-70">👨‍🏫 Giảng viên</p>
+                  <p className="font-semibold text-inherit">{openCourse.instructor_name || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-inherit opacity-70">📊 Trạng thái</p>
+                  <span className={`inline-block px-2 py-1 rounded text-sm font-medium ${
+                    openCourse.status === 'approved' 
+                      ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                      : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
+                  }`}>
+                    {openCourse.status === 'pending' ? '⏳ Chờ duyệt' : 
+                     openCourse.status === 'approved' ? '✅ Đã duyệt' : 
+                     '❌ Từ chối'}
+                  </span>
+                </div>
+                <div>
+                  <p className="text-sm text-inherit opacity-70">💰 Giá</p>
+                  <p className="font-semibold text-inherit">
+                    {openCourse.price 
+                      ? `${Number(openCourse.price).toLocaleString('vi-VN')} VND` 
+                      : 'Miễn phí'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-inherit opacity-70">📚 Số bài học</p>
+                  <p className="font-semibold text-inherit">{openCourse.lesson_count || 0} bài</p>
+                </div>
+                <div className="md:col-span-2">
+                  <p className="text-sm text-inherit opacity-70">📅 Ngày tạo</p>
+                  <p className="font-semibold text-inherit">
+                    {openCourse.created_at 
+                      ? new Date(openCourse.created_at).toLocaleDateString('vi-VN')
+                      : 'N/A'}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer with Actions */}
+            {openCourse.status === 'pending' && (
+              <div className="flex gap-3 p-6 border-t" style={{ 
+                borderColor: currentColors.border,
+                backgroundColor: currentColors.background 
+              }}>
+                <button
+                  onClick={() => {
+                    setOpenCourse(null);
+                    handleRejectCourse(openCourse.course_id);
+                  }}
+                  className="flex-1 px-4 py-2.5 rounded-lg font-medium bg-red-600 text-white hover:bg-red-700 transition-colors flex items-center justify-center gap-2"
+                  disabled={actionLoading}
+                >
+                  <XCircle className="w-5 h-5" />
+                  Từ chối
+                </button>
+                <button
+                  onClick={() => {
+                    setOpenCourse(null);
+                    handleApproveCourse(openCourse.course_id, openCourse.title);
+                  }}
+                  className="flex-1 px-4 py-2.5 rounded-lg font-medium bg-green-600 text-white hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
+                  disabled={actionLoading}
+                >
+                  <CheckCircle className="w-5 h-5" />
+                  Duyệt khóa học
+                </button>
+              </div>
+            )}
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Reject Course Modal with Reason */}
+      {modalState.type === 'rejectCourse' && modalState.isOpen && createPortal(
+        <div className={`fixed inset-0 z-[9998] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 ${theme === 'dark' ? 'modal-dark' : 'modal-light'}`}>
+          <div 
+            className="modal-surface rounded-xl shadow-2xl w-full max-w-md animate-in fade-in zoom-in duration-200"
+            style={{ backgroundColor: currentColors.card }}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="reject-course-title"
+          >
+            <div className="p-6 border-b" style={{ borderColor: currentColors.border }}>
+              <h3 id="reject-course-title" className="text-xl font-bold text-inherit">❌ Từ chối khóa học</h3>
+            </div>
+            
+            <div className="p-6 modal-content-wrapper space-y-4">
+              <p className="text-inherit opacity-90">
+                Khóa học: <span className="font-semibold">{modalState.data?.courseTitle}</span>
+              </p>
+              <div>
+                <label className="text-sm font-medium mb-2 block text-inherit">
+                  Lý do từ chối <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  id="reject-reason"
+                  placeholder="Nhập lý do từ chối khóa học..."
+                  className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 min-h-[100px]"
+                  style={{
+                    borderColor: currentColors.border,
+                    backgroundColor: theme === 'dark' ? currentColors.card : '#ffffff',
+                    color: currentColors.text
+                  }}
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 p-6 border-t" style={{ 
+              borderColor: currentColors.border,
+              backgroundColor: currentColors.background 
+            }}>
+              <button 
+                onClick={() => setModalState({ type: null, isOpen: false, data: null })}
+                className="flex-1 px-4 py-2 rounded-lg font-medium hover:opacity-90 transition-colors"
+                style={{ backgroundColor: currentColors.border, color: currentColors.text }}
+                disabled={actionLoading}
+              >
+                Hủy
+              </button>
+              <button 
+                onClick={() => {
+                  const reason = document.getElementById('reject-reason').value;
+                  confirmRejectCourse(reason);
+                }}
+                className="flex-1 px-4 py-2 rounded-lg font-medium bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 transition-colors"
+                disabled={actionLoading}
+              >
+                {actionLoading ? 'Đang xử lý...' : 'Từ chối'}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
 
       {/* Logout Modal */}

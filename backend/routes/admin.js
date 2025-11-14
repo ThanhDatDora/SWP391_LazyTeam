@@ -432,134 +432,7 @@ router.get('/courses/pending', authenticateToken, requireAdmin, async (req, res)
   }
 });
 
-// Seed pending courses (for development/demo purposes)
-// RULE: Only insert if database has 0 pending courses
-// RULE: Always insert exactly 3 courses
-router.post('/courses/seed-pending', authenticateToken, requireAdmin, async (req, res) => {
-  try {
-    const pool = await getPool();
 
-    // Check if pending courses already exist
-    const checkQuery = `
-      SELECT COUNT(*) as count 
-      FROM courses 
-      WHERE status IN ('draft', 'pending')
-    `;
-    const checkResult = await pool.request().query(checkQuery);
-    const existingCount = checkResult.recordset[0].count;
-
-    if (existingCount >= 1) {
-      return res.json({
-        success: false,
-        inserted: 0,
-        message: 'Pending data already exists'
-      });
-    }
-
-    // Get first instructor for seed data
-    const instructorQuery = `
-      SELECT TOP 1 user_id 
-      FROM users 
-      WHERE role_id = 2
-      ORDER BY user_id
-    `;
-    const instructorResult = await pool.request().query(instructorQuery);
-    
-    if (instructorResult.recordset.length === 0) {
-      return res.status(400).json({
-        success: false,
-        error: 'No instructor found in database. Please create an instructor user first.'
-      });
-    }
-
-    const instructorId = instructorResult.recordset[0].user_id;
-
-    // Seed data for 3 pending courses
-    const seedCourses = [
-      {
-        title: 'Lập trình React nâng cao',
-        description: 'Khóa học React từ cơ bản đến nâng cao với Hooks, Redux và các best practices hiện đại. Học cách xây dựng ứng dụng web với React, quản lý state, routing và tích hợp API.',
-        price: 1500000,
-        thumbnail: 'https://picsum.photos/seed/react-course/800/600',
-        status: 'pending'
-      },
-      {
-        title: 'Node.js Backend Development',
-        description: 'Xây dựng RESTful API với Node.js, Express và SQL Server cho ứng dụng thực tế. Học cách thiết kế database, authentication, authorization và deploy production.',
-        price: 1200000,
-        thumbnail: 'https://picsum.photos/seed/nodejs-course/800/600',
-        status: 'pending'
-      },
-      {
-        title: 'Full-Stack JavaScript Development',
-        description: 'Khóa học toàn diện về phát triển ứng dụng web Full-Stack với JavaScript. Bao gồm React, Node.js, Express, SQL và deployment. Xây dựng dự án thực tế từ đầu đến cuối.',
-        price: 2000000,
-        thumbnail: 'https://picsum.photos/seed/fullstack-course/800/600',
-        status: 'pending'
-      }
-    ];
-
-    const insertedCourses = [];
-
-    // Insert each course
-    for (const course of seedCourses) {
-      const insertQuery = `
-        INSERT INTO courses (title, description, price, thumbnail, status, owner_instructor_id, created_at, updated_at)
-        OUTPUT INSERTED.course_id, INSERTED.title, INSERTED.description, INSERTED.price, INSERTED.status, INSERTED.created_at
-        VALUES (@title, @description, @price, @thumbnail, @status, @instructorId, GETDATE(), GETDATE())
-      `;
-
-      const result = await pool.request()
-        .input('title', sql.NVarChar, course.title)
-        .input('description', sql.NVarChar, course.description)
-        .input('price', sql.Decimal(10, 2), course.price)
-        .input('thumbnail', sql.NVarChar, course.thumbnail)
-        .input('status', sql.NVarChar, course.status)
-        .input('instructorId', sql.BigInt, instructorId)
-        .query(insertQuery);
-
-      insertedCourses.push(result.recordset[0]);
-    }
-
-    // Get instructor info for response
-    const instructorInfoQuery = `
-      SELECT user_id, full_name, email 
-      FROM users 
-      WHERE user_id = @instructorId
-    `;
-    const instructorInfo = await pool.request()
-      .input('instructorId', sql.BigInt, instructorId)
-      .query(instructorInfoQuery);
-
-    const instructor = instructorInfo.recordset[0];
-
-    // Add instructor info and total_lessons to each course
-    const coursesWithDetails = insertedCourses.map(course => ({
-      ...course,
-      instructor_id: instructor.user_id,
-      instructor_name: instructor.full_name,
-      instructor_email: instructor.email,
-      total_lessons: 0
-    }));
-
-    res.json({
-      success: true,
-      inserted: insertedCourses.length,
-      message: `Successfully seeded ${insertedCourses.length} pending courses`,
-      data: {
-        courses: coursesWithDetails
-      }
-    });
-
-  } catch (error) {
-    console.error('Seed pending courses error:', error);
-    res.status(500).json({ 
-      success: false,
-      error: 'Failed to seed pending courses',
-      details: error.message
-    });
-  }
-});
 
 // Approve course (change status from draft/pending to active)
 // Support both POST and PUT methods
@@ -969,7 +842,7 @@ router.get('/learning-stats', authenticateToken, requireAdmin, async (req, res) 
         COUNT(e.enrollment_id) as enrolled_count,
         CAST(AVG(CASE WHEN e.progress_percentage = 100 THEN 100.0 ELSE 0 END) as DECIMAL(5,2)) as completion_rate
       FROM courses c
-      LEFT JOIN users u ON c.instructor_id = u.user_id
+      LEFT JOIN users u ON c.owner_instructor_id = u.user_id
       LEFT JOIN enrollments e ON c.course_id = e.course_id
       WHERE c.status = 'active'
       GROUP BY c.course_id, c.title, u.full_name
@@ -1015,6 +888,228 @@ router.get('/learning-stats', authenticateToken, requireAdmin, async (req, res) 
     res.status(500).json({ 
       success: false,
       error: 'Failed to fetch learning statistics',
+      details: error.message
+    });
+  }
+});
+
+// ==================== CATEGORY MANAGEMENT ENDPOINTS ====================
+
+// Get all categories with course details
+router.get('/categories', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const pool = await getPool();
+    
+    // Get categories with course count
+    const categoriesResult = await pool.request().query(`
+      SELECT 
+        c.category_id as id,
+        c.name,
+        COUNT(co.course_id) as courseCount
+      FROM categories c
+      LEFT JOIN courses co ON c.category_id = co.category_id AND co.status = 'active'
+      GROUP BY c.category_id, c.name
+      ORDER BY c.name
+    `);
+
+    // Get courses for each category
+    const coursesResult = await pool.request().query(`
+      SELECT 
+        co.course_id as id,
+        co.title,
+        co.category_id as categoryId
+      FROM courses co
+      WHERE co.status = 'active'
+      ORDER BY co.title
+    `);
+
+    // Map courses to categories
+    const categories = categoriesResult.recordset.map(cat => ({
+      id: cat.id,
+      name: cat.name,
+      courseCount: cat.courseCount || 0,
+      courses: coursesResult.recordset
+        .filter(c => c.categoryId === cat.id)
+        .map(c => ({ id: c.id, title: c.title }))
+    }));
+
+    res.json({
+      success: true,
+      categories
+    });
+
+  } catch (error) {
+    console.error('❌ Get categories error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to fetch categories',
+      details: error.message
+    });
+  }
+});
+
+// Create new category
+router.post('/categories', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { name } = req.body;
+
+    if (!name || !name.trim()) {
+      return res.status(400).json({
+        success: false,
+        error: 'Category name is required'
+      });
+    }
+
+    const pool = await getPool();
+
+    // Check if category already exists
+    const existingCategory = await pool.request()
+      .input('name', sql.NVarChar, name.trim())
+      .query('SELECT category_id FROM categories WHERE name = @name');
+
+    if (existingCategory.recordset.length > 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Category with this name already exists'
+      });
+    }
+
+    // Insert new category
+    const result = await pool.request()
+      .input('name', sql.NVarChar, name.trim())
+      .query(`
+        INSERT INTO categories (name)
+        OUTPUT INSERTED.category_id as id, INSERTED.name
+        VALUES (@name)
+      `);
+
+    res.status(201).json({
+      success: true,
+      message: 'Category created successfully',
+      category: {
+        id: result.recordset[0].id,
+        name: result.recordset[0].name,
+        courseCount: 0,
+        courses: []
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Create category error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to create category',
+      details: error.message
+    });
+  }
+});
+
+// Update category
+router.put('/categories/:id', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name } = req.body;
+
+    if (!name || !name.trim()) {
+      return res.status(400).json({
+        success: false,
+        error: 'Category name is required'
+      });
+    }
+
+    const pool = await getPool();
+
+    // Check if category exists
+    const categoryCheck = await pool.request()
+      .input('id', sql.Int, id)
+      .query('SELECT category_id FROM categories WHERE category_id = @id');
+
+    if (categoryCheck.recordset.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Category not found'
+      });
+    }
+
+    // Check if new name already exists (excluding current category)
+    const existingCategory = await pool.request()
+      .input('name', sql.NVarChar, name.trim())
+      .input('id', sql.Int, id)
+      .query('SELECT category_id FROM categories WHERE name = @name AND category_id != @id');
+
+    if (existingCategory.recordset.length > 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Category with this name already exists'
+      });
+    }
+
+    // Update category
+    await pool.request()
+      .input('id', sql.Int, id)
+      .input('name', sql.NVarChar, name.trim())
+      .query('UPDATE categories SET name = @name WHERE category_id = @id');
+
+    res.json({
+      success: true,
+      message: 'Category updated successfully'
+    });
+
+  } catch (error) {
+    console.error('❌ Update category error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to update category',
+      details: error.message
+    });
+  }
+});
+
+// Delete category
+router.delete('/categories/:id', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const pool = await getPool();
+
+    // Check if category exists
+    const categoryCheck = await pool.request()
+      .input('id', sql.Int, id)
+      .query('SELECT category_id FROM categories WHERE category_id = @id');
+
+    if (categoryCheck.recordset.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Category not found'
+      });
+    }
+
+    // Check if category has courses
+    const coursesCheck = await pool.request()
+      .input('id', sql.Int, id)
+      .query('SELECT COUNT(*) as count FROM courses WHERE category_id = @id');
+
+    if (coursesCheck.recordset[0].count > 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Cannot delete category with associated courses'
+      });
+    }
+
+    // Delete category
+    await pool.request()
+      .input('id', sql.Int, id)
+      .query('DELETE FROM categories WHERE category_id = @id');
+
+    res.json({
+      success: true,
+      message: 'Category deleted successfully'
+    });
+
+  } catch (error) {
+    console.error('❌ Delete category error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to delete category',
       details: error.message
     });
   }

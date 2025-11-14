@@ -68,6 +68,8 @@ app.use('/api', rateLimitConfigs.api, slowDownConfigs.api);
 // Import route handlers
 import authRoutes from './routes/auth.js';
 import courseRoutes from './routes/courses.js';
+import adminRoutes from './routes/admin.js';
+import adminRevenueRoutes from './routes/admin-revenue.js';
 // TODO: Create these route files when needed
 // import userRoutes from './routes/users.js';
 // import enrollmentRoutes from './routes/enrollments.js';
@@ -79,6 +81,8 @@ import courseRoutes from './routes/courses.js';
 // API routes
 app.use('/api/auth', authRoutes);
 app.use('/api/courses', courseRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/admin', adminRevenueRoutes);
 // TODO: Uncomment when route files are created
 // app.use('/api/users', userRoutes);
 // app.use('/api/enrollments', enrollmentRoutes);

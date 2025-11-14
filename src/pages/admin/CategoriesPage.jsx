@@ -11,7 +11,7 @@ const CategoriesPage = () => {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [modalType, setModalType] = useState('add'); // 'add' | 'edit'
-  const [formData, setFormData] = useState({ name: '', description: '' });
+  const [formData, setFormData] = useState({ name: '' });
   const [editingId, setEditingId] = useState(null);
 
   useEffect(() => {
@@ -23,9 +23,9 @@ const CategoriesPage = () => {
       setLoading(true);
       const token = localStorage.getItem('token');
       
-      console.log('📡 Fetching categories from:', `${API_BASE_URL}/courses/categories/list`);
+      console.log('📡 Fetching categories from:', `${API_BASE_URL}/admin/categories`);
       
-      const response = await fetch(`${API_BASE_URL}/courses/categories/list`, {
+      const response = await fetch(`${API_BASE_URL}/admin/categories`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -38,7 +38,7 @@ const CategoriesPage = () => {
         const result = await response.json();
         console.log('📦 Categories response:', result);
 
-        // Backend returns { categories: [...] }
+        // Backend returns { success: true, categories: [...] }
         const categoriesList = result.categories || [];
         
         console.log('✅ Parsed categories:', categoriesList.length);
@@ -57,14 +57,14 @@ const CategoriesPage = () => {
 
   const handleAdd = () => {
     setModalType('add');
-    setFormData({ name: '', description: '' });
+    setFormData({ name: '' });
     setShowModal(true);
   };
 
   const handleEdit = (category) => {
     setModalType('edit');
     setEditingId(category.id);
-    setFormData({ name: category.name, description: category.description || '' });
+    setFormData({ name: category.name });
     setShowModal(true);
   };
 
@@ -92,6 +92,12 @@ const CategoriesPage = () => {
   const handleSubmit = async () => {
     try {
       const token = localStorage.getItem('token');
+      
+      if (!formData.name || !formData.name.trim()) {
+        alert('Vui lòng nhập tên danh mục');
+        return;
+      }
+
       const url = modalType === 'add' 
         ? `${API_BASE_URL}/admin/categories`
         : `${API_BASE_URL}/admin/categories/${editingId}`;
@@ -102,15 +108,19 @@ const CategoriesPage = () => {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify({ name: formData.name.trim() })
       });
 
       if (response.ok) {
         setShowModal(false);
         loadCategories();
+      } else {
+        const errorData = await response.json();
+        alert(errorData.error || 'Lỗi khi lưu danh mục');
       }
     } catch (error) {
       console.error('Error saving category:', error);
+      alert('Lỗi khi lưu danh mục');
     }
   };
 
@@ -180,9 +190,26 @@ const CategoriesPage = () => {
                 </div>
               </div>
               
-              <p className="text-sm mb-4" style={{ color: currentColors.textSecondary }}>
-                {category.description || 'Chưa có mô tả'}
-              </p>
+              {/* Show courses list */}
+              {category.courses && category.courses.length > 0 && (
+                <div className="mb-4">
+                  <p className="text-xs font-medium mb-2" style={{ color: currentColors.textSecondary }}>
+                    Khóa học:
+                  </p>
+                  <div className="space-y-1">
+                    {category.courses.slice(0, 3).map(course => (
+                      <p key={course.id} className="text-xs pl-2" style={{ color: currentColors.textSecondary }}>
+                        • {course.title}
+                      </p>
+                    ))}
+                    {category.courses.length > 3 && (
+                      <p className="text-xs pl-2 italic" style={{ color: currentColors.textSecondary }}>
+                        +{category.courses.length - 3} khóa học khác
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
               
               <div className="flex items-center gap-2">
                 <button
@@ -232,24 +259,7 @@ const CategoriesPage = () => {
                     borderColor: currentColors.border
                   }}
                   placeholder="Nhập tên danh mục..."
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium mb-2" style={{ color: currentColors.text }}>
-                  Mô tả
-                </label>
-                <textarea
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  className="w-full px-4 py-2 rounded-lg border resize-none"
-                  rows="4"
-                  style={{
-                    backgroundColor: currentColors.card,
-                    color: currentColors.text,
-                    borderColor: currentColors.border
-                  }}
-                  placeholder="Nhập mô tả..."
+                  autoFocus
                 />
               </div>
             </div>

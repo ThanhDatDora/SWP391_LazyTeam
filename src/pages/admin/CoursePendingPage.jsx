@@ -81,35 +81,7 @@ export default function CoursePendingPage() {
     setToasts(prev => prev.filter(t => t.id !== id));
   };
 
-  const seedPendingCourses = async () => {
-    try {
-      console.log('🌱 Seeding pending courses...');
-      const token = localStorage.getItem('token');
-      
-      const response = await fetch(`${API_BASE_URL}/admin/courses/seed-pending`, {
-        method: 'POST',
-        headers: { 
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-      });
 
-      const data = await response.json();
-      console.log('🌱 Seed response:', data);
-
-      if (response.ok && data.success) {
-        showToast(`Đã tạo ${data.inserted} khóa học mẫu`, 'success');
-        return true;
-      } else {
-        console.log('ℹ️ Seed info:', data.message);
-        return false;
-      }
-    } catch (error) {
-      console.error('❌ Error seeding courses:', error);
-      showToast('Lỗi khi tạo dữ liệu mẫu', 'error');
-      return false;
-    }
-  };
 
   const fetchPendingCourses = async () => {
     try {
@@ -138,36 +110,7 @@ export default function CoursePendingPage() {
                      Array.isArray(data) ? data : [];
 
         console.log('✅ Parsed pending courses:', list.length);
-        
-        // If empty, try to seed data
-        if (list.length === 0) {
-          console.log('⚠️ No pending courses found, attempting to seed...');
-          const seeded = await seedPendingCourses();
-          
-          if (seeded) {
-            // Refetch after seeding
-            const refetchResponse = await fetch(`${API_BASE_URL}/admin/courses/pending`, {
-              headers: { 
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
-              },
-            });
-            
-            if (refetchResponse.ok) {
-              const refetchData = await refetchResponse.json();
-              const refetchList = Array.isArray(refetchData?.data) ? refetchData.data : 
-                                 Array.isArray(refetchData?.data?.courses) ? refetchData.data.courses :
-                                 Array.isArray(refetchData) ? refetchData : [];
-              setCourses(refetchList);
-            } else {
-              setCourses([]);
-            }
-          } else {
-            setCourses([]);
-          }
-        } else {
-          setCourses(list);
-        }
+        setCourses(list);
       } else {
         console.error('❌ Failed to load pending courses:', response.status);
         setError('Không thể tải danh sách khóa học');
