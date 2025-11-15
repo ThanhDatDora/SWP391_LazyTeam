@@ -9,6 +9,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import { BrowserRouter } from 'react-router-dom';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 // Mock components (you'll need to adjust imports based on actual paths)
 import ExamCard from '../../src/components/exam/ExamCard';
@@ -18,13 +19,13 @@ import ExamResult from '../../src/components/exam/ExamResult';
 import ExamReview from '../../src/components/exam/ExamReview';
 
 // Mock API service
-jest.mock('../../src/services/api', () => ({
+vi.mock('../../src/services/api', () => ({
   api: {
     newExams: {
-      getExamByMooc: jest.fn(),
-      startExam: jest.fn(),
-      submitExam: jest.fn(),
-      getExamResult: jest.fn()
+      getExamByMooc: vi.fn(),
+      startExam: vi.fn(),
+      submitExam: vi.fn(),
+      getExamResult: vi.fn()
     }
   }
 }));
@@ -56,7 +57,7 @@ describe('ExamCard Component', () => {
     renderWithRouter(
       <ExamCard
         examData={mockExamData}
-        onStartExam={jest.fn()}
+        onStartExam={vi.fn()}
       />
     );
 
@@ -70,7 +71,7 @@ describe('ExamCard Component', () => {
     renderWithRouter(
       <ExamCard
         examData={mockExamData}
-        onStartExam={jest.fn()}
+        onStartExam={vi.fn()}
       />
     );
 
@@ -89,7 +90,7 @@ describe('ExamCard Component', () => {
     renderWithRouter(
       <ExamCard
         examData={ineligibleData}
-        onStartExam={jest.fn()}
+        onStartExam={vi.fn()}
       />
     );
 
@@ -107,7 +108,7 @@ describe('ExamCard Component', () => {
     renderWithRouter(
       <ExamCard
         examData={attemptedData}
-        onStartExam={jest.fn()}
+        onStartExam={vi.fn()}
       />
     );
 
@@ -116,7 +117,7 @@ describe('ExamCard Component', () => {
   });
 
   test('TC-UT-FC-005: Should call onStartExam when button clicked', async () => {
-    const mockStartExam = jest.fn();
+    const mockStartExam = vi.fn();
 
     renderWithRouter(
       <ExamCard
@@ -145,8 +146,8 @@ describe('ExamIntro Component', () => {
     renderWithRouter(
       <ExamIntro
         examData={mockExamData}
-        onStart={jest.fn()}
-        onClose={jest.fn()}
+        onStart={vi.fn()}
+        onClose={vi.fn()}
       />
     );
 
@@ -156,13 +157,13 @@ describe('ExamIntro Component', () => {
   });
 
   test('TC-UT-FC-007: Should call onStart when Start button clicked', async () => {
-    const mockOnStart = jest.fn();
+    const mockOnStart = vi.fn();
 
     renderWithRouter(
       <ExamIntro
         examData={mockExamData}
         onStart={mockOnStart}
-        onClose={jest.fn()}
+        onClose={vi.fn()}
       />
     );
 
@@ -173,12 +174,12 @@ describe('ExamIntro Component', () => {
   });
 
   test('TC-UT-FC-008: Should call onClose when Cancel clicked', async () => {
-    const mockOnClose = jest.fn();
+    const mockOnClose = vi.fn();
 
     renderWithRouter(
       <ExamIntro
         examData={mockExamData}
-        onStart={jest.fn()}
+        onStart={vi.fn()}
         onClose={mockOnClose}
       />
     );
@@ -193,8 +194,8 @@ describe('ExamIntro Component', () => {
     renderWithRouter(
       <ExamIntro
         examData={mockExamData}
-        onStart={jest.fn()}
-        onClose={jest.fn()}
+        onStart={vi.fn()}
+        onClose={vi.fn()}
         loading={true}
       />
     );
@@ -235,8 +236,8 @@ describe('ExamSession Component', () => {
         attemptId={123}
         questions={mockQuestions}
         duration_minutes={20}
-        onSubmit={jest.fn()}
-        onAutoSubmit={jest.fn()}
+        onSubmit={vi.fn()}
+        onAutoSubmit={vi.fn()}
       />
     );
 
@@ -251,8 +252,8 @@ describe('ExamSession Component', () => {
         attemptId={123}
         questions={mockQuestions}
         duration_minutes={20}
-        onSubmit={jest.fn()}
-        onAutoSubmit={jest.fn()}
+        onSubmit={vi.fn()}
+        onAutoSubmit={vi.fn()}
       />
     );
 
@@ -271,8 +272,8 @@ describe('ExamSession Component', () => {
         attemptId={123}
         questions={mockQuestions}
         duration_minutes={20}
-        onSubmit={jest.fn()}
-        onAutoSubmit={jest.fn()}
+        onSubmit={vi.fn()}
+        onAutoSubmit={vi.fn()}
       />
     );
 
@@ -296,8 +297,8 @@ describe('ExamSession Component', () => {
         attemptId={123}
         questions={mockQuestions}
         duration_minutes={20}
-        onSubmit={jest.fn()}
-        onAutoSubmit={jest.fn()}
+        onSubmit={vi.fn()}
+        onAutoSubmit={vi.fn()}
       />
     );
 
@@ -314,8 +315,8 @@ describe('ExamSession Component', () => {
         attemptId={123}
         questions={mockQuestions}
         duration_minutes={20}
-        onSubmit={jest.fn()}
-        onAutoSubmit={jest.fn()}
+        onSubmit={vi.fn()}
+        onAutoSubmit={vi.fn()}
       />
     );
 
@@ -337,8 +338,8 @@ describe('ExamSession Component', () => {
         attemptId={123}
         questions={mockQuestions}
         duration_minutes={20}
-        onSubmit={jest.fn()}
-        onAutoSubmit={jest.fn()}
+        onSubmit={vi.fn()}
+        onAutoSubmit={vi.fn()}
       />
     );
 
@@ -352,8 +353,8 @@ describe('ExamSession Component', () => {
         attemptId={123}
         questions={mockQuestions}
         duration_minutes={20}
-        onSubmit={jest.fn()}
-        onAutoSubmit={jest.fn()}
+        onSubmit={vi.fn()}
+        onAutoSubmit={vi.fn()}
       />
     );
 
@@ -367,8 +368,8 @@ describe('ExamSession Component', () => {
         attemptId={123}
         questions={mockQuestions}
         duration_minutes={20}
-        onSubmit={jest.fn()}
-        onAutoSubmit={jest.fn()}
+        onSubmit={vi.fn()}
+        onAutoSubmit={vi.fn()}
       />
     );
 
@@ -377,7 +378,7 @@ describe('ExamSession Component', () => {
   });
 
   test('TC-UT-FC-018: Should call onSubmit when Submit clicked', async () => {
-    const mockOnSubmit = jest.fn();
+    const mockOnSubmit = vi.fn();
 
     renderWithRouter(
       <ExamSession
@@ -386,7 +387,7 @@ describe('ExamSession Component', () => {
         questions={mockQuestions}
         duration_minutes={20}
         onSubmit={mockOnSubmit}
-        onAutoSubmit={jest.fn()}
+        onAutoSubmit={vi.fn()}
       />
     );
 
@@ -427,9 +428,9 @@ describe('ExamResult Component', () => {
     renderWithRouter(
       <ExamResult
         result={mockPassedResult}
-        onReviewAnswers={jest.fn()}
-        onRetake={jest.fn()}
-        onContinue={jest.fn()}
+        onReviewAnswers={vi.fn()}
+        onRetake={vi.fn()}
+        onContinue={vi.fn()}
       />
     );
 
@@ -442,9 +443,9 @@ describe('ExamResult Component', () => {
     renderWithRouter(
       <ExamResult
         result={mockFailedResult}
-        onReviewAnswers={jest.fn()}
-        onRetake={jest.fn()}
-        onContinue={jest.fn()}
+        onReviewAnswers={vi.fn()}
+        onRetake={vi.fn()}
+        onContinue={vi.fn()}
       />
     );
 
@@ -457,9 +458,9 @@ describe('ExamResult Component', () => {
     renderWithRouter(
       <ExamResult
         result={mockPassedResult}
-        onReviewAnswers={jest.fn()}
-        onRetake={jest.fn()}
-        onContinue={jest.fn()}
+        onReviewAnswers={vi.fn()}
+        onRetake={vi.fn()}
+        onContinue={vi.fn()}
       />
     );
 
@@ -470,9 +471,9 @@ describe('ExamResult Component', () => {
     renderWithRouter(
       <ExamResult
         result={mockFailedResult}
-        onReviewAnswers={jest.fn()}
-        onRetake={jest.fn()}
-        onContinue={jest.fn()}
+        onReviewAnswers={vi.fn()}
+        onRetake={vi.fn()}
+        onContinue={vi.fn()}
       />
     );
 
@@ -480,14 +481,14 @@ describe('ExamResult Component', () => {
   });
 
   test('TC-UT-FC-023: Should call onReviewAnswers when Review clicked', async () => {
-    const mockOnReview = jest.fn();
+    const mockOnReview = vi.fn();
 
     renderWithRouter(
       <ExamResult
         result={mockPassedResult}
         onReviewAnswers={mockOnReview}
-        onRetake={jest.fn()}
-        onContinue={jest.fn()}
+        onRetake={vi.fn()}
+        onContinue={vi.fn()}
       />
     );
 
@@ -498,14 +499,14 @@ describe('ExamResult Component', () => {
   });
 
   test('TC-UT-FC-024: Should call onRetake when Retake clicked', async () => {
-    const mockOnRetake = jest.fn();
+    const mockOnRetake = vi.fn();
 
     renderWithRouter(
       <ExamResult
         result={mockFailedResult}
-        onReviewAnswers={jest.fn()}
+        onReviewAnswers={vi.fn()}
         onRetake={mockOnRetake}
-        onContinue={jest.fn()}
+        onContinue={vi.fn()}
       />
     );
 
@@ -516,13 +517,13 @@ describe('ExamResult Component', () => {
   });
 
   test('TC-UT-FC-025: Should call onContinue when Continue clicked', async () => {
-    const mockOnContinue = jest.fn();
+    const mockOnContinue = vi.fn();
 
     renderWithRouter(
       <ExamResult
         result={mockPassedResult}
-        onReviewAnswers={jest.fn()}
-        onRetake={jest.fn()}
+        onReviewAnswers={vi.fn()}
+        onRetake={vi.fn()}
         onContinue={mockOnContinue}
       />
     );
@@ -568,7 +569,7 @@ describe('ExamReview Component', () => {
     renderWithRouter(
       <ExamReview
         reviewData={mockReviewData}
-        onClose={jest.fn()}
+        onClose={vi.fn()}
       />
     );
 
@@ -580,7 +581,7 @@ describe('ExamReview Component', () => {
     renderWithRouter(
       <ExamReview
         reviewData={mockReviewData}
-        onClose={jest.fn()}
+        onClose={vi.fn()}
       />
     );
 
@@ -593,7 +594,7 @@ describe('ExamReview Component', () => {
     renderWithRouter(
       <ExamReview
         reviewData={mockReviewData}
-        onClose={jest.fn()}
+        onClose={vi.fn()}
       />
     );
 
@@ -606,7 +607,7 @@ describe('ExamReview Component', () => {
     renderWithRouter(
       <ExamReview
         reviewData={mockReviewData}
-        onClose={jest.fn()}
+        onClose={vi.fn()}
       />
     );
 
@@ -619,7 +620,7 @@ describe('ExamReview Component', () => {
     renderWithRouter(
       <ExamReview
         reviewData={mockReviewData}
-        onClose={jest.fn()}
+        onClose={vi.fn()}
       />
     );
 
@@ -628,7 +629,7 @@ describe('ExamReview Component', () => {
   });
 
   test('TC-UT-FC-031: Should call onClose when Close button clicked', async () => {
-    const mockOnClose = jest.fn();
+    const mockOnClose = vi.fn();
 
     renderWithRouter(
       <ExamReview

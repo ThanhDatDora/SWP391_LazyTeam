@@ -332,6 +332,20 @@ const Checkout = () => {
           paymentMethod: paymentInfo.paymentMethod 
         });
         
+        // For SePay, skip createOrder and go directly to payment page
+        if (paymentInfo.paymentMethod === 'sepay') {
+          console.log('💳 SePay payment detected - redirecting to payment page');
+          navigate('/payment/sepay', {
+            state: {
+              cartData: {
+                courses,
+                billingInfo: completeBillingInfo
+              }
+            }
+          });
+          return;
+        }
+        
         console.log('🔄 Step 1: Calling api.checkout.createOrder...');
         const apiResponse = await api.checkout.createOrder({
           courses,
@@ -455,6 +469,30 @@ const Checkout = () => {
             
           } catch (error) {
             console.error('❌ VNPay error:', error);
+            throw error;
+          }
+        }
+        // For SePay: redirect to SePay payment page
+        else if (paymentInfo.paymentMethod === 'sepay') {
+          console.log('🚀 SePay Payment path selected');
+          console.log('📦 Full orderResponse for debugging:', JSON.stringify(orderResponse, null, 2));
+          try {
+            showSuccess('Đang chuyển đến trang thanh toán SePay...');
+            
+            // Redirect to SePay payment page with cart data
+            setTimeout(() => {
+              navigate('/payment/sepay', {
+                state: {
+                  cartData: {
+                    courses: cartItems,
+                    billingInfo: billingInfo
+                  }
+                }
+              });
+            }, 500);
+            
+          } catch (error) {
+            console.error('❌ SePay redirect error:', error);
             throw error;
           }
         }
@@ -665,9 +703,9 @@ const Checkout = () => {
                         </label>
                         <div className="grid md:grid-cols-3 gap-4">
                           {[
-                            { id: 'vnpay', name: 'VNPay (ATM/Visa/QR)', icon: '💳', recommended: true },
-                            { id: 'qr', name: 'Chuyển khoản QR Code', icon: '📱' },
-                            { id: 'card', name: 'Thẻ tín dụng/Ghi nợ', icon: '�' }
+                            { id: 'sepay', name: 'SePay QR (Tự động)', icon: '🚀', recommended: true, badge: 'TỰ ĐỘNG' },
+                            { id: 'vnpay', name: 'VNPay (ATM/Visa/QR)', icon: '💳' },
+                            { id: 'qr', name: 'Chuyển khoản QR Code', icon: '📱' }
                           ].map(method => (
                             <div
                               key={method.id}
@@ -680,7 +718,7 @@ const Checkout = () => {
                             >
                               {method.recommended && (
                                 <div className="absolute -top-2 -right-2 bg-red-500 text-white text-xs px-2 py-1 rounded-full">
-                                  Khuyến nghị
+                                  {method.badge || 'Khuyến nghị'}
                                 </div>
                               )}
                               <div className="text-2xl mb-2">{method.icon}</div>

@@ -17,14 +17,15 @@
 import { render, screen, act, waitFor } from '@testing-library/react';
 import { CartProvider, useCart } from '../CartContext';
 import React from 'react';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 // Mock useToast hook - CartContext uses: const { toast } = useToast()
-jest.mock('../../components/ui/Toast', () => ({
+vi.mock('../../components/ui/Toast', () => ({
   useToast: () => {
     const mockMethods = {
-      success: jest.fn(),
-      error: jest.fn(),
-      info: jest.fn(),
+      success: vi.fn(),
+      error: vi.fn(),
+      info: vi.fn(),
     };
     return {
       ...mockMethods,
@@ -50,7 +51,7 @@ describe('CartContext', () => {
   beforeEach(() => {
     // Clear localStorage before each test
     localStorage.clear();
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     cart = null;
   });
 
@@ -516,7 +517,7 @@ describe('CartContext', () => {
   describe('Error Handling', () => {
     test('should throw error when useCart used outside provider', () => {
       // Suppress console.error for this test
-      const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
       
       expect(() => {
         render(<TestComponent onRender={() => {}} />);

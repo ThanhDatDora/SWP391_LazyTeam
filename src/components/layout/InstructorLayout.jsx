@@ -78,10 +78,25 @@ const InstructorLayout = ({ children }) => {
 
   const handleLogout = async () => {
     try {
-      await logout();
-      navigate('/login');
+      console.log('🚪 Instructor logout clicked');
+      
+      // Call logout from AuthContext
+      logout();
+      
+      // Clear any instructor-specific data
+      localStorage.removeItem('instructorData');
+      localStorage.removeItem('instructorDashboard');
+      
+      console.log('✅ Logout successful, redirecting to login...');
+      
+      // Navigate to login page
+      navigate('/login', { replace: true });
     } catch (error) {
-      console.error('Logout failed:', error);
+      console.error('❌ Logout failed:', error);
+      
+      // Force logout even if error
+      localStorage.clear();
+      navigate('/login', { replace: true });
     }
   };
 
@@ -196,11 +211,19 @@ const InstructorLayout = ({ children }) => {
                 {theme === 'light' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
               </Button>
               <Button 
-                onClick={handleLogout} 
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  console.log('🔴 Logout button clicked!');
+                  handleLogout();
+                }}
                 variant="outline" 
-                className="bg-red-500/80 border-red-400 hover:bg-red-600 text-white"
+                className="bg-red-500/80 border-red-400 hover:bg-red-600 text-white cursor-pointer"
+                style={{ zIndex: 1000 }}
+                title="Đăng xuất"
               >
                 <LogOut className="w-4 h-4" />
+                <span className="ml-2 hidden md:inline">Logout</span>
               </Button>
             </div>
           </div>

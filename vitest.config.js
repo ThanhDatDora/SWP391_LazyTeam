@@ -11,16 +11,31 @@ export default defineConfig({
     css: true,
     reporter: ['verbose'],
     coverage: {
-      reporter: ['text', 'json', 'html'],
+      provider: 'v8',
+      reporter: ['text', 'text-summary', 'html', 'lcov'],
+      reportsDirectory: './coverage',
+      all: true,
+      include: [
+        'src/**/*.{js,jsx,ts,tsx}',
+        'backend/**/*.{js,ts}'
+      ],
       exclude: [
         'node_modules/',
         'src/test/',
+        'testing/',
         '**/*.d.ts',
         '**/*.config.js',
         '**/*.config.ts',
         'dist/',
-        'build/'
-      ]
+        'build/',
+        '**/*.test.{js,jsx,ts,tsx}',
+        '**/__tests__/**'
+      ],
+      // Thresholds để đảm bảo chất lượng
+      statements: 80,
+      branches: 70,
+      functions: 80,
+      lines: 80
     }
   },
   resolve: {

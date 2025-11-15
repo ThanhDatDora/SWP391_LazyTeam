@@ -70,6 +70,10 @@ const BlogDetail = lazy(() => import('../pages/BlogDetail'));
 const Pricing = lazy(() => import('../pages/Pricing'));
 const Checkout = lazy(() => import('../pages/Checkout'));
 const VNPayReturn = lazy(() => import('../pages/VNPayReturn'));
+const SepayPaymentPage = lazy(() => import('../pages/SepayPaymentPage'));
+const SepaySuccessPage = lazy(() => import('../pages/SepaySuccessPage'));
+const SepayErrorPage = lazy(() => import('../pages/SepayErrorPage'));
+const SepayCancelPage = lazy(() => import('../pages/SepayCancelPage'));
 const Exam = lazy(() => import('../pages/Exam'));
 
 // Course Components - Lazy load
@@ -431,6 +435,10 @@ const AppRouter = () => {
       <Route path="/blog/:slug" element={<BlogDetail />} />
       <Route path="/pricing" element={<Pricing />} />
       <Route path="/checkout" element={<Checkout />} />
+      <Route path="/payment/sepay" element={<ProtectedRoute><SepayPaymentPage /></ProtectedRoute>} />
+      <Route path="/payment/sepay/success" element={<SepaySuccessPage />} />
+      <Route path="/payment/sepay/error" element={<SepayErrorPage />} />
+      <Route path="/payment/sepay/cancel" element={<SepayCancelPage />} />
       <Route path="/checkout/vnpay-return" element={<VNPayReturn />} />
       <Route path="/checkout/success" element={<VNPayReturn />} />
       <Route path="/checkout/failure" element={<VNPayReturn />} />
