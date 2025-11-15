@@ -323,7 +323,7 @@ const Checkout = () => {
         setCurrentStep(3);
       } else {
         // Cart flow - multiple courses
-        const courses = cartItems.map(item => ({ courseId: item.id }));
+        const courses = cartItems.map(item => ({ courseId: parseInt(item.id, 10) }));
         
         console.log('🛒 Cart flow - Creating order with:', { 
           coursesCount: courses.length,

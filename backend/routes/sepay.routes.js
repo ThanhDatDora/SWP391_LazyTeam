@@ -4,6 +4,7 @@
  */
 
 import express from 'express';
+import axios from 'axios';
 import { getPool, sql } from '../config/database.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { body, validationResult } from 'express-validator';
@@ -59,13 +60,24 @@ router.post('/create', authenticateToken, [
         }
 
         const course = courseResult.recordset[0];
-        totalAmount += course.price;
+        console.log(`💰 Course ${courseId} price from database:`, course.price);
+        
+        // Convert USD to VND if price < 1000 (assuming USD format)
+        let priceVND = course.price;
+        if (course.price < 1000) {
+          priceVND = course.price * 25000; // 1 USD = 25,000 VND
+          console.log(`💱 Converting ${course.price} USD to ${priceVND} VND`);
+        }
+        
+        totalAmount += priceVND;
         courseDetails.push({
           courseId,
           title: course.title,
-          price: course.price,
+          price: priceVND,
         });
       }
+
+      console.log(`💰 Total amount calculated:`, totalAmount);
 
       // Create payment record
       const customerName = billingInfo.lastName 
@@ -245,21 +257,18 @@ router.post('/check-status', authenticateToken, [
       });
     }
 
-    // Check transaction via SePay API
-    // For VietQR fallback: we don't have API to check bank transactions
-    // User needs to manually confirm or use webhook
+    // Return pending status
+    // SePay Sandbox doesn't support transaction query API
+    // User needs to use manual confirmation button
     const amount = payment.amount_cents / 100;
     
-    // For now, just return pending status
-    // In production, you would integrate with SePay transaction checking API
-    // or use manual confirmation button
     return res.json({
       success: true,
       paid: false,
       status: payment.status,
       amount: amount,
       amountFormatted: new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount),
-      message: 'Vui lòng chuyển khoản và nhấn nút "Tôi đã chuyển khoản"',
+      message: 'Vui lòng nhấn "Tôi đã chuyển khoản" sau khi chuyển khoản thành công',
     });
 
   } catch (error) {
@@ -268,6 +277,108 @@ router.post('/check-status', authenticateToken, [
       success: false,
       error: 'Không thể kiểm tra trạng thái thanh toán',
       message: error.message 
+    });
+  }
+});
+
+/**
+ * POST /api/payment/sepay/confirm
+ * Manual payment confirmation - User confirms they have transferred
+ */
+router.post('/confirm', authenticateToken, [
+  body('paymentId').isInt().withMessage('Valid payment ID required'),
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ success: false, errors: errors.array() });
+    }
+
+    const { paymentId } = req.body;
+    const userId = req.user.userId;
+
+    const pool = await getPool();
+
+    // Get payment details
+    const paymentResult = await pool.request()
+      .input('paymentId', sql.BigInt, paymentId)
+      .input('userId', sql.BigInt, userId)
+      .query(`
+        SELECT payment_id, user_id, status, amount_cents
+        FROM payments
+        WHERE payment_id = @paymentId AND user_id = @userId
+      `);
+
+    if (paymentResult.recordset.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Payment not found'
+      });
+    }
+
+    const payment = paymentResult.recordset[0];
+
+    if (payment.status === 'completed') {
+      return res.json({
+        success: true,
+        message: 'Payment already completed'
+      });
+    }
+
+    if (payment.status === 'expired') {
+      return res.json({
+        success: false,
+        error: 'Payment has expired. Please create a new order.'
+      });
+    }
+
+    // Get course IDs from invoices table (not payment_items)
+    const itemsResult = await pool.request()
+      .input('paymentId', sql.BigInt, paymentId)
+      .query(`
+        SELECT course_id FROM invoices WHERE payment_id = @paymentId
+      `);
+
+    const courseIds = itemsResult.recordset.map(item => item.course_id);
+
+    // Update payment status to completed
+    await pool.request()
+      .input('paymentId', sql.BigInt, paymentId)
+      .query(`
+        UPDATE payments
+        SET status = 'completed',
+            paid_at = GETDATE()
+        WHERE payment_id = @paymentId
+      `);
+
+    // Create enrollments for each course
+    for (const courseId of courseIds) {
+      await pool.request()
+        .input('userId', sql.BigInt, userId)
+        .input('courseId', sql.BigInt, courseId)
+        .query(`
+          IF NOT EXISTS (
+            SELECT 1 FROM enrollments
+            WHERE user_id = @userId AND course_id = @courseId
+          )
+          BEGIN
+            INSERT INTO enrollments (user_id, course_id, enrolled_at, status)
+            VALUES (@userId, @courseId, GETDATE(), 'active')
+          END
+        `);
+    }
+
+    console.log(`✅ Payment ${paymentId} manually confirmed by user ${userId}`);
+
+    res.json({
+      success: true,
+      message: 'Payment confirmed successfully! You have been enrolled in the courses.',
+    });
+  } catch (error) {
+    console.error('Manual confirm error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
     });
   }
 });

@@ -41,60 +41,61 @@ const InstructorDashboard = () => {
     try {
       setLoading(true);
       
-      // Load instructor's courses
-      const response = await fetch('/api/courses', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      });
-      const result = await response.json();
+      let loadedCourses = [];
+      let loadedSubmissions = [];
+      let loadedRevenue = null;
       
-      // Filter courses owned by this instructor
-      const allCourses = result.courses || result.data || [];
-      const instructorCourses = Array.isArray(allCourses)
-        ? allCourses.filter(course => course.instructorId === authState.user.user_id)
-        : [];
-      
-      setCourses(instructorCourses);
+      // Load instructor's courses - use general courses API and filter
+      try {
+        const response = await api.courses.getCourses();
+        const allCourses = response.data?.data || response.data || [];
+        loadedCourses = Array.isArray(allCourses) 
+          ? allCourses.filter(course => course.owner_instructor_id === authState.user?.user_id)
+          : [];
+        setCourses(loadedCourses);
+      } catch (error) {
+        console.error('Error loading courses:', error);
+        setCourses([]);
+      }
 
       // Load revenue data
       try {
-        const revenueResponse = await fetch('/api/instructor/revenue/summary', {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          }
-        });
-        
-        if (revenueResponse.ok) {
-          const revenueResult = await revenueResponse.json();
-          if (revenueResult.success) {
-            setRevenueData(revenueResult.data);
-          }
-        } else {
-          console.warn('Revenue API not available:', revenueResponse.status);
+        const revenueResponse = await api.instructor.getRevenueSummary();
+        if (revenueResponse.success) {
+          loadedRevenue = revenueResponse.data;
+          setRevenueData(loadedRevenue);
         }
       } catch (error) {
-        console.error('Error loading revenue:', error);
+        console.warn('Revenue API not available:', error.message);
       }
 
-      // Mock submissions - TODO: Replace with real assignment grading API
-      // Note: Assignments are essay submissions, not auto-graded exams
-      const mockSubmissions = [];
-      setSubmissions(mockSubmissions);
+      // Fetch real submissions from assignments API
+      try {
+        const submissionsResponse = await api.assignments.getInstructorSubmissions();
+        if (submissionsResponse.success) {
+          loadedSubmissions = submissionsResponse.data || [];
+          setSubmissions(loadedSubmissions);
+        }
+      } catch (error) {
+        console.error('Error loading submissions:', error);
+        setSubmissions([]);
+      }
 
       // Calculate stats from actual data
-      const totalStudents = revenueData?.summary?.totalStudents || 0;
-      const totalExams = instructorCourses.reduce((sum, course) => sum + (course.exam_count || 2), 0);
-      const avgRating = instructorCourses.reduce((sum, course) => sum + (course.rating || 4.5), 0) / instructorCourses.length || 0;
+      const totalStudents = loadedRevenue?.summary?.totalStudents || 0;
+      const totalExams = loadedCourses.reduce((sum, course) => sum + (course.exam_count || 2), 0);
+      const avgRating = loadedCourses.length > 0 
+        ? loadedCourses.reduce((sum, course) => sum + (course.rating || 4.5), 0) / loadedCourses.length
+        : 0;
 
       setStats({
-        totalCourses: instructorCourses.length,
+        totalCourses: loadedCourses.length,
         totalStudents,
         totalExams,
         avgRating: avgRating.toFixed(1),
-        pendingSubmissions: mockSubmissions.length,
+        pendingSubmissions: loadedSubmissions.filter(s => s.status === 'pending').length,
         recentActivity: 15,
-        totalRevenue: revenueData?.summary?.instructorShare || 0
+        totalRevenue: loadedRevenue?.summary?.instructorShare || 0
       });
 
     } catch (error) {
@@ -343,34 +344,38 @@ const InstructorDashboard = () => {
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                     {submissions.map((submission) => (
-                      <tr key={submission.submission_id} className="hover:bg-gray-50">
+                      <tr key={submission.essay_submission_id} className="hover:bg-gray-50">
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div>
                             <div className="text-sm font-medium text-gray-900">
-                              {submission.student.full_name}
+                              {submission.student_name}
                             </div>
                             <div className="text-sm text-gray-500">
-                              {submission.student.email}
+                              {submission.student_email}
                             </div>
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div>
                             <div className="text-sm font-medium text-gray-900">
-                              {submission.exam.name}
+                              {submission.lesson_title}
                             </div>
                             <div className="text-sm text-gray-500">
-                              {submission.exam.course_title}
+                              {submission.course_title}
                             </div>
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <Badge variant={getScoreBadgeVariant(submission.score, submission.max_score)}>
-                            {submission.score}/{submission.max_score}
-                          </Badge>
+                          {submission.score ? (
+                            <Badge variant="default">
+                              {submission.score}/100
+                            </Badge>
+                          ) : (
+                            <Badge variant="secondary">Chưa chấm</Badge>
+                          )}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          Lần {submission.attempt_no}/3
+                          {submission.status === 'pending' ? 'Chờ chấm' : 'Đã chấm'}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center text-sm text-gray-500">
@@ -379,9 +384,13 @@ const InstructorDashboard = () => {
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          <Button variant="outline" size="sm">
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => navigate(`/instructor/grade/${submission.essay_submission_id}`)}
+                          >
                             <Eye className="w-4 h-4 mr-1" />
-                            Chi tiết
+                            {submission.status === 'pending' ? 'Chấm điểm' : 'Xem chi tiết'}
                           </Button>
                         </td>
                       </tr>

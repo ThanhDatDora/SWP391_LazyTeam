@@ -101,7 +101,7 @@ router.post('/submit', authenticateToken, upload.single('file'), async (req, res
       .input('userId', sql.BigInt, userId)
       .input('lessonId', sql.BigInt, lesson_id)
       .query(`
-        SELECT progress_id 
+        SELECT user_id, lesson_id 
         FROM progress 
         WHERE user_id = @userId AND lesson_id = @lessonId
       `);
@@ -312,6 +312,58 @@ router.get('/lesson-info/:lessonId', authenticateToken, async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to fetch lesson'
+    });
+  }
+});
+
+// Get all submissions for instructor's courses
+router.get('/instructor/submissions', authenticateToken, async (req, res) => {
+  try {
+    const pool = await getPool();
+    const instructorId = req.user.userId;
+
+    const result = await pool.request()
+      .input('instructorId', sql.BigInt, instructorId)
+      .query(`
+        SELECT 
+          es.essay_submission_id,
+          es.content_text,
+          es.file_url,
+          es.score,
+          es.feedback,
+          es.status,
+          es.submitted_at,
+          es.graded_at,
+          es.task_id,
+          l.lesson_id,
+          l.title as lesson_title,
+          m.mooc_id,
+          m.title as mooc_title,
+          c.course_id,
+          c.title as course_title,
+          u.user_id,
+          u.full_name as student_name,
+          u.email as student_email
+        FROM essay_submissions es
+        JOIN users u ON es.user_id = u.user_id
+        JOIN lessons l ON es.task_id = l.lesson_id
+        JOIN moocs m ON l.mooc_id = m.mooc_id
+        JOIN courses c ON m.course_id = c.course_id
+        WHERE c.owner_instructor_id = @instructorId
+        ORDER BY es.submitted_at DESC
+      `);
+
+    res.json({
+      success: true,
+      data: result.recordset
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching instructor submissions:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch submissions',
+      message: error.message
     });
   }
 });

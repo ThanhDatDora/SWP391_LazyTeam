@@ -1,4 +1,17 @@
-# 🎤 PRESENTATION GUIDE - EXAM SYSTEM TESTING
+# 📚 EXAM SYSTEM TESTING - HƯỚNG DẪN THUYẾT TRÌNH CHI TIẾT
+
+## 🎯 MỤC TIÊU
+
+Trình bày về **test Exam System** theo yêu cầu SWP391:
+- Test Plan (ISTQB Standard)
+- Unit Testing (Vitest/Jest - tương đương JUnit cho JavaScript)
+- Test Tool (Selenium WebDriver)
+- Decision Table Testing
+- Use Case Testing
+
+---
+
+# Individual Presentation Guide (8 minutes)
 
 **Student:** [Tên của bạn]  
 **Student ID:** [MSSV]  

@@ -91,6 +91,8 @@ export default function SepayPaymentPage() {
         billingInfo: cartData.billingInfo
       });
 
+      console.log('📋 Courses detail:', JSON.stringify(cartData.courses, null, 2));
+
       const response = await axios.post(
         `${API_URL}/payment/sepay/create`,
         {
@@ -186,7 +188,7 @@ export default function SepayPaymentPage() {
           clearInterval(checkIntervalRef.current);
           clearInterval(countdownIntervalRef.current);
           
-          showToast('Thanh toán thành công! 🎉', 'success');
+          showSuccess('Thanh toán thành công! 🎉');
           
           // Redirect to My Learning after 2 seconds
           setTimeout(() => {
@@ -202,6 +204,58 @@ export default function SepayPaymentPage() {
       }
     } catch (error) {
       console.error('Check payment status error:', error);
+    } finally {
+      setChecking(false);
+    }
+  };
+
+  /**
+   * Manual confirmation - User confirms they have transferred
+   */
+  const handleManualConfirm = async () => {
+    if (!paymentData || checking) return;
+
+    // Show confirmation dialog
+    if (!window.confirm('Bạn đã chuyển khoản thành công chưa? Vui lòng chỉ xác nhận sau khi đã chuyển khoản đầy đủ số tiền.')) {
+      return;
+    }
+
+    try {
+      setChecking(true);
+
+      const token = localStorage.getItem('token');
+      const response = await axios.post(
+        `${API_URL}/payment/sepay/confirm`,
+        {
+          paymentId: paymentData.paymentId,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (response.data.success) {
+        // Payment confirmed!
+        setPaymentStatus('completed');
+        clearInterval(checkIntervalRef.current);
+        clearInterval(countdownIntervalRef.current);
+        
+        showSuccess('Xác nhận thanh toán thành công! Bạn đã được ghi danh khóa học 🎉');
+        
+        // Redirect to My Learning after 2 seconds
+        setTimeout(() => {
+          navigate('/my-learning', {
+            state: { fromPayment: true }
+          });
+        }, 2000);
+      } else {
+        showError(response.data.error || 'Không thể xác nhận thanh toán');
+      }
+    } catch (error) {
+      console.error('Manual confirm error:', error);
+      showError('Đã xảy ra lỗi khi xác nhận thanh toán');
     } finally {
       setChecking(false);
     }
@@ -390,7 +444,7 @@ export default function SepayPaymentPage() {
                   <label className="text-sm text-gray-600">Ngân hàng:</label>
                   <div className="flex justify-between items-center bg-gray-50 p-3 rounded mt-1">
                     <span className="font-semibold">
-                      {paymentData.bankInfo.bankName}
+                      {paymentData.bankInfo.bankCode === 'OCB' ? 'Ngân hàng Phương Đông (OCB)' : paymentData.bankInfo.bankCode}
                     </span>
                     <span className="text-sm text-gray-500">
                       ({paymentData.bankInfo.bankCode})
@@ -402,13 +456,13 @@ export default function SepayPaymentPage() {
                   <label className="text-sm text-gray-600">Số tài khoản:</label>
                   <div className="flex justify-between items-center bg-gray-50 p-3 rounded mt-1">
                     <span className="font-mono font-semibold">
-                      {paymentData.bankInfo.accountNumber}
+                      {paymentData.bankInfo.accountNo}
                     </span>
                     <Button
                       variant="ghost"
                       size="sm"
                       onClick={() => copyToClipboard(
-                        paymentData.bankInfo.accountNumber,
+                        paymentData.bankInfo.accountNo,
                         'số tài khoản'
                       )}
                     >
@@ -473,10 +527,30 @@ export default function SepayPaymentPage() {
 
             {/* Action Buttons */}
             <div className="space-y-3">
+              {/* Primary: Manual Confirm Button */}
+              <Button
+                onClick={handleManualConfirm}
+                disabled={checking || paymentStatus !== 'pending'}
+                className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold text-lg py-6"
+              >
+                {checking ? (
+                  <>
+                    <span className="animate-spin mr-2">⏳</span>
+                    Đang xác nhận...
+                  </>
+                ) : (
+                  <>
+                    ✅ Tôi đã chuyển khoản
+                  </>
+                )}
+              </Button>
+
+              {/* Secondary: Auto Check Button */}
               <Button
                 onClick={checkPaymentStatus}
                 disabled={checking || paymentStatus !== 'pending'}
                 className="w-full bg-blue-600 hover:bg-blue-700"
+                variant="outline"
               >
                 {checking ? (
                   <>
@@ -485,7 +559,7 @@ export default function SepayPaymentPage() {
                   </>
                 ) : (
                   <>
-                    🔄 Kiểm tra thanh toán
+                    🔄 Kiểm tra tự động
                   </>
                 )}
               </Button>

@@ -767,6 +767,10 @@ const assignmentsAPI = {
 
   async getSubmissions(lessonId) {
     return await apiRequest(`/assignments/lesson/${lessonId}/submissions`);
+  },
+
+  async getInstructorSubmissions() {
+    return await apiRequest('/assignments/instructor/submissions');
   }
 };
 
