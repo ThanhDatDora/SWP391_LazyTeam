@@ -691,7 +691,7 @@ router.delete('/users/:userId', authenticateToken, requireAdmin, async (req, res
 
 // ==================== REVENUE ENDPOINTS ====================
 
-// Get instructor revenue
+// Get instructor revenue with platform commission (10%)
 router.get('/instructor-revenue', authenticateToken, requireAdmin, async (req, res) => {
   try {
     console.log('📡 GET /instructor-revenue - Starting...');
@@ -699,13 +699,20 @@ router.get('/instructor-revenue', authenticateToken, requireAdmin, async (req, r
 
     const query = `
       SELECT 
-        u.user_id,
+        i.instructor_id,
         u.full_name as instructor_name,
         u.email,
-        u.created_at
-      FROM users u
+        u.created_at,
+        ISNULL(SUM(inv.amount), 0) as total_revenue,
+        ISNULL(SUM(inv.amount), 0) * 0.10 as commission_owed,
+        COUNT(DISTINCT c.course_id) as course_count
+      FROM instructors i
+      JOIN users u ON i.user_id = u.user_id
+      LEFT JOIN courses c ON c.instructor_id = i.instructor_id
+      LEFT JOIN invoices inv ON inv.course_id = c.course_id AND inv.status = 'paid'
       WHERE u.role_id = 2
-      ORDER BY u.created_at DESC
+      GROUP BY i.instructor_id, u.full_name, u.email, u.created_at
+      ORDER BY total_revenue DESC
     `;
 
     console.log('📝 Revenue query:', query);
@@ -818,53 +825,106 @@ router.get('/learning-stats', authenticateToken, requireAdmin, async (req, res) 
   try {
     const pool = await getPool();
 
-    // Get completion stats
+    // 1. Get overall enrollment and completion stats
     const completionResult = await pool.request().query(`
       SELECT 
         COUNT(*) as total_enrollments,
-        SUM(CASE WHEN progress_percentage = 0 THEN 1 ELSE 0 END) as not_started,
-        SUM(CASE WHEN progress_percentage > 0 AND progress_percentage < 100 THEN 1 ELSE 0 END) as in_progress,
-        SUM(CASE WHEN progress_percentage = 100 THEN 1 ELSE 0 END) as completed,
-        SUM(CASE WHEN progress_percentage >= 80 THEN 1 ELSE 0 END) as excellent,
-        SUM(CASE WHEN progress_percentage >= 50 AND progress_percentage < 80 THEN 1 ELSE 0 END) as good,
-        SUM(CASE WHEN progress_percentage < 50 AND progress_percentage > 0 THEN 1 ELSE 0 END) as needs_improvement,
-        CAST(AVG(CASE WHEN progress_percentage = 100 THEN 100.0 ELSE 0 END) as DECIMAL(5,2)) as completion_rate
+        COUNT(DISTINCT user_id) as total_learners,
+        SUM(CASE WHEN completed_at IS NULL THEN 1 ELSE 0 END) as not_started,
+        SUM(CASE WHEN completed_at IS NULL THEN 1 ELSE 0 END) as in_progress,
+        SUM(CASE WHEN completed_at IS NOT NULL THEN 1 ELSE 0 END) as completed,
+        SUM(CASE WHEN completed_at IS NOT NULL THEN 1 ELSE 0 END) as excellent,
+        0 as good,
+        SUM(CASE WHEN completed_at IS NULL THEN 1 ELSE 0 END) as needs_improvement,
+        50.0 as avg_progress,
+        CAST(SUM(CASE WHEN completed_at IS NOT NULL THEN 100.0 ELSE 0 END) / NULLIF(COUNT(*), 0) as DECIMAL(5,2)) as completion_rate
       FROM enrollments
       WHERE status = 'active'
     `);
 
-    // Get top courses by enrollment
+    // 2. Get top courses by enrollment
     const topCoursesResult = await pool.request().query(`
       SELECT TOP 5
         c.course_id,
         c.title,
+        c.thumbnail_url,
         u.full_name as instructor_name,
         COUNT(e.enrollment_id) as enrolled_count,
-        CAST(AVG(CASE WHEN e.progress_percentage = 100 THEN 100.0 ELSE 0 END) as DECIMAL(5,2)) as completion_rate
+        CAST(SUM(CASE WHEN e.completed_at IS NOT NULL THEN 100.0 ELSE 0 END) / NULLIF(COUNT(e.enrollment_id), 0) as DECIMAL(5,2)) as completion_rate,
+        50.0 as avg_progress
       FROM courses c
       LEFT JOIN users u ON c.owner_instructor_id = u.user_id
       LEFT JOIN enrollments e ON c.course_id = e.course_id
       WHERE c.status = 'active'
-      GROUP BY c.course_id, c.title, u.full_name
+      GROUP BY c.course_id, c.title, c.thumbnail_url, u.full_name
       ORDER BY enrolled_count DESC
     `);
 
-    // Calculate average study time (mock calculation based on completed lessons)
+    // 3. Calculate study stats from progress table (simplified - no time tracking yet)
     const avgTimeResult = await pool.request().query(`
       SELECT 
-        AVG(CAST(progress_percentage as FLOAT) / 10) as avg_study_hours
-      FROM enrollments
-      WHERE progress_percentage > 0
+        0.0 as avg_lesson_time_minutes,
+        0 as total_study_time_minutes,
+        COUNT(DISTINCT user_id) as active_learners,
+        SUM(CASE WHEN is_completed = 1 THEN 1 ELSE 0 END) as total_completed_lessons,
+        COUNT(*) as total_lesson_attempts
+      FROM progress
+    `);
+
+    // 4. Get quiz/exam performance stats (placeholder - exam_attempts table doesn't exist)
+    const examStatsResult = {
+      recordset: [{
+        students_took_exams: 0,
+        total_exam_attempts: 0,
+        passed_attempts: 0,
+        avg_exam_score: 0,
+        pass_rate: 0
+      }]
+    };
+
+    // 5. Get recent activity (last 30 days)
+    const recentActivityResult = await pool.request().query(`
+      SELECT 
+        COUNT(DISTINCT e.user_id) as active_users_last_30days,
+        COUNT(DISTINCT CASE WHEN e.enrollment_date >= DATEADD(day, -30, GETDATE()) THEN e.user_id END) as new_enrollments_last_30days,
+        COUNT(DISTINCT CASE WHEN e.completed_at >= DATEADD(day, -30, GETDATE()) THEN e.user_id END) as completions_last_30days
+      FROM enrollments e
+      WHERE e.last_accessed >= DATEADD(day, -30, GETDATE())
+         OR e.enrollment_date >= DATEADD(day, -30, GETDATE())
+         OR e.completed_at >= DATEADD(day, -30, GETDATE())
+    `);
+
+    // 6. Get most active learners (top 10)
+    const topLearnersResult = await pool.request().query(`
+      SELECT TOP 10
+        u.user_id,
+        u.full_name,
+        u.email,
+        COUNT(e.enrollment_id) as courses_enrolled,
+        SUM(CASE WHEN e.completed_at IS NOT NULL THEN 1 ELSE 0 END) as courses_completed,
+        50.0 as avg_progress
+      FROM users u
+      INNER JOIN enrollments e ON u.user_id = e.user_id
+      WHERE u.role_id = 3 AND e.status = 'active'
+      GROUP BY u.user_id, u.full_name, u.email
+      ORDER BY courses_completed DESC, courses_enrolled DESC
     `);
 
     const completion = completionResult.recordset[0];
     const avgTime = avgTimeResult.recordset[0];
+    const examStats = examStatsResult.recordset[0];
+    const recentActivity = recentActivityResult.recordset[0];
 
     res.json({
       success: true,
       data: {
+        overview: {
+          total_enrollments: completion.total_enrollments || 0,
+          total_learners: completion.total_learners || 0,
+          avg_progress: parseFloat((completion.avg_progress || 0).toFixed(2)),
+          completion_rate: Math.round(completion.completion_rate || 0)
+        },
         completion: {
-          rate: Math.round(completion.completion_rate || 0),
           not_started: completion.not_started || 0,
           in_progress: completion.in_progress || 0,
           completed: completion.completed || 0,
@@ -872,13 +932,41 @@ router.get('/learning-stats', authenticateToken, requireAdmin, async (req, res) 
           good: completion.good || 0,
           needs_improvement: completion.needs_improvement || 0
         },
-        avgStudyTime: parseFloat((avgTime.avg_study_hours || 0).toFixed(1)),
+        studyTime: {
+          avg_lesson_time_minutes: parseFloat((avgTime.avg_lesson_time_minutes || 0).toFixed(2)),
+          total_study_time_hours: parseFloat(((avgTime.total_study_time_minutes || 0) / 60).toFixed(2)),
+          active_learners: avgTime.active_learners || 0,
+          total_completed_lessons: avgTime.total_completed_lessons || 0,
+          total_lesson_attempts: avgTime.total_lesson_attempts || 0
+        },
+        examPerformance: {
+          students_took_exams: examStats.students_took_exams || 0,
+          total_exam_attempts: examStats.total_exam_attempts || 0,
+          passed_attempts: examStats.passed_attempts || 0,
+          avg_exam_score: parseFloat((examStats.avg_exam_score || 0).toFixed(2)),
+          pass_rate: Math.round(examStats.pass_rate || 0)
+        },
+        recentActivity: {
+          active_users_last_30days: recentActivity.active_users_last_30days || 0,
+          new_enrollments_last_30days: recentActivity.new_enrollments_last_30days || 0,
+          completions_last_30days: recentActivity.completions_last_30days || 0
+        },
         topCourses: topCoursesResult.recordset.map(course => ({
           course_id: course.course_id,
           title: course.title,
+          thumbnail_url: course.thumbnail_url,
           instructor_name: course.instructor_name,
           enrolled_count: course.enrolled_count,
-          completion_rate: Math.round(course.completion_rate || 0)
+          completion_rate: Math.round(course.completion_rate || 0),
+          avg_progress: parseFloat((course.avg_progress || 0).toFixed(2))
+        })),
+        topLearners: topLearnersResult.recordset.map(learner => ({
+          user_id: learner.user_id,
+          full_name: learner.full_name,
+          email: learner.email,
+          courses_enrolled: learner.courses_enrolled,
+          courses_completed: learner.courses_completed,
+          avg_progress: parseFloat((learner.avg_progress || 0).toFixed(2))
         }))
       }
     });

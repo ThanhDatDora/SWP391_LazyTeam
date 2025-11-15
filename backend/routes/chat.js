@@ -18,8 +18,9 @@ router.get('/conversations', authenticateToken, async (req, res) => {
     const pool = await connectDB();
     const userId = req.user.userId;
     const roleId = req.user.roleId;
+    const { status } = req.query; // 'active' or 'archived'
     
-    console.log('📋 Fetching conversations for user:', userId, 'role:', roleId);
+    console.log('📋 Fetching conversations for user:', userId, 'role:', roleId, 'status:', status);
     
     let query = `
       SELECT 
@@ -49,13 +50,22 @@ router.get('/conversations', authenticateToken, async (req, res) => {
     // Filter based on role
     if (roleId === 2) { // Instructor
       query += ` AND c.instructor_id = @userId`;
-    } else if (roleId === 3) { // Admin
+    } else if (roleId === 1) { // Admin (role_id = 1, not 3!)
       query += ` AND (c.admin_id = @userId OR c.admin_id IS NULL OR c.status = 'active')`;
     } else {
       return res.status(403).json({ 
         success: false, 
         error: 'Only instructors and admins can access conversations' 
       });
+    }
+    
+    // Filter by status
+    if (status === 'archived') {
+      // Only archived conversations
+      query += ` AND c.status = 'archived'`;
+    } else {
+      // Only active conversations (default)
+      query += ` AND c.status = 'active'`;
     }
     
     query += ` ORDER BY c.last_message_at DESC`;
@@ -149,7 +159,7 @@ router.put('/conversations/:id/assign', authenticateToken, async (req, res) => {
     const roleId = req.user.roleId;
     const conversationId = req.params.id;
     
-    if (roleId !== 3) {
+    if (roleId !== 1) { // Admin (role_id = 1, not 3!)
       return res.status(403).json({ 
         success: false, 
         error: 'Only admins can assign conversations' 
@@ -188,7 +198,7 @@ router.put('/conversations/:id/close', authenticateToken, async (req, res) => {
     const conversationId = req.params.id;
     
     // Only admin or the instructor can close
-    if (roleId !== 3 && roleId !== 2) {
+    if (roleId !== 1 && roleId !== 2) { // Admin (role_id = 1) or Instructor (role_id = 2)
       return res.status(403).json({ 
         success: false, 
         error: 'Unauthorized' 
@@ -225,6 +235,212 @@ router.put('/conversations/:id/close', authenticateToken, async (req, res) => {
     res.json({ success: true });
   } catch (error) {
     console.error('❌ Error closing conversation:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * PUT /api/chat/conversations/:id/archive
+ * Archive a conversation
+ */
+router.put('/conversations/:id/archive', authenticateToken, async (req, res) => {
+  try {
+    const pool = await connectDB();
+    const userId = req.user.userId;
+    const roleId = req.user.roleId;
+    const conversationId = req.params.id;
+    
+    // Only admin or the instructor can archive
+    if (roleId !== 1 && roleId !== 2) {
+      return res.status(403).json({ 
+        success: false, 
+        error: 'Unauthorized' 
+      });
+    }
+    
+    // Verify user has access
+    const access = await pool.request()
+      .input('conversationId', sql.BigInt, conversationId)
+      .input('userId', sql.BigInt, userId)
+      .input('roleId', sql.Int, roleId)
+      .query(`
+        SELECT conversation_id FROM conversations 
+        WHERE conversation_id = @conversationId 
+        AND (
+          instructor_id = @userId 
+          OR admin_id = @userId 
+          OR (@roleId = 1 AND (admin_id IS NULL OR status = 'active'))
+        )
+      `);
+    
+    if (access.recordset.length === 0) {
+      return res.status(403).json({ 
+        success: false, 
+        error: 'Access denied' 
+      });
+    }
+    
+    await pool.request()
+      .input('conversationId', sql.BigInt, conversationId)
+      .query(`
+        UPDATE conversations 
+        SET status = 'archived', updated_at = GETDATE()
+        WHERE conversation_id = @conversationId
+      `);
+    
+    console.log('✅ Conversation archived:', conversationId);
+    
+    // Emit WebSocket event
+    if (global.websocketService) {
+      global.websocketService.io.emit('conversation_archived', {
+        conversation_id: conversationId,
+        user_id: userId
+      });
+    }
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('❌ Error archiving conversation:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * PUT /api/chat/conversations/:id/restore
+ * Restore an archived conversation
+ */
+router.put('/conversations/:id/restore', authenticateToken, async (req, res) => {
+  try {
+    const pool = await connectDB();
+    const userId = req.user.userId;
+    const roleId = req.user.roleId;
+    const conversationId = req.params.id;
+    
+    // Only admin or the instructor can restore
+    if (roleId !== 1 && roleId !== 2) {
+      return res.status(403).json({ 
+        success: false, 
+        error: 'Unauthorized' 
+      });
+    }
+    
+    // Verify user has access
+    const access = await pool.request()
+      .input('conversationId', sql.BigInt, conversationId)
+      .input('userId', sql.BigInt, userId)
+      .input('roleId', sql.Int, roleId)
+      .query(`
+        SELECT conversation_id FROM conversations 
+        WHERE conversation_id = @conversationId 
+        AND (
+          instructor_id = @userId 
+          OR admin_id = @userId 
+          OR (@roleId = 1 AND admin_id IS NULL)
+        )
+      `);
+    
+    if (access.recordset.length === 0) {
+      return res.status(403).json({ 
+        success: false, 
+        error: 'Access denied' 
+      });
+    }
+    
+    await pool.request()
+      .input('conversationId', sql.BigInt, conversationId)
+      .query(`
+        UPDATE conversations 
+        SET status = 'active', updated_at = GETDATE()
+        WHERE conversation_id = @conversationId
+      `);
+    
+    console.log('✅ Conversation restored:', conversationId);
+    
+    // Emit WebSocket event
+    if (global.websocketService) {
+      global.websocketService.io.emit('conversation_restored', {
+        conversation_id: conversationId,
+        user_id: userId
+      });
+    }
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('❌ Error restoring conversation:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * DELETE /api/chat/conversations/:id
+ * Delete a conversation and all its messages
+ */
+router.delete('/conversations/:id', authenticateToken, async (req, res) => {
+  try {
+    const pool = await connectDB();
+    const userId = req.user.userId;
+    const roleId = req.user.roleId;
+    const conversationId = req.params.id;
+    
+    // Only admin or the instructor can delete
+    if (roleId !== 1 && roleId !== 2) {
+      return res.status(403).json({ 
+        success: false, 
+        error: 'Unauthorized' 
+      });
+    }
+    
+    // Verify user has access
+    const access = await pool.request()
+      .input('conversationId', sql.BigInt, conversationId)
+      .input('userId', sql.BigInt, userId)
+      .input('roleId', sql.Int, roleId)
+      .query(`
+        SELECT conversation_id FROM conversations 
+        WHERE conversation_id = @conversationId 
+        AND (
+          instructor_id = @userId 
+          OR admin_id = @userId 
+          OR (@roleId = 1 AND (admin_id IS NULL OR status = 'active'))
+        )
+      `);
+    
+    if (access.recordset.length === 0) {
+      return res.status(403).json({ 
+        success: false, 
+        error: 'Access denied' 
+      });
+    }
+    
+    // Delete all messages first (foreign key constraint)
+    await pool.request()
+      .input('conversationId', sql.BigInt, conversationId)
+      .query(`
+        DELETE FROM chat_messages 
+        WHERE conversation_id = @conversationId
+      `);
+    
+    // Delete conversation
+    await pool.request()
+      .input('conversationId', sql.BigInt, conversationId)
+      .query(`
+        DELETE FROM conversations 
+        WHERE conversation_id = @conversationId
+      `);
+    
+    console.log('✅ Conversation deleted:', conversationId);
+    
+    // Emit WebSocket event
+    if (global.websocketService) {
+      global.websocketService.io.emit('conversation_deleted', {
+        conversation_id: conversationId,
+        user_id: userId
+      });
+    }
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('❌ Error deleting conversation:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -397,6 +613,12 @@ router.post('/conversations/:id/messages', authenticateToken, async (req, res) =
     // Emit WebSocket event (will be handled by WebSocketService)
     if (global.websocketService) {
       global.websocketService.emitNewChatMessage(conversationId, messageData);
+      
+      // Also emit conversation_updated to refresh conversation list
+      global.websocketService.io.emit('conversation_updated', {
+        conversation_id: conversationId,
+        sender_id: senderId
+      });
     }
     
     res.status(201).json({

@@ -428,6 +428,11 @@ const AdminPanel = () => {
     const newTheme = theme === 'light' ? 'dark' : 'light';
     setTheme(newTheme);
     localStorage.setItem('adminTheme', newTheme);
+    
+    // Dispatch custom event for instant theme sync (no delay)
+    window.dispatchEvent(new CustomEvent('adminThemeChanged', { 
+      detail: { theme: newTheme } 
+    }));
   };
 
   const currentColors = COLORS[theme];
@@ -529,6 +534,15 @@ const AdminPanel = () => {
   const [avatarLoadError, setAvatarLoadError] = useState(false);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
 
+  // Change Password Modal States
+  const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+
   /**
    * Show global toast notification
    * Replaces all window.alert() calls for consistent UX
@@ -613,6 +627,99 @@ const AdminPanel = () => {
         setAvatarPreview(reader.result);
       };
       reader.readAsDataURL(file);
+    }
+  };
+
+  /**
+   * Handle opening change password modal
+   */
+  const handleOpenChangePassword = () => {
+    setPasswordForm({
+      currentPassword: '',
+      newPassword: '',
+      confirmPassword: ''
+    });
+    setIsChangePasswordOpen(true);
+  };
+
+  /**
+   * Handle closing change password modal
+   */
+  const handleCloseChangePassword = () => {
+    setPasswordForm({
+      currentPassword: '',
+      newPassword: '',
+      confirmPassword: ''
+    });
+    setIsChangePasswordOpen(false);
+  };
+
+  /**
+   * Handle password form field changes
+   */
+  const handlePasswordChange = (field, value) => {
+    setPasswordForm(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  /**
+   * Handle changing password
+   */
+  const handleChangePassword = async () => {
+    try {
+      // Validate inputs
+      if (!passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.confirmPassword) {
+        showToast('error', '❌ Vui lòng nhập đầy đủ thông tin');
+        return;
+      }
+
+      if (passwordForm.newPassword.length < 6) {
+        showToast('error', '❌ Mật khẩu mới phải có ít nhất 6 ký tự');
+        return;
+      }
+
+      if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+        showToast('error', '❌ Mật khẩu xác nhận không khớp');
+        return;
+      }
+
+      setIsChangingPassword(true);
+
+      const token = localStorage.getItem('token');
+      if (!token) {
+        showToast('error', '❌ Vui lòng đăng nhập lại');
+        setIsChangingPassword(false);
+        return;
+      }
+
+      const response = await fetch(`${API_BASE_URL}/auth/change-password`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          currentPassword: passwordForm.currentPassword,
+          newPassword: passwordForm.newPassword
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Không thể đổi mật khẩu');
+      }
+
+      showToast('success', '✅ Đổi mật khẩu thành công!');
+      handleCloseChangePassword();
+
+    } catch (error) {
+      console.error('Change password error:', error);
+      showToast('error', `❌ ${error.message || 'Có lỗi xảy ra khi đổi mật khẩu'}`);
+    } finally {
+      setIsChangingPassword(false);
     }
   };
 
@@ -1774,6 +1881,21 @@ const AdminPanel = () => {
         }
 
         /* ===================================================================
+           CHAT BUTTON - FORCE OVERRIDE ALL STYLES
+           =================================================================== */
+        .admin-chat-button,
+        .admin-chat-button:hover,
+        .admin-chat-button:focus,
+        .admin-chat-button:active {
+          all: unset !important;
+          position: fixed !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          box-sizing: border-box !important;
+        }
+
+        /* ===================================================================
            CARD ENHANCEMENTS - Modern Shadow & Hover Effects
            =================================================================== */
         .admin-card {
@@ -2233,22 +2355,82 @@ const AdminPanel = () => {
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <Badge variant="secondary" className="hidden md:flex bg-white/20 border-none px-4 py-2" style={{ color: currentColors.text }}>Admin Access</Badge>
-              <Button 
-                onClick={toggleTheme} 
-                variant="outline" 
-                className="bg-white/10 border-white/30 hover:bg-white/20 hover:opacity-70 transition-opacity"
-                style={{ color: currentColors.text }}
+              {/* Admin Profile - Avatar & Name */}
+              <div className="flex items-center gap-3 bg-white/10 backdrop-blur-sm px-4 py-2 rounded-xl border border-white/20">
+                {/* Avatar */}
+                <div 
+                  className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-white shadow-md overflow-hidden"
+                  style={{ 
+                    background: (authState?.user?.avatar_url && !avatarLoadError)
+                      ? 'transparent' 
+                      : `linear-gradient(135deg, ${currentColors.primary}, ${currentColors.accent})`
+                  }}
+                >
+                  {(authState?.user?.avatar_url && !avatarLoadError) ? (
+                    <img 
+                      src={`${authState.user.avatar_url}?t=${Date.now()}`}
+                      alt="Admin Avatar" 
+                      className="w-full h-full object-cover"
+                      crossOrigin="anonymous"
+                      onLoad={() => setAvatarLoadError(false)}
+                      onError={() => {
+                        console.error('❌ Top bar avatar load failed');
+                        setAvatarLoadError(true);
+                      }}
+                    />
+                  ) : (
+                    authState?.user?.full_name?.charAt(0)?.toUpperCase() || 'A'
+                  )}
+                </div>
+                
+                {/* Name */}
+                <div className="hidden md:block">
+                  <p className="text-sm font-semibold" style={{ 
+                    color: theme === 'dark' ? '#ffffff' : '#1e293b'
+                  }}>
+                    {authState?.user?.full_name || 'Admin'}
+                  </p>
+                  <p className="text-xs" style={{ 
+                    color: theme === 'dark' ? 'rgba(255, 255, 255, 0.7)' : 'rgba(30, 41, 59, 0.7)'
+                  }}>
+                    Administrator
+                  </p>
+                </div>
+              </div>
+              
+              {/* Theme Toggle */}
+              <button
+                onClick={toggleTheme}
+                className="flex items-center justify-center w-10 h-10 rounded-xl transition-all hover:scale-105"
+                style={{ 
+                  backgroundColor: theme === 'dark' 
+                    ? 'rgba(255, 255, 255, 0.1)' 
+                    : 'rgba(30, 41, 59, 0.1)',
+                  border: theme === 'dark'
+                    ? '1px solid rgba(255, 255, 255, 0.2)'
+                    : '1px solid rgba(30, 41, 59, 0.2)'
+                }}
                 title={theme === 'light' ? 'Chuyển sang Dark Mode' : 'Chuyển sang Light Mode'}
               >
-                {theme === 'light' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
-              </Button>
-              <Button onClick={loadDashboardData} variant="outline" className="bg-white/10 border-white/30 hover:bg-white/20 hover:opacity-70 transition-opacity" style={{ color: currentColors.text }}>
-                <RefreshCw className="w-4 h-4" />
-              </Button>
-              <Button onClick={handleLogout} variant="outline" className="bg-red-500/80 border-red-400 hover:bg-red-600 hover:opacity-70 transition-opacity" style={{ color: currentColors.danger }}>
-                <LogOut className="w-4 h-4" />
-              </Button>
+                {theme === 'light' ? (
+                  <Moon className="w-5 h-5" style={{ color: '#1e293b' }} />
+                ) : (
+                  <Sun className="w-5 h-5" style={{ color: '#fbbf24' }} />
+                )}
+              </button>
+              
+              {/* Logout Button */}
+              <button
+                onClick={handleLogout}
+                className="flex items-center justify-center w-10 h-10 rounded-xl transition-all hover:scale-105"
+                style={{ 
+                  backgroundColor: 'rgba(239, 68, 68, 0.8)',
+                  border: '1px solid rgba(239, 68, 68, 0.4)'
+                }}
+                title="Đăng xuất"
+              >
+                <LogOut className="w-5 h-5" style={{ color: '#ffffff' }} />
+              </button>
             </div>
           </div>
         </div>
@@ -2997,34 +3179,17 @@ const AdminPanel = () => {
                         <Lock className="w-5 h-5" style={{ color: currentColors.primary }} />
                         Bảo mật
                       </h3>
-                      <div className="flex flex-col sm:flex-row gap-3">
+                      <div>
                         <button
                           className="px-6 py-3 rounded-lg font-medium transition-all hover:scale-105 hover:shadow-lg flex items-center justify-center gap-2"
                           style={{ 
                             background: `linear-gradient(135deg, ${currentColors.primary}, ${currentColors.accent})`,
                             color: '#ffffff'
                           }}
-                          onClick={() => {
-                            // TODO: Implement change password functionality
-                            showToast('info', 'ℹ️ Chức năng đổi mật khẩu sẽ được triển khai trong tương lai');
-                          }}
+                          onClick={handleOpenChangePassword}
                         >
                           <Key className="w-4 h-4" />
                           Đổi mật khẩu
-                        </button>
-                        <button
-                          className="px-6 py-3 rounded-lg font-medium transition-all hover:scale-105 flex items-center justify-center gap-2"
-                          style={{ 
-                            backgroundColor: theme === 'dark' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(239, 68, 68, 0.1)',
-                            color: '#ef4444',
-                            border: '1px solid #ef444430'
-                          }}
-                          onClick={() => {
-                            showToast('info', 'ℹ️ Đã đăng xuất khỏi tất cả các thiết bị (Demo)');
-                          }}
-                        >
-                          <LogOut className="w-4 h-4" />
-                          Đăng xuất khỏi tất cả thiết bị
                         </button>
                       </div>
                     </div>
@@ -3098,7 +3263,8 @@ const AdminPanel = () => {
             {/* Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
             {/* Total Users Card */}
-            <Card 
+            <Card
+              key="stat-total-users"
               className="border-0 shadow-lg hover:shadow-xl transition-all" 
               style={{ 
                 isolation: 'isolate', 
@@ -3132,8 +3298,9 @@ const AdminPanel = () => {
             </Card>
 
             {/* Total Courses Card */}
-            <Card 
-              className="border-0 shadow-lg hover:shadow-xl transition-all" 
+            <Card
+              key="stat-total-courses"
+              className="border-0 shadow-lg hover:shadow-xl transition-all"
               style={{ 
                 isolation: 'isolate', 
                 transform: 'translateZ(0)',
@@ -3169,7 +3336,8 @@ const AdminPanel = () => {
             </Card>
 
             {/* Revenue Card */}
-            <Card 
+            <Card
+              key="stat-total-revenue"
               className="border-0 shadow-lg hover:shadow-xl transition-all" 
               style={{ 
                 isolation: 'isolate', 
@@ -3203,7 +3371,8 @@ const AdminPanel = () => {
             </Card>
 
             {/* Instructors Card */}
-            <Card 
+            <Card
+              key="stat-active-instructors"
               className="border-0 shadow-lg hover:shadow-xl transition-all" 
               style={{ 
                 isolation: 'isolate', 
@@ -3240,7 +3409,8 @@ const AdminPanel = () => {
             </Card>
 
             {/* Learners Card */}
-            <Card 
+            <Card
+              key="stat-total-learners"
               className="border-0 shadow-lg hover:shadow-xl transition-all" 
               style={{ 
                 isolation: 'isolate', 
@@ -4818,6 +4988,222 @@ const AdminPanel = () => {
               >
                 <CreditCard className="w-4 h-4 mr-2 inline" />
                 Xác nhận chi trả
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Floating Chat Button - Portal to Body - CỐ ĐỊNH MÀU INDIGO-600 */}
+      {createPortal(
+        <button
+          onClick={() => navigate('/admin/conversations')}
+          style={{
+            all: 'unset',
+            position: 'fixed',
+            bottom: 'max(5rem, calc(env(safe-area-inset-bottom) + 4rem))',
+            right: 'max(1.5rem, env(safe-area-inset-right))',
+            width: 'clamp(52px, 4.5vw, 64px)',
+            height: 'clamp(52px, 4.5vw, 64px)',
+            borderRadius: '50%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxSizing: 'border-box',
+            backgroundColor: '#4f46e5',
+            backgroundImage: 'none',
+            border: 'none',
+            outline: 'none',
+            color: '#ffffff',
+            boxShadow: '0 20px 60px rgba(79, 70, 229, 0.9), 0 0 0 6px rgba(79, 70, 229, 0.3), inset 0 2px 10px rgba(255, 255, 255, 0.2)',
+            zIndex: 99999,
+            cursor: 'pointer',
+            transition: 'transform 0.3s ease, background-color 0.3s ease',
+            transform: 'scale(1)',
+            opacity: 1,
+            visibility: 'visible',
+            WebkitTapHighlightColor: 'transparent'
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = '#4338ca';
+            e.currentTarget.style.transform = 'scale(1.15)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = '#4f46e5';
+            e.currentTarget.style.transform = 'scale(1)';
+          }}
+          title="Chat với Giảng viên"
+        >
+          <MessageCircle 
+            style={{ 
+              width: 'clamp(24px, 3.5vw, 28px)', 
+              height: 'clamp(24px, 3.5vw, 28px)',
+              color: '#ffffff',
+              filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.4))',
+              pointerEvents: 'none'
+            }} 
+          />
+        </button>,
+        document.body
+      )}
+
+      {/* Change Password Modal */}
+      {isChangePasswordOpen && createPortal(
+        <div className={`fixed inset-0 z-[9999] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 ${theme === 'dark' ? 'modal-dark' : 'modal-light'}`}>
+          <div 
+            className="modal-surface rounded-xl shadow-2xl w-full max-w-md animate-in fade-in zoom-in duration-200"
+            style={{ backgroundColor: currentColors.card }}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="change-password-title"
+          >
+            <div className="p-6 border-b" style={{ borderColor: currentColors.border }}>
+              <h3 id="change-password-title" className="text-xl font-bold flex items-center gap-2" style={{ color: currentColors.text }}>
+                <Key className="w-5 h-5" style={{ color: currentColors.primary }} />
+                Đổi mật khẩu
+              </h3>
+            </div>
+            
+            <div className="p-6 modal-content-wrapper space-y-4">
+              {/* Current Password */}
+              <div>
+                <label className="text-sm font-medium mb-2 block flex items-center gap-2" style={{ color: currentColors.text }}>
+                  <Lock className="w-4 h-4" />
+                  Mật khẩu hiện tại <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="password"
+                  placeholder="Nhập mật khẩu hiện tại"
+                  value={passwordForm.currentPassword}
+                  onChange={(e) => handlePasswordChange('currentPassword', e.target.value)}
+                  className="w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 transition-all"
+                  style={{
+                    borderColor: currentColors.border,
+                    backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.05)' : '#ffffff',
+                    color: currentColors.text,
+                    '--tw-ring-color': currentColors.primary
+                  }}
+                  disabled={isChangingPassword}
+                />
+              </div>
+
+              {/* New Password */}
+              <div>
+                <label className="text-sm font-medium mb-2 block flex items-center gap-2" style={{ color: currentColors.text }}>
+                  <Key className="w-4 h-4" />
+                  Mật khẩu mới <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="password"
+                  placeholder="Nhập mật khẩu mới (ít nhất 6 ký tự)"
+                  value={passwordForm.newPassword}
+                  onChange={(e) => handlePasswordChange('newPassword', e.target.value)}
+                  className="w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 transition-all"
+                  style={{
+                    borderColor: currentColors.border,
+                    backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.05)' : '#ffffff',
+                    color: currentColors.text,
+                    '--tw-ring-color': currentColors.primary
+                  }}
+                  disabled={isChangingPassword}
+                />
+                <p className="text-xs mt-1" style={{ color: currentColors.textSecondary }}>
+                  Tối thiểu 6 ký tự
+                </p>
+              </div>
+
+              {/* Confirm Password */}
+              <div>
+                <label className="text-sm font-medium mb-2 block flex items-center gap-2" style={{ color: currentColors.text }}>
+                  <CheckCircle className="w-4 h-4" />
+                  Xác nhận mật khẩu mới <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="password"
+                  placeholder="Nhập lại mật khẩu mới"
+                  value={passwordForm.confirmPassword}
+                  onChange={(e) => handlePasswordChange('confirmPassword', e.target.value)}
+                  className="w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 transition-all"
+                  style={{
+                    borderColor: currentColors.border,
+                    backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.05)' : '#ffffff',
+                    color: currentColors.text,
+                    '--tw-ring-color': currentColors.primary
+                  }}
+                  disabled={isChangingPassword}
+                />
+              </div>
+
+              {/* Password strength indicator */}
+              {passwordForm.newPassword && (
+                <div className="p-3 rounded-lg" style={{ backgroundColor: theme === 'dark' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(59, 130, 246, 0.05)' }}>
+                  <p className="text-xs font-medium mb-2" style={{ color: currentColors.primary }}>
+                    Độ mạnh mật khẩu:
+                  </p>
+                  <div className="flex gap-1">
+                    <div 
+                      className="h-1 flex-1 rounded"
+                      style={{ 
+                        backgroundColor: passwordForm.newPassword.length >= 6 ? '#10b981' : '#e5e7eb' 
+                      }}
+                    />
+                    <div 
+                      className="h-1 flex-1 rounded"
+                      style={{ 
+                        backgroundColor: passwordForm.newPassword.length >= 8 ? '#10b981' : '#e5e7eb' 
+                      }}
+                    />
+                    <div 
+                      className="h-1 flex-1 rounded"
+                      style={{ 
+                        backgroundColor: /[A-Z]/.test(passwordForm.newPassword) && /[0-9]/.test(passwordForm.newPassword) ? '#10b981' : '#e5e7eb' 
+                      }}
+                    />
+                  </div>
+                  <p className="text-xs mt-1" style={{ color: currentColors.textSecondary }}>
+                    {passwordForm.newPassword.length < 6 && 'Yếu - Cần ít nhất 6 ký tự'}
+                    {passwordForm.newPassword.length >= 6 && passwordForm.newPassword.length < 8 && 'Trung bình - Nên có ít nhất 8 ký tự'}
+                    {passwordForm.newPassword.length >= 8 && !/[A-Z]/.test(passwordForm.newPassword) && 'Khá - Nên có chữ hoa'}
+                    {passwordForm.newPassword.length >= 8 && /[A-Z]/.test(passwordForm.newPassword) && !/[0-9]/.test(passwordForm.newPassword) && 'Khá - Nên có số'}
+                    {passwordForm.newPassword.length >= 8 && /[A-Z]/.test(passwordForm.newPassword) && /[0-9]/.test(passwordForm.newPassword) && 'Mạnh'}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-3 p-6 border-t" style={{ 
+              borderColor: currentColors.border,
+              backgroundColor: currentColors.background 
+            }}>
+              <button 
+                onClick={handleCloseChangePassword}
+                className="flex-1 px-4 py-2.5 rounded-lg font-medium hover:opacity-90 transition-all"
+                style={{ backgroundColor: currentColors.border, color: currentColors.text }}
+                disabled={isChangingPassword}
+              >
+                Hủy
+              </button>
+              <button 
+                onClick={handleChangePassword}
+                className="flex-1 px-4 py-2.5 rounded-lg font-medium transition-all hover:scale-105 disabled:opacity-50 disabled:hover:scale-100"
+                style={{ 
+                  background: `linear-gradient(135deg, ${currentColors.primary}, ${currentColors.accent})`,
+                  color: '#ffffff'
+                }}
+                disabled={isChangingPassword}
+              >
+                {isChangingPassword ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 mr-2 inline animate-spin" />
+                    Đang xử lý...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="w-4 h-4 mr-2 inline" />
+                    Đổi mật khẩu
+                  </>
+                )}
               </button>
             </div>
           </div>

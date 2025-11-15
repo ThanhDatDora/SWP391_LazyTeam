@@ -436,6 +436,75 @@ router.put('/avatar', authenticateToken, upload.single('avatar'), async (req, re
   }
 });
 
+// Change password (for logged-in users)
+router.put('/change-password', authenticateToken, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    const userId = req.user.userId;
+
+    // Validate input
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'Vui lòng nhập đầy đủ mật khẩu hiện tại và mật khẩu mới' 
+      });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'Mật khẩu mới phải có ít nhất 6 ký tự' 
+      });
+    }
+
+    const pool = await getPool();
+
+    // Get current user's password hash
+    const userResult = await pool.request()
+      .input('userId', sql.BigInt, userId)
+      .query('SELECT password_hash FROM users WHERE user_id = @userId');
+
+    if (userResult.recordset.length === 0) {
+      return res.status(404).json({ 
+        success: false,
+        error: 'Không tìm thấy người dùng' 
+      });
+    }
+
+    const user = userResult.recordset[0];
+
+    // Verify current password
+    const isValidPassword = await bcrypt.compare(currentPassword, user.password_hash);
+    if (!isValidPassword) {
+      return res.status(401).json({ 
+        success: false,
+        error: 'Mật khẩu hiện tại không chính xác' 
+      });
+    }
+
+    // Hash new password
+    const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+
+    // Update password
+    await pool.request()
+      .input('userId', sql.BigInt, userId)
+      .input('hashedPassword', sql.NVarChar, hashedNewPassword)
+      .query('UPDATE users SET password_hash = @hashedPassword, updated_at = GETDATE() WHERE user_id = @userId');
+
+    res.json({
+      success: true,
+      message: 'Đổi mật khẩu thành công'
+    });
+
+  } catch (error) {
+    console.error('Change password error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Có lỗi xảy ra khi đổi mật khẩu' 
+    });
+  }
+});
+
 // ================================
 // GOOGLE OAUTH ROUTES
 // ================================

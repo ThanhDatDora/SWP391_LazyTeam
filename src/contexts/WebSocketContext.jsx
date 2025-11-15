@@ -164,18 +164,33 @@ export function WebSocketProvider({ children }) {
 
   // Connection management
   const connect = useCallback(() => {
-    if (!authState.isAuthenticated || !authState.token) {return;}
+    // Get token from localStorage (AuthContext doesn't export it in state)
+    const token = localStorage.getItem('token');
+    
+    if (!authState.isAuthenticated || !token) {
+      console.log('[WebSocket] Cannot connect:', { 
+        isAuthenticated: authState.isAuthenticated, 
+        hasToken: !!token 
+      });
+      return;
+    }
 
     // Disconnect existing connection
     if (state.socket) {
+      console.log('[WebSocket] Disconnecting existing socket...');
       state.socket.disconnect();
     }
 
-    const serverUrl = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5000';
+    // Get backend URL from VITE_API_BASE_URL (remove /api suffix)
+    const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api';
+    const serverUrl = apiUrl.replace('/api', '');
+    console.log('[WebSocket] Connecting to:', serverUrl);
+    console.log('[WebSocket] Auth token length:', token.length);
+    console.log('[WebSocket] User authenticated:', authState.isAuthenticated);
     
     const socket = io(serverUrl, {
       auth: {
-        token: authState.token
+        token: token
       },
       reconnection: true,
       reconnectionAttempts: 5,
@@ -185,17 +200,14 @@ export function WebSocketProvider({ children }) {
 
     // Set socket in state
     dispatch({ type: WS_ACTIONS.SET_SOCKET, payload: socket });
+    
+    // Expose socket instance to window for components that need direct access
+    window.socketInstance = socket;
 
     // Connection event handlers
     socket.on('connect', () => {
       console.log('[WebSocket] Connected to server');
       dispatch({ type: WS_ACTIONS.SET_CONNECTED });
-      
-      toast({
-        title: 'Connected',
-        description: 'Real-time features are now active',
-        variant: 'success'
-      });
     });
 
     socket.on('disconnect', (reason) => {
@@ -211,12 +223,6 @@ export function WebSocketProvider({ children }) {
     socket.on('connect_error', (error) => {
       console.error('[WebSocket] Connection error:', error);
       dispatch({ type: WS_ACTIONS.SET_ERROR, payload: error.message });
-      
-      toast({
-        title: 'Connection Error',
-        description: 'Failed to connect to real-time service',
-        variant: 'destructive'
-      });
     });
 
     socket.on('reconnect_attempt', (attemptNumber) => {
@@ -364,28 +370,43 @@ export function WebSocketProvider({ children }) {
     });
 
     return socket;
-  }, [authState.isAuthenticated, authState.token, toast]);
+  }, [authState.isAuthenticated, toast, dispatch]);
 
   const disconnect = useCallback(() => {
     if (state.socket) {
       state.socket.disconnect();
       dispatch({ type: WS_ACTIONS.SET_SOCKET, payload: null });
       dispatch({ type: WS_ACTIONS.SET_DISCONNECTED });
+      
+      // Clean up window reference
+      if (window.socketInstance) {
+        delete window.socketInstance;
+      }
     }
   }, [state.socket]);
 
   // Auto connect/disconnect based on auth state
   useEffect(() => {
-    if (authState.isAuthenticated && authState.token) {
+    const token = localStorage.getItem('token');
+    console.log('[WebSocket] useEffect triggered:', {
+      isAuthenticated: authState.isAuthenticated,
+      hasToken: !!token,
+      tokenLength: token?.length
+    });
+    
+    if (authState.isAuthenticated && token) {
+      console.log('[WebSocket] Calling connect()...');
       connect();
     } else {
+      console.log('[WebSocket] Not authenticated or no token, disconnecting...');
       disconnect();
     }
 
     return () => {
       disconnect();
     };
-  }, [authState.isAuthenticated, authState.token, connect, disconnect]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authState.isAuthenticated]);
 
   // Course methods
   const joinCourse = useCallback((courseId) => {
@@ -519,7 +540,10 @@ export function WebSocketProvider({ children }) {
     // Utility methods
     getCourseMessages: (courseId) => state.messages[courseId] || [],
     getCourseStats: (courseId) => state.courseStats[courseId] || { activeUsers: 0 },
-    getTypingUsers: (courseId) => state.typingUsers[courseId] || []
+    getTypingUsers: (courseId) => state.typingUsers[courseId] || [],
+    
+    // Expose socket for direct access when needed
+    getSocket: () => state.socket
   };
 
   return (

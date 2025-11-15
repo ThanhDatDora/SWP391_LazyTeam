@@ -302,7 +302,7 @@ const InstructorRevenuePage = () => {
               <li>• Platform fee: <strong>{platformFeeRate * 100}%</strong> covers hosting, payment processing, and marketing</li>
               <li>• Revenue is tracked in real-time and updated automatically</li>
               <li>• All transactions include VAT (10%) which is collected from students</li>
-              <li>• For withdrawals or questions, please contact admin support</li>
+              <li>• For questions, please contact admin support</li>
             </ul>
           </div>
         </div>

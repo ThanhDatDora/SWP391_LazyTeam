@@ -3,106 +3,6 @@ import { DollarSign, User, Calendar, CreditCard, Building, CheckCircle, Clock } 
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api';
 
-// Mock data for instructor payouts
-const MOCK_INSTRUCTOR_PAYOUTS = [
-  {
-    instructor_id: 5,
-    instructor_name: 'Nguyễn Văn An',
-    email: 'nguyenvanan@example.com',
-    total_revenue: 45000000,
-    pending_amount: 12000000,
-    total_paid: 33000000,
-    course_count: 8,
-    bank_account: '0123456789',
-    bank_name: 'Vietcombank',
-    last_payment_date: '2024-11-01T10:30:00Z'
-  },
-  {
-    instructor_id: 8,
-    instructor_name: 'Trần Thị Bình',
-    email: 'tranthibinh@example.com',
-    total_revenue: 38500000,
-    pending_amount: 8500000,
-    total_paid: 30000000,
-    course_count: 6,
-    bank_account: '9876543210',
-    bank_name: 'Techcombank',
-    last_payment_date: '2024-10-28T14:20:00Z'
-  },
-  {
-    instructor_id: 12,
-    instructor_name: 'Lê Minh Cường',
-    email: 'leminhcuong@example.com',
-    total_revenue: 52000000,
-    pending_amount: 15000000,
-    total_paid: 37000000,
-    course_count: 10,
-    bank_account: '1122334455',
-    bank_name: 'VPBank',
-    last_payment_date: '2024-11-05T09:15:00Z'
-  },
-  {
-    instructor_id: 3,
-    instructor_name: 'Phạm Thị Dung',
-    email: 'phamthidung@example.com',
-    total_revenue: 28000000,
-    pending_amount: 0,
-    total_paid: 28000000,
-    course_count: 5,
-    bank_account: '5544332211',
-    bank_name: 'ACB',
-    last_payment_date: '2024-11-10T16:45:00Z'
-  },
-  {
-    instructor_id: 15,
-    instructor_name: 'Hoàng Văn Em',
-    email: 'hoangvanem@example.com',
-    total_revenue: 41000000,
-    pending_amount: 18000000,
-    total_paid: 23000000,
-    course_count: 7,
-    bank_account: '6677889900',
-    bank_name: 'MB Bank',
-    last_payment_date: '2024-10-25T11:30:00Z'
-  },
-  {
-    instructor_id: 20,
-    instructor_name: 'Đặng Thị Phương',
-    email: 'dangthiphuong@example.com',
-    total_revenue: 35000000,
-    pending_amount: 9500000,
-    total_paid: 25500000,
-    course_count: 6,
-    bank_account: '3344556677',
-    bank_name: 'Vietinbank',
-    last_payment_date: '2024-11-03T13:10:00Z'
-  },
-  {
-    instructor_id: 25,
-    instructor_name: 'Võ Minh Khang',
-    email: 'vominhkhang@example.com',
-    total_revenue: 22000000,
-    pending_amount: 5500000,
-    total_paid: 16500000,
-    course_count: 4,
-    bank_account: '7788990011',
-    bank_name: 'Sacombank',
-    last_payment_date: '2024-10-30T08:25:00Z'
-  },
-  {
-    instructor_id: 30,
-    instructor_name: 'Bùi Thị Lan',
-    email: 'buithilan@example.com',
-    total_revenue: 19500000,
-    pending_amount: 0,
-    total_paid: 19500000,
-    course_count: 3,
-    bank_account: '2233445566',
-    bank_name: 'BIDV',
-    last_payment_date: '2024-11-08T15:40:00Z'
-  }
-];
-
 const COLORS = {
   dark: {
     primary: '#818cf8',
@@ -129,7 +29,21 @@ const PayoutsPage = () => {
   const currentColors = COLORS.dark;
   const [instructors, setInstructors] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filterStatus, setFilterStatus] = useState('all'); // all, pending, paid
+  const [filterStatus, setFilterStatus] = useState('all'); // all, hasCommission, noCommission
+
+  // Calculate payment due date (5th of next month)
+  const getPaymentDueDate = () => {
+    const now = new Date();
+    const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 5);
+    return nextMonth;
+  };
+
+  // Check if payment is overdue
+  const isPaymentOverdue = () => {
+    const now = new Date();
+    const dueDate = getPaymentDueDate();
+    return now > dueDate;
+  };
 
   useEffect(() => {
     fetchInstructorRevenue();
@@ -144,60 +58,33 @@ const PayoutsPage = () => {
       
       if (response.ok) {
         const data = await response.json();
-        if (data.success && data.data && data.data.length > 0) {
+        if (data.success && data.data) {
           setInstructors(data.data);
         } else {
-          console.log('📦 Using mock instructor payouts data');
-          setInstructors(MOCK_INSTRUCTOR_PAYOUTS);
+          setInstructors([]);
         }
       } else {
-        console.log('⚠️ API error, using mock data');
-        setInstructors(MOCK_INSTRUCTOR_PAYOUTS);
+        console.error('⚠️ API error');
+        setInstructors([]);
       }
     } catch (error) {
       console.error('❌ Error fetching instructor revenue:', error);
-      console.log('📦 Network error, using mock data');
-      setInstructors(MOCK_INSTRUCTOR_PAYOUTS);
+      setInstructors([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const handlePayRevenue = async (instructorId, amount) => {
-    if (!confirm(`Xác nhận thanh toán ${formatCurrency(amount)} cho instructor?`)) return;
-
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE_URL}/admin/revenue/pay`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ instructor_id: instructorId, amount }),
-      });
-
-      if (response.ok) {
-        alert('✅ Đã thanh toán thành công!');
-        fetchInstructorRevenue();
-      }
-    } catch (error) {
-      console.error('Error paying revenue:', error);
-      alert('❌ Lỗi khi thanh toán');
-    }
-  };
-
   const filteredInstructors = instructors.filter((instructor) => {
-    if (filterStatus === 'pending') return instructor.pending_amount > 0;
-    if (filterStatus === 'paid') return instructor.total_paid > 0;
+    if (filterStatus === 'hasCommission') return (instructor.commission_owed || 0) > 0;
+    if (filterStatus === 'noCommission') return (instructor.commission_owed || 0) === 0;
     return true;
   });
 
   // Calculate summary stats
   const totalRevenue = instructors.reduce((sum, i) => sum + (i.total_revenue || 0), 0);
-  const totalPending = instructors.reduce((sum, i) => sum + (i.pending_amount || 0), 0);
-  const totalPaid = instructors.reduce((sum, i) => sum + (i.total_paid || 0), 0);
-  const instructorsWithPending = instructors.filter(i => i.pending_amount > 0).length;
+  const totalCommission = instructors.reduce((sum, i) => sum + (i.commission_owed || 0), 0);
+  const instructorsWithCommission = instructors.filter(i => (i.commission_owed || 0) > 0).length;
 
   if (loading) {
     return (
@@ -211,36 +98,43 @@ const PayoutsPage = () => {
     <div className="p-6" style={{ backgroundColor: currentColors.background, minHeight: '100vh' }}>
       <div className="mb-8">
         <h1 className="text-3xl font-bold mb-2" style={{ color: currentColors.text }}>
-          Thanh toán doanh thu
+          Hoa hồng nền tảng
         </h1>
         <p style={{ color: currentColors.textSecondary }}>
-          Quản lý và thanh toán doanh thu cho instructors
+          Quản lý hoa hồng 10% từ doanh thu giảng viên - Hạn thanh toán: ngày 5 hàng tháng
         </p>
         
+        {/* Payment Due Date Badge */}
+        <div className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg" 
+             style={{ 
+               backgroundColor: isPaymentOverdue() ? currentColors.danger + '20' : currentColors.primary + '20',
+               color: isPaymentOverdue() ? currentColors.danger : currentColors.primary
+             }}>
+          <Calendar className="w-4 h-4" />
+          <span className="text-sm font-medium">
+            Hạn thanh toán kỳ tiếp: {getPaymentDueDate().toLocaleDateString('vi-VN')}
+            {isPaymentOverdue() && ' (Quá hạn)'}
+          </span>
+        </div>
+        
         {/* Summary Stats */}
-        <div className="grid grid-cols-4 gap-4 mt-6">
+        <div className="grid grid-cols-3 gap-4 mt-6">
           <div className="p-4 rounded-lg border" style={{ backgroundColor: currentColors.card, borderColor: currentColors.border }}>
-            <p className="text-sm mb-1" style={{ color: currentColors.textSecondary }}>Tổng doanh thu</p>
+            <p className="text-sm mb-1" style={{ color: currentColors.textSecondary }}>Tổng doanh thu GV</p>
             <p className="text-2xl font-bold" style={{ color: currentColors.text }}>
               {formatCurrency(totalRevenue)}
             </p>
           </div>
           <div className="p-4 rounded-lg border" style={{ backgroundColor: currentColors.card, borderColor: currentColors.border }}>
-            <p className="text-sm mb-1" style={{ color: currentColors.textSecondary }}>Chờ thanh toán</p>
+            <p className="text-sm mb-1" style={{ color: currentColors.textSecondary }}>Hoa hồng nền tảng (10%)</p>
             <p className="text-2xl font-bold" style={{ color: currentColors.warning }}>
-              {formatCurrency(totalPending)}
+              {formatCurrency(totalCommission)}
             </p>
           </div>
           <div className="p-4 rounded-lg border" style={{ backgroundColor: currentColors.card, borderColor: currentColors.border }}>
-            <p className="text-sm mb-1" style={{ color: currentColors.textSecondary }}>Đã thanh toán</p>
-            <p className="text-2xl font-bold" style={{ color: currentColors.success }}>
-              {formatCurrency(totalPaid)}
-            </p>
-          </div>
-          <div className="p-4 rounded-lg border" style={{ backgroundColor: currentColors.card, borderColor: currentColors.border }}>
-            <p className="text-sm mb-1" style={{ color: currentColors.textSecondary }}>GV cần thanh toán</p>
+            <p className="text-sm mb-1" style={{ color: currentColors.textSecondary }}>GV có hoa hồng</p>
             <p className="text-2xl font-bold" style={{ color: currentColors.primary }}>
-              {instructorsWithPending}
+              {instructorsWithCommission}
             </p>
           </div>
         </div>
@@ -250,8 +144,8 @@ const PayoutsPage = () => {
       <div className="flex gap-2 mb-6">
         {[
           { id: 'all', label: 'Tất cả' },
-          { id: 'pending', label: 'Chờ thanh toán' },
-          { id: 'paid', label: 'Đã thanh toán' },
+          { id: 'hasCommission', label: 'Có hoa hồng' },
+          { id: 'noCommission', label: 'Không có hoa hồng' },
         ].map((tab) => (
           <button
             key={tab.id}
@@ -299,10 +193,10 @@ const PayoutsPage = () => {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                     <div>
                       <p className="text-xs mb-1" style={{ color: currentColors.textSecondary }}>
-                        Tổng doanh thu
+                        Doanh thu GV
                       </p>
                       <p className="text-lg font-bold" style={{ color: currentColors.text }}>
                         {formatCurrency(instructor.total_revenue || 0)}
@@ -310,18 +204,10 @@ const PayoutsPage = () => {
                     </div>
                     <div>
                       <p className="text-xs mb-1" style={{ color: currentColors.textSecondary }}>
-                        Chờ thanh toán
+                        Hoa hồng nền tảng (10%)
                       </p>
                       <p className="text-lg font-bold" style={{ color: currentColors.warning }}>
-                        {formatCurrency(instructor.pending_amount || 0)}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs mb-1" style={{ color: currentColors.textSecondary }}>
-                        Đã thanh toán
-                      </p>
-                      <p className="text-lg font-bold" style={{ color: currentColors.success }}>
-                        {formatCurrency(instructor.total_paid || 0)}
+                        {formatCurrency(instructor.commission_owed || 0)}
                       </p>
                     </div>
                     <div>
@@ -352,35 +238,31 @@ const PayoutsPage = () => {
                   )}
                 </div>
 
-                {/* Pay Button */}
-                <div className="ml-6">
-                  {instructor.pending_amount > 0 ? (
-                    <button
-                      onClick={() => handlePayRevenue(instructor.instructor_id, instructor.pending_amount)}
-                      className="px-6 py-3 rounded-lg font-medium flex items-center gap-2"
-                      style={{ backgroundColor: currentColors.success, color: 'white' }}
-                    >
-                      <DollarSign className="w-5 h-5" />
-                      Thanh toán
-                    </button>
+                {/* Commission Info */}
+                <div className="ml-6 text-right">
+                  {(instructor.commission_owed || 0) > 0 ? (
+                    <div>
+                      <div className="px-4 py-2 rounded-lg mb-2" 
+                           style={{ backgroundColor: currentColors.warning + '20' }}>
+                        <p className="text-xs" style={{ color: currentColors.textSecondary }}>
+                          Hoa hồng phải thu
+                        </p>
+                        <p className="text-xl font-bold" style={{ color: currentColors.warning }}>
+                          {formatCurrency(instructor.commission_owed)}
+                        </p>
+                      </div>
+                      <p className="text-xs" style={{ color: currentColors.textSecondary }}>
+                        Hạn: {getPaymentDueDate().toLocaleDateString('vi-VN')}
+                      </p>
+                    </div>
                   ) : (
                     <div className="flex items-center gap-2 text-sm" style={{ color: currentColors.textSecondary }}>
                       <CheckCircle className="w-5 h-5" />
-                      Không có số dư
+                      Chưa có doanh thu
                     </div>
                   )}
                 </div>
               </div>
-
-              {/* Last Payment Date */}
-              {instructor.last_payment_date && (
-                <div className="mt-4 pt-4 border-t" style={{ borderColor: currentColors.border }}>
-                  <div className="flex items-center gap-2 text-sm" style={{ color: currentColors.textSecondary }}>
-                    <Calendar className="w-4 h-4" />
-                    Thanh toán gần nhất: {new Date(instructor.last_payment_date).toLocaleDateString('vi-VN')}
-                  </div>
-                </div>
-              )}
             </div>
           ))}
         </div>
