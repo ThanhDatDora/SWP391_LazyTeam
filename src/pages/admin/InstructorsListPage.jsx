@@ -249,8 +249,6 @@ const InstructorsListPage = () => {
                 <th className="px-6 py-3 text-left text-sm font-semibold" style={{ color: currentColors.text }}>Giảng viên</th>
                 <th className="px-6 py-3 text-left text-sm font-semibold" style={{ color: currentColors.text }}>Email</th>
                 <th className="px-6 py-3 text-left text-sm font-semibold" style={{ color: currentColors.text }}>Khóa học</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold" style={{ color: currentColors.text }}>Doanh thu</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold" style={{ color: currentColors.text }}>Đánh giá</th>
                 <th className="px-6 py-3 text-left text-sm font-semibold" style={{ color: currentColors.text }}>Trạng thái</th>
                 <th className="px-6 py-3 text-left text-sm font-semibold" style={{ color: currentColors.text }}>Hành động</th>
               </tr>
@@ -258,7 +256,7 @@ const InstructorsListPage = () => {
             <tbody>
               {filteredInstructors.length === 0 ? (
                 <tr>
-                  <td colSpan="8" className="px-6 py-12 text-center" style={{ color: currentColors.textSecondary }}>
+                  <td colSpan="6" className="px-6 py-12 text-center" style={{ color: currentColors.textSecondary }}>
                     Không có dữ liệu
                   </td>
                 </tr>
@@ -287,22 +285,6 @@ const InstructorsListPage = () => {
                         <BookOpen className="w-4 h-4" style={{ color: currentColors.primary }} />
                         <span className="font-medium" style={{ color: currentColors.text }}>
                           {instructor.total_courses || 0}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2">
-                        <DollarSign className="w-4 h-4 text-green-600" />
-                        <span className="font-medium" style={{ color: currentColors.text }}>
-                          {formatCurrency(instructor.total_revenue || 0)}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-1">
-                        <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
-                        <span className="font-medium" style={{ color: currentColors.text }}>
-                          {instructor.average_rating ? instructor.average_rating.toFixed(1) : 'N/A'}
                         </span>
                       </div>
                     </td>
@@ -379,18 +361,6 @@ const InstructorsListPage = () => {
                 <div>
                   <label className="text-sm font-medium" style={{ color: currentColors.textSecondary }}>Số khóa học</label>
                   <p className="mt-1" style={{ color: currentColors.text }}>{selectedInstructor.total_courses || 0}</p>
-                </div>
-                
-                <div>
-                  <label className="text-sm font-medium" style={{ color: currentColors.textSecondary }}>Tổng doanh thu</label>
-                  <p className="mt-1" style={{ color: currentColors.text }}>{formatCurrency(selectedInstructor.total_revenue || 0)}</p>
-                </div>
-                
-                <div>
-                  <label className="text-sm font-medium" style={{ color: currentColors.textSecondary }}>Đánh giá trung bình</label>
-                  <p className="mt-1" style={{ color: currentColors.text }}>
-                    {selectedInstructor.average_rating ? `${selectedInstructor.average_rating.toFixed(1)} ⭐` : 'Chưa có'}
-                  </p>
                 </div>
                 
                 <div>

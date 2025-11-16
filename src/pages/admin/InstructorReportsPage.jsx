@@ -20,9 +20,9 @@ const InstructorReportsPage = () => {
       setLoading(true);
       const token = localStorage.getItem('token');
       
-      console.log('📡 Fetching instructor reports from:', `${API_BASE_URL}/admin/instructor-reports`);
+      console.log('📡 Fetching instructor reports from:', `${API_BASE_URL}/admin/instructor-revenue`);
       
-      const response = await fetch(`${API_BASE_URL}/admin/instructor-reports`, {
+      const response = await fetch(`${API_BASE_URL}/admin/instructor-revenue`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'

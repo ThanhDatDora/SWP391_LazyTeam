@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Account Locked Modal - WebSocket</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            border-bottom: 3px solid #4f46e5;
+            padding-bottom: 10px;
+        }
+        .section {
+            margin: 20px 0;
+            padding: 20px;
+            background: #f9f9f9;
+            border-radius: 8px;
+            border-left: 4px solid #4f46e5;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .status.connected {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.disconnected {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        button {
+            background: #4f46e5;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 5px;
+            transition: all 0.2s;
+        }
+        button:hover {
+            background: #4338ca;
+            transform: translateY(-1px);
+        }
+        button:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+            transform: none;
+        }
+        button.danger {
+            background: #dc2626;
+        }
+        button.danger:hover {
+            background: #b91c1c;
+        }
+        button.success {
+            background: #059669;
+        }
+        button.success:hover {
+            background: #047857;
+        }
+        input, select {
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin: 5px;
+            width: 200px;
+        }
+        .log {
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 15px;
+            border-radius: 8px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            margin-top: 10px;
+        }
+        .log-entry {
+            margin: 5px 0;
+            padding: 5px;
+            border-left: 3px solid #4f46e5;
+            padding-left: 10px;
+        }
+        .log-entry.error {
+            border-left-color: #dc2626;
+            color: #fca5a5;
+        }
+        .log-entry.success {
+            border-left-color: #10b981;
+            color: #6ee7b7;
+        }
+        .user-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        .user-card {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .user-card.locked {
+            border-color: #dc2626;
+            background: #fef2f2;
+        }
+        .user-info {
+            margin-bottom: 10px;
+        }
+        .user-info strong {
+            display: block;
+            color: #1f2937;
+            margin-bottom: 5px;
+        }
+        .user-info span {
+            color: #6b7280;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔒 Test Account Locked Modal - WebSocket Real-time</h1>
+        
+        <div class="section">
+            <h2>1. Đăng nhập Admin</h2>
+            <input type="email" id="adminEmail" placeholder="Admin Email" value="admin@admin.com">
+            <input type="password" id="adminPassword" placeholder="Admin Password" value="admin123">
+            <button onclick="loginAdmin()">Đăng nhập Admin</button>
+            <div id="adminStatus" class="status" style="display:none;"></div>
+        </div>
+
+        <div class="section">
+            <h2>2. Đăng nhập User (Instructor/Learner)</h2>
+            <input type="email" id="userEmail" placeholder="User Email" value="">
+            <input type="password" id="userPassword" placeholder="User Password" value="">
+            <button onclick="loginUser()">Đăng nhập User</button>
+            <button onclick="connectUserSocket()" id="connectBtn" disabled>Kết nối WebSocket</button>
+            <div id="userStatus" class="status" style="display:none;"></div>
+            <div id="socketStatus" class="status" style="display:none;"></div>
+        </div>
+
+        <div class="section">
+            <h2>3. Danh sách Users (Admin View)</h2>
+            <button onclick="loadUsers()" id="loadUsersBtn" disabled>Load Users</button>
+            <div id="usersList" class="user-list"></div>
+        </div>
+
+        <div class="section">
+            <h2>4. Event Logs</h2>
+            <button onclick="clearLogs()">Clear Logs</button>
+            <div id="logs" class="log"></div>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const API_BASE_URL = 'http://localhost:3001/api';
+        const WS_URL = 'http://localhost:3001';
+        
+        let adminToken = '';
+        let userToken = '';
+        let userSocket = null;
+        let currentUserId = null;
+
+        function addLog(message, type = 'info') {
+            const logs = document.getElementById('logs');
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logs.insertBefore(entry, logs.firstChild);
+        }
+
+        function clearLogs() {
+            document.getElementById('logs').innerHTML = '';
+        }
+
+        async function loginAdmin() {
+            const email = document.getElementById('adminEmail').value;
+            const password = document.getElementById('adminPassword').value;
+            const statusDiv = document.getElementById('adminStatus');
+
+            try {
+                addLog('🔑 Admin đang đăng nhập...');
+                const response = await fetch(`${API_BASE_URL}/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    adminToken = data.data.token;
+                    statusDiv.className = 'status connected';
+                    statusDiv.style.display = 'block';
+                    statusDiv.textContent = `✅ Admin đăng nhập thành công: ${data.data.user.full_name}`;
+                    document.getElementById('loadUsersBtn').disabled = false;
+                    addLog(`✅ Admin logged in: ${email}`, 'success');
+                } else {
+                    throw new Error(data.error || 'Login failed');
+                }
+            } catch (error) {
+                statusDiv.className = 'status disconnected';
+                statusDiv.style.display = 'block';
+                statusDiv.textContent = `❌ Lỗi: ${error.message}`;
+                addLog(`❌ Admin login error: ${error.message}`, 'error');
+            }
+        }
+
+        async function loginUser() {
+            const email = document.getElementById('userEmail').value;
+            const password = document.getElementById('userPassword').value;
+            const statusDiv = document.getElementById('userStatus');
+
+            try {
+                addLog(`🔑 User đang đăng nhập: ${email}...`);
+                const response = await fetch(`${API_BASE_URL}/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    userToken = data.data.token;
+                    currentUserId = data.data.user.user_id;
+                    statusDiv.className = 'status connected';
+                    statusDiv.style.display = 'block';
+                    statusDiv.textContent = `✅ User đăng nhập thành công: ${data.data.user.full_name} (${data.data.user.role_name})`;
+                    document.getElementById('connectBtn').disabled = false;
+                    addLog(`✅ User logged in: ${email} (ID: ${currentUserId})`, 'success');
+                } else {
+                    throw new Error(data.error || 'Login failed');
+                }
+            } catch (error) {
+                statusDiv.className = 'status disconnected';
+                statusDiv.style.display = 'block';
+                statusDiv.textContent = `❌ Lỗi: ${error.message}`;
+                addLog(`❌ User login error: ${error.message}`, 'error');
+            }
+        }
+
+        function connectUserSocket() {
+            if (!userToken) {
+                addLog('❌ Vui lòng đăng nhập user trước', 'error');
+                return;
+            }
+
+            const socketStatusDiv = document.getElementById('socketStatus');
+            addLog('🔌 Đang kết nối WebSocket...');
+
+            userSocket = io(WS_URL, {
+                auth: { token: userToken },
+                reconnection: true,
+                reconnectionAttempts: 5,
+                reconnectionDelay: 1000,
+                transports: ['websocket', 'polling']
+            });
+
+            userSocket.on('connect', () => {
+                socketStatusDiv.className = 'status connected';
+                socketStatusDiv.style.display = 'block';
+                socketStatusDiv.textContent = `✅ WebSocket đã kết nối (ID: ${userSocket.id})`;
+                addLog(`✅ WebSocket connected: ${userSocket.id}`, 'success');
+            });
+
+            userSocket.on('connected', (data) => {
+                addLog(`📨 Welcome message: ${data.message}`, 'success');
+            });
+
+            userSocket.on('account-locked', (data) => {
+                addLog(`🔒 ACCOUNT-LOCKED EVENT RECEIVED!`, 'error');
+                addLog(`🔒 Data: ${JSON.stringify(data)}`, 'error');
+                alert(`🔒 TÀI KHOẢN BỊ KHÓA!\n\nUser: ${data.fullName}\nTime: ${new Date(data.timestamp).toLocaleString()}`);
+                
+                socketStatusDiv.className = 'status disconnected';
+                socketStatusDiv.textContent = `🔒 Tài khoản đã bị khóa!`;
+            });
+
+            userSocket.on('disconnect', (reason) => {
+                socketStatusDiv.className = 'status disconnected';
+                socketStatusDiv.style.display = 'block';
+                socketStatusDiv.textContent = `❌ WebSocket ngắt kết nối: ${reason}`;
+                addLog(`❌ WebSocket disconnected: ${reason}`, 'error');
+            });
+
+            userSocket.on('error', (error) => {
+                addLog(`❌ Socket error: ${error.message}`, 'error');
+            });
+        }
+
+        async function loadUsers() {
+            if (!adminToken) {
+                addLog('❌ Vui lòng đăng nhập admin trước', 'error');
+                return;
+            }
+
+            try {
+                addLog('📡 Đang load danh sách users...');
+                const response = await fetch(`${API_BASE_URL}/admin/users?limit=100`, {
+                    headers: { 'Authorization': `Bearer ${adminToken}` }
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    const users = data.data.users.filter(u => u.role_id !== 1); // Exclude admin
+                    displayUsers(users);
+                    addLog(`✅ Loaded ${users.length} users`, 'success');
+                } else {
+                    throw new Error(data.error || 'Failed to load users');
+                }
+            } catch (error) {
+                addLog(`❌ Load users error: ${error.message}`, 'error');
+            }
+        }
+
+        function displayUsers(users) {
+            const container = document.getElementById('usersList');
+            container.innerHTML = '';
+
+            users.forEach(user => {
+                const card = document.createElement('div');
+                card.className = `user-card ${user.status === 'locked' ? 'locked' : ''}`;
+                
+                card.innerHTML = `
+                    <div class="user-info">
+                        <strong>${user.full_name}</strong>
+                        <span>${user.email}</span><br>
+                        <span>ID: ${user.user_id} | ${user.role_name}</span><br>
+                        <span>Status: ${user.status || 'active'}</span>
+                    </div>
+                    ${user.status === 'locked' 
+                        ? `<button class="success" onclick="unlockUser(${user.user_id}, '${user.full_name}')">🔓 Mở khóa</button>`
+                        : `<button class="danger" onclick="lockUser(${user.user_id}, '${user.full_name}')">🔒 Khóa tài khoản</button>`
+                    }
+                `;
+                
+                container.appendChild(card);
+            });
+        }
+
+        async function lockUser(userId, fullName) {
+            if (!confirm(`Bạn có chắc muốn khóa tài khoản: ${fullName}?`)) return;
+
+            try {
+                addLog(`🔒 Đang khóa user ${userId}...`);
+                const response = await fetch(`${API_BASE_URL}/admin/users/${userId}/lock`, {
+                    method: 'PUT',
+                    headers: { 'Authorization': `Bearer ${adminToken}` }
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    addLog(`✅ Đã khóa user ${userId} (${fullName})`, 'success');
+                    loadUsers(); // Reload users
+                } else {
+                    throw new Error(data.error || 'Failed to lock user');
+                }
+            } catch (error) {
+                addLog(`❌ Lock user error: ${error.message}`, 'error');
+            }
+        }
+
+        async function unlockUser(userId, fullName) {
+            if (!confirm(`Bạn có chắc muốn mở khóa tài khoản: ${fullName}?`)) return;
+
+            try {
+                addLog(`🔓 Đang mở khóa user ${userId}...`);
+                const response = await fetch(`${API_BASE_URL}/admin/users/${userId}/unlock`, {
+                    method: 'PUT',
+                    headers: { 'Authorization': `Bearer ${adminToken}` }
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    addLog(`✅ Đã mở khóa user ${userId} (${fullName})`, 'success');
+                    loadUsers(); // Reload users
+                } else {
+                    throw new Error(data.error || 'Failed to unlock user');
+                }
+            } catch (error) {
+                addLog(`❌ Unlock user error: ${error.message}`, 'error');
+            }
+        }
+    </script>
+</body>
+</html>

@@ -11,8 +11,7 @@ import AccountLockedModal from './components/admin/AccountLockedModal';
 // AppContent component để sử dụng useAuth và useWebSocket
 function AppContent() {
   const { user, isAuthenticated, logout } = useAuth();
-  const { isConnected, disconnect } = useWebSocket(); // Dùng WebSocketContext
-  const [showLockedModal, setShowLockedModal] = useState(false);
+  const { isConnected, disconnect, isAccountLocked, resetAccountLocked } = useWebSocket(); // Dùng WebSocketContext
 
   // WebSocket đã được xử lý bởi WebSocketProvider, không cần setup ở đây nữa
   useEffect(() => {
@@ -20,6 +19,13 @@ function AppContent() {
       console.log('✅ WebSocket connected in App');
     }
   }, [isConnected]);
+
+  // Listen for account locked event from WebSocket
+  useEffect(() => {
+    if (isAccountLocked) {
+      console.log('🔒 Account locked detected in App');
+    }
+  }, [isAccountLocked]);
 
   const handleLogout = () => {
     // Clear all auth data
@@ -42,8 +48,8 @@ function AppContent() {
       
       {/* Account Locked Modal - Show when user is locked */}
       <AccountLockedModal
-        isOpen={showLockedModal}
-        onClose={() => setShowLockedModal(false)}
+        isOpen={isAccountLocked}
+        onClose={() => resetAccountLocked()}
         onLogout={handleLogout}
       />
     </>

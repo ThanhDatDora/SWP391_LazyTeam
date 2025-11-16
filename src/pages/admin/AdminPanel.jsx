@@ -8,7 +8,7 @@ import {
   FileText, Settings, Bell, UserCircle, Edit2, ChevronDown, ChevronRight,
   Folder, PieChart, Activity, Moon, Sun, TrendingDown, CreditCard, 
   ArrowUpRight, Download, Banknote, Clock, FileDown, User, Info, Hash, 
-  Mail, Calendar, Key, Phone, MessageCircle
+  Mail, Calendar, Key, Phone, MessageCircle, Ban, Trash2, RotateCcw, Filter
 } from 'lucide-react';
 import {
   Chart as ChartJS,
@@ -491,10 +491,10 @@ const AdminPanel = () => {
     { name: 'Học viên', value: 4, color: '#10b981' }
   ]);
 
-  const [courseStats] = useState([
-    { name: 'Đã duyệt', value: 9, color: '#10b981' },
-    { name: 'Chờ duyệt', value: 0, color: '#f59e0b' },
-    { name: 'Từ chối', value: 0, color: '#ef4444' }
+  const [courseStats, setCourseStats] = useState([
+    { status: 'Đã duyệt', count: 0, color: '#10b981' },
+    { status: 'Chờ duyệt', count: 0, color: '#f59e0b' },
+    { status: 'Từ chối', count: 0, color: '#ef4444' }
   ]);
 
   const [users, setUsers] = useState([]);
@@ -507,9 +507,14 @@ const AdminPanel = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [userFilter, setUserFilter] = useState('all');
   const [activeTab, setActiveTab] = useState('overview');
+  
+  // Course filters and modal states
+  const [courseSearchTerm, setCourseSearchTerm] = useState('');
+  const [courseStatusFilter, setCourseStatusFilter] = useState('all');
+  const [showCourseModal, setShowCourseModal] = useState(false);
+  const [courseModalInput, setCourseModalInput] = useState('');
 
   // NEW: States for missing features
-  const [instructorRequests, setInstructorRequests] = useState([]);
   const [pendingPayouts, setPendingPayouts] = useState([]);
   const [selectedCourse, setSelectedCourse] = useState(null);
   const [instructorRevenue, setInstructorRevenue] = useState([]);
@@ -858,7 +863,6 @@ const AdminPanel = () => {
       'revenue': 'revenue',
       'categories': 'courses', // placeholder - shown in courses tab
       'instructor-reports': 'revenue', // placeholder - shown in revenue tab
-      'settings': 'users', // placeholder
       'profile': 'users' // placeholder
     };
 
@@ -879,11 +883,9 @@ const AdminPanel = () => {
     { id: 'instructors', label: 'Giảng viên', icon: GraduationCap, path: '/admin/instructors' },
     { id: 'courses', label: 'Khóa học', icon: BookOpen, path: '/admin/courses' },
     { id: 'revenue', label: 'Doanh thu', icon: DollarSign, path: '/admin/revenue' },
-    { id: 'instructor-requests', label: 'Yêu cầu giảng viên', icon: UserCircle, path: '/admin/instructor-requests' },
     { id: 'payouts', label: 'Chi trả doanh thu', icon: CreditCard, path: '/admin/payouts' },
     { id: 'lock', label: 'Khóa tài khoản', icon: Lock, path: '/admin/lock-accounts' },
-    { id: 'unlock', label: 'Mở khóa', icon: Unlock, path: '/admin/unlock-accounts' },
-    { id: 'settings', label: 'Cài đặt', icon: Settings, path: '/admin/settings' }
+    { id: 'unlock', label: 'Mở khóa', icon: Unlock, path: '/admin/unlock-accounts' }
   ];
 
   // Sync activeMenu với URL khi component mount hoặc URL thay đổi
@@ -954,53 +956,14 @@ const AdminPanel = () => {
       setActiveMenu('statistics');
     } else if (path.includes('/admin/instructor-reports')) {
       setActiveMenu('instructor-reports');
-    } else if (path.includes('/admin/instructor-requests')) {
-      setActiveMenu('instructor-requests');
     } else if (path.includes('/admin/payouts')) {
       setActiveMenu('payouts');
-    } else if (path.includes('/admin/settings')) {
-      setActiveMenu('settings');
     }
   }, [location.pathname]);
 
   // ========== STUB FUNCTIONS FOR MISSING FEATURES ==========
   // These are placeholders waiting for backend implementation
   
-  /**
-   * STUB: Fetch pending instructor role requests
-   * @returns {Promise<Array>} List of users requesting instructor role
-   */
-  const fetchInstructorRequests = async () => {
-    console.log('🔄 [STUB] Fetching instructor requests...');
-    // TODO: Implement real API call
-    // const response = await fetch(`${API_BASE_URL}/admin/instructor-requests`, {...});
-    // return await response.json();
-    return []; // Placeholder
-  };
-
-  /**
-   * STUB: Approve instructor role request
-   * @param {number} userId - User ID to approve
-   */
-  const approveInstructorRequest = async (userId) => {
-    console.log(`✅ [STUB] Approving instructor request for user ${userId}`);
-    // TODO: Implement real API call
-    // await fetch(`${API_BASE_URL}/admin/instructor-requests/${userId}/approve`, {...});
-    showToast('success', '✅ [STUB] Instructor request approved (waiting for BE implementation)');
-  };
-
-  /**
-   * STUB: Reject instructor role request
-   * @param {number} userId - User ID to reject
-   * @param {string} reason - Rejection reason
-   */
-  const rejectInstructorRequest = async (userId, reason) => {
-    console.log(`❌ [STUB] Rejecting instructor request for user ${userId}. Reason: ${reason}`);
-    // TODO: Implement real API call
-    // await fetch(`${API_BASE_URL}/admin/instructor-requests/${userId}/reject`, {...});
-    showToast('error', `❌ [STUB] Instructor request rejected (waiting for BE implementation)`);
-  };
-
   /**
    * STUB: Fetch instructors with pending revenue
    * @returns {Promise<Array>} List of instructors eligible for payout
@@ -1109,7 +1072,20 @@ const AdminPanel = () => {
             totalLearners: statsData.data.totalLearners || 0,
             monthlySignups: statsData.data.newUsersThisMonth || 0
           });
+          
+          // Cập nhật course stats cho biểu đồ
+          const approved = (statsData.data.activeCourses || 0) + (statsData.data.publishedCourses || 0);
+          const pending = statsData.data.pendingCourses || 0;
+          const rejected = statsData.data.archivedCourses || 0;
+          
+          setCourseStats([
+            { status: 'Đã duyệt', count: approved, color: '#10b981' },
+            { status: 'Chờ duyệt', count: pending, color: '#f59e0b' },
+            { status: 'Từ chối', count: rejected, color: '#ef4444' }
+          ]);
+          
           console.log('✅ Stats loaded successfully');
+          console.log('📊 Course stats:', { approved, pending, rejected });
         }
       } else {
         const errorText = await statsRes.text();
@@ -1302,7 +1278,9 @@ const AdminPanel = () => {
   });
 
   const filteredCourses = courses.filter(course => {
-    return (course.title?.toLowerCase() || '').includes(searchTerm.toLowerCase());
+    const matchesSearch = (course.title?.toLowerCase() || '').includes(courseSearchTerm.toLowerCase());
+    const matchesStatus = courseStatusFilter === 'all' || course.status === courseStatusFilter;
+    return matchesSearch && matchesStatus;
   });
 
   const getRoleName = (roleId) => {
@@ -1319,6 +1297,171 @@ const AdminPanel = () => {
     return isLocked
       ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
       : 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300';
+  };
+  
+  // Course helper functions
+  const getCourseStatusBadge = (status) => {
+    const variants = {
+      'active': 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
+      'published': 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
+      'draft': 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300',
+      'pending': 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300',
+      'archived': 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
+      'approved': 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
+      'rejected': 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
+    };
+    return variants[status] || variants['pending'];
+  };
+
+  const getCourseStatusLabel = (status) => {
+    const labels = {
+      'active': 'Đang hoạt động',
+      'published': 'Đã xuất bản',
+      'draft': 'Bản nháp',
+      'pending': 'Chờ duyệt',
+      'archived': 'Đã lưu trữ',
+      'approved': 'Đã duyệt',
+      'rejected': 'Từ chối'
+    };
+    return labels[status] || status;
+  };
+
+  const formatCurrency = (amount) => {
+    if (!amount || amount === 0) return '0 ₫';
+    
+    // Check if price is in USD range (< 1000) - convert to VND
+    let priceVND = amount;
+    if (amount < 1000) {
+      // Assuming 1 USD = 25,000 VND
+      priceVND = amount * 25000;
+    }
+    
+    return new Intl.NumberFormat('vi-VN', { 
+      style: 'currency', 
+      currency: 'VND',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).format(priceVND);
+  };
+
+  // ========== COURSE MANAGEMENT FUNCTIONS ==========
+  
+  const handleApproveCourseInTab = async (courseId) => {
+    if (!confirm('Bạn có chắc chắn muốn duyệt khóa học này?')) return;
+    
+    try {
+      setActionLoading(true);
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/admin/courses/${courseId}/approve`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        showToast('success', '✅ Khóa học đã được duyệt thành công!');
+        loadDashboardData();
+      } else {
+        const error = await response.json();
+        showToast('error', `❌ Lỗi: ${error.message || 'Không thể duyệt khóa học'}`);
+      }
+    } catch (error) {
+      console.error('Error approving course:', error);
+      showToast('error', '❌ Có lỗi xảy ra khi duyệt khóa học');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleRejectCourseInTab = async (courseId) => {
+    const reason = prompt('Nhập lý do từ chối (tùy chọn):');
+    if (reason === null) return; // User clicked cancel
+    
+    try {
+      setActionLoading(true);
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/admin/courses/${courseId}/reject`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ reason: reason || 'Không có lý do' })
+      });
+
+      if (response.ok) {
+        showToast('success', '✅ Khóa học đã bị từ chối!');
+        loadDashboardData();
+      } else {
+        const error = await response.json();
+        showToast('error', `❌ Lỗi: ${error.message || 'Không thể từ chối khóa học'}`);
+      }
+    } catch (error) {
+      console.error('Error rejecting course:', error);
+      showToast('error', '❌ Có lỗi xảy ra khi từ chối khóa học');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleArchiveCourseInTab = async (courseId) => {
+    if (!confirm('Bạn có chắc chắn muốn lưu trữ khóa học này?')) return;
+    
+    try {
+      setActionLoading(true);
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/admin/courses/${courseId}/reject`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ reason: 'Archived by admin' })
+      });
+
+      if (response.ok) {
+        showToast('success', '✅ Khóa học đã được lưu trữ!');
+        loadDashboardData();
+      } else {
+        showToast('error', '❌ Không thể lưu trữ khóa học');
+      }
+    } catch (error) {
+      console.error('Error archiving course:', error);
+      showToast('error', '❌ Có lỗi xảy ra');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleRestoreCourseInTab = async (courseId) => {
+    if (!confirm('Bạn có chắc chắn muốn mở lại khóa học này?')) return;
+    
+    try {
+      setActionLoading(true);
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/admin/courses/${courseId}/approve`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        showToast('success', '✅ Khóa học đã được mở lại thành công!');
+        loadDashboardData();
+      } else {
+        const error = await response.json();
+        showToast('error', `❌ Lỗi: ${error.message || 'Không thể mở lại khóa học'}`);
+      }
+    } catch (error) {
+      console.error('Error restoring course:', error);
+      showToast('error', '❌ Có lỗi xảy ra khi mở lại khóa học');
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   // ========== INSTRUCTOR REVENUE MANAGEMENT ==========
@@ -2655,20 +2798,6 @@ const AdminPanel = () => {
                       <Activity className="w-4 h-4" />
                       <span className="text-sm">Báo cáo giảng viên</span>
                     </Link>
-
-                    {/* NEW: Instructor Requests */}
-                    <button
-                      onClick={() => handleMenuClick(menuItems.find(m => m.id === 'instructor-requests'))}
-                      className={`sidebar-menu-item ${activeMenu === 'instructor-requests' ? 'active' : ''} w-full flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all duration-200`}
-                      style={{
-                        backgroundColor: activeMenu === 'instructor-requests' ? currentColors.primary + '20' : 'transparent',
-                        color: activeMenu === 'instructor-requests' ? currentColors.primary : currentColors.text,
-                        fontWeight: activeMenu === 'instructor-requests' ? '600' : '500'
-                      }}
-                    >
-                      <UserCheck className="w-4 h-4" />
-                      <span className="text-sm">Duyệt giảng viên</span>
-                    </button>
 
                     {/* NEW: Payouts */}
                     <button
@@ -4132,37 +4261,223 @@ const AdminPanel = () => {
               </TabsContent>
 
               <TabsContent value="courses" className="p-6 space-y-4">
-                <h3 className="text-xl font-bold" style={{ color: currentColors.text }}>Tất cả khóa học ({courses.length})</h3>
-                {courses.length === 0 ? (
-                  <div className="text-center py-12">
-                    <p style={{ color: currentColors.textSecondary }}>Không có khóa học</p>
+                {/* Header */}
+                <div className="flex items-center justify-between mb-6">
+                  <div>
+                    <h3 className="text-xl font-bold" style={{ color: currentColors.text }}>
+                      Quản lý khóa học
+                    </h3>
+                    <p style={{ color: currentColors.textSecondary }}>
+                      Tổng số: {courses.length} khóa học
+                    </p>
+                  </div>
+                </div>
+
+                {/* Filters */}
+                <div className="flex flex-wrap gap-4 mb-6">
+                  <div className="flex-1 min-w-[300px]">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5" 
+                        style={{ color: currentColors.textSecondary }} />
+                      <input
+                        type="text"
+                        placeholder="Tìm kiếm khóa học..."
+                        value={courseSearchTerm}
+                        onChange={(e) => setCourseSearchTerm(e.target.value)}
+                        className="w-full pl-10 pr-4 py-2 rounded-lg border"
+                        style={{
+                          backgroundColor: currentColors.card,
+                          color: currentColors.text,
+                          borderColor: currentColors.border
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  <select
+                    value={courseStatusFilter}
+                    onChange={(e) => setCourseStatusFilter(e.target.value)}
+                    className="px-4 py-2 rounded-lg border"
+                    style={{
+                      backgroundColor: currentColors.card,
+                      color: currentColors.text,
+                      borderColor: currentColors.border
+                    }}
+                  >
+                    <option value="all">Tất cả trạng thái</option>
+                    <option value="active">Đang hoạt động</option>
+                    <option value="published">Đã xuất bản</option>
+                    <option value="draft">Bản nháp</option>
+                    <option value="pending">Chờ duyệt</option>
+                    <option value="archived">Đã lưu trữ</option>
+                  </select>
+                </div>
+
+                {/* Stats Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                  <div className="p-4 rounded-lg border" style={{ borderColor: currentColors.border, backgroundColor: currentColors.card }}>
+                    <div className="flex items-center gap-3">
+                      <CheckCircle className="w-8 h-8 text-green-600" />
+                      <div>
+                        <p className="text-sm" style={{ color: currentColors.textSecondary }}>Đang hoạt động</p>
+                        <p className="text-2xl font-bold" style={{ color: currentColors.text }}>
+                          {courses.filter(c => c.status === 'active' || c.status === 'published').length}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="p-4 rounded-lg border" style={{ borderColor: currentColors.border, backgroundColor: currentColors.card }}>
+                    <div className="flex items-center gap-3">
+                      <Clock className="w-8 h-8 text-yellow-600" />
+                      <div>
+                        <p className="text-sm" style={{ color: currentColors.textSecondary }}>Chờ duyệt</p>
+                        <p className="text-2xl font-bold" style={{ color: currentColors.text }}>
+                          {courses.filter(c => c.status === 'draft' || c.status === 'pending').length}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="p-4 rounded-lg border" style={{ borderColor: currentColors.border, backgroundColor: currentColors.card }}>
+                    <div className="flex items-center gap-3">
+                      <XCircle className="w-8 h-8 text-red-600" />
+                      <div>
+                        <p className="text-sm" style={{ color: currentColors.textSecondary }}>Đã lưu trữ</p>
+                        <p className="text-2xl font-bold" style={{ color: currentColors.text }}>
+                          {courses.filter(c => c.status === 'archived' || c.status === 'rejected').length}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Table */}
+                {filteredCourses.length === 0 ? (
+                  <div className="text-center py-12 rounded-lg border" style={{ borderColor: currentColors.border, backgroundColor: currentColors.card }}>
+                    <BookOpen className="w-16 h-16 mx-auto mb-4" style={{ color: currentColors.textSecondary, opacity: 0.3 }} />
+                    <p className="font-medium" style={{ color: currentColors.text }}>Không có dữ liệu</p>
+                    <p className="text-sm mt-1" style={{ color: currentColors.textSecondary }}>
+                      {courseSearchTerm || courseStatusFilter !== 'all' ? 'Không tìm thấy khóa học phù hợp' : 'Chưa có khóa học nào'}
+                    </p>
                   </div>
                 ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full border-collapse">
-                      <thead className="table-header bg-gray-50 border-b-2 border-gray-200">
-                        <tr>
-                          <th className="table-cell px-4 py-3 text-left text-sm font-semibold border" style={{ color: currentColors.text }}>ID</th>
-                          <th className="table-cell px-4 py-3 text-left text-sm font-semibold border" style={{ color: currentColors.text }}>Tiêu đề</th>
-                          <th className="table-cell px-4 py-3 text-left text-sm font-semibold border" style={{ color: currentColors.text }}>Trạng thái</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-200">
-                        {courses.map(course => (
-                          <tr key={course.course_id} className="table-row hover:bg-gray-50">
-                            <td className="table-cell px-4 py-3 text-sm border">{course.course_id}</td>
-                            <td className="table-cell px-4 py-3 text-sm font-medium border">{course.title}</td>
-                            <td className="table-cell px-4 py-3 border">
-                              <Badge variant={course.status === 'published' ? 'default' : 'secondary'}>
-                                {course.status === 'published' ? 'Đã xuất bản' : 
-                                 course.status === 'draft' ? 'Bản nháp' :
-                                 course.status === 'pending' ? 'Chờ duyệt' : course.status}
-                              </Badge>
-                            </td>
+                  <div className="rounded-lg border overflow-hidden" style={{ borderColor: currentColors.border }}>
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead style={{ backgroundColor: currentColors.card }}>
+                          <tr style={{ borderBottomColor: currentColors.border, borderBottomWidth: '1px' }}>
+                            <th className="px-6 py-3 text-left text-sm font-semibold" style={{ color: currentColors.text }}>ID</th>
+                            <th className="px-6 py-3 text-left text-sm font-semibold" style={{ color: currentColors.text }}>Tên khóa học</th>
+                            <th className="px-6 py-3 text-left text-sm font-semibold" style={{ color: currentColors.text }}>Giảng viên</th>
+                            <th className="px-6 py-3 text-left text-sm font-semibold" style={{ color: currentColors.text }}>Giá</th>
+                            <th className="px-6 py-3 text-left text-sm font-semibold" style={{ color: currentColors.text }}>Học viên</th>
+                            <th className="px-6 py-3 text-left text-sm font-semibold" style={{ color: currentColors.text }}>Trạng thái</th>
+                            <th className="px-6 py-3 text-left text-sm font-semibold" style={{ color: currentColors.text }}>Hành động</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody style={{ backgroundColor: currentColors.card }}>
+                          {filteredCourses.map((course) => (
+                            <tr 
+                              key={course.course_id}
+                              className="hover:bg-gray-50 dark:hover:bg-gray-800/50"
+                              style={{ borderBottomColor: currentColors.border, borderBottomWidth: '1px' }}
+                            >
+                              <td className="px-6 py-4 text-sm" style={{ color: currentColors.text }}>{course.course_id}</td>
+                              <td className="px-6 py-4">
+                                <div className="flex items-center gap-3">
+                                  {course.thumbnail && (
+                                    <img 
+                                      src={course.thumbnail} 
+                                      alt={course.title}
+                                      className="w-12 h-12 rounded object-cover"
+                                    />
+                                  )}
+                                  <div>
+                                    <p className="font-medium" style={{ color: currentColors.text }}>{course.title}</p>
+                                    <p className="text-xs" style={{ color: currentColors.textSecondary }}>
+                                      {course.category_name || 'Chưa phân loại'}
+                                    </p>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 text-sm" style={{ color: currentColors.textSecondary }}>
+                                {course.instructor_name || 'N/A'}
+                              </td>
+                              <td className="px-6 py-4 text-sm font-medium" style={{ color: currentColors.text }}>
+                                {formatCurrency(course.price)}
+                              </td>
+                              <td className="px-6 py-4 text-sm" style={{ color: currentColors.text }}>
+                                {course.total_enrollments || 0}
+                              </td>
+                              <td className="px-6 py-4">
+                                <span className={`px-3 py-1 rounded-full text-xs font-medium ${getCourseStatusBadge(course.status)}`}>
+                                  {getCourseStatusLabel(course.status)}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4">
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    onClick={() => {
+                                      setSelectedCourse(course);
+                                      setShowCourseModal(true);
+                                    }}
+                                    className="p-2 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                                    title="Xem chi tiết"
+                                    disabled={actionLoading}
+                                  >
+                                    <Eye className="w-4 h-4" style={{ color: currentColors.primary }} />
+                                  </button>
+                                  
+                                  {(course.status === 'draft' || course.status === 'pending') && (
+                                    <>
+                                      <button
+                                        onClick={() => handleApproveCourseInTab(course.course_id)}
+                                        className="p-2 rounded-lg hover:bg-green-50 dark:hover:bg-green-900/20"
+                                        title="Duyệt khóa học"
+                                        disabled={actionLoading}
+                                      >
+                                        <CheckCircle className="w-4 h-4 text-green-600" />
+                                      </button>
+                                      <button
+                                        onClick={() => handleRejectCourseInTab(course.course_id)}
+                                        className="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20"
+                                        title="Từ chối khóa học"
+                                        disabled={actionLoading}
+                                      >
+                                        <XCircle className="w-4 h-4 text-red-600" />
+                                      </button>
+                                    </>
+                                  )}
+                                  
+                                  {(course.status === 'active' || course.status === 'published') && (
+                                    <button
+                                      onClick={() => handleArchiveCourseInTab(course.course_id)}
+                                      className="p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/20"
+                                      title="Lưu trữ khóa học"
+                                      disabled={actionLoading}
+                                    >
+                                      <Ban className="w-4 h-4 text-gray-600" />
+                                    </button>
+                                  )}
+                                  
+                                  {(course.status === 'archived' || course.status === 'rejected') && (
+                                    <button
+                                      onClick={() => handleRestoreCourseInTab(course.course_id)}
+                                      className="p-2 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                                      title="Mở lại khóa học"
+                                      disabled={actionLoading}
+                                    >
+                                      <RotateCcw className="w-4 h-4 text-blue-600" />
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 )}
               </TabsContent>
@@ -4228,91 +4543,6 @@ const AdminPanel = () => {
                       </table>
                     </div>
                   </>
-                )}
-              </TabsContent>
-
-              {/* INSTRUCTOR REQUESTS TAB */}
-              <TabsContent value="instructor-requests" className="p-6 space-y-4">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-xl font-bold" style={{ color: currentColors.text }}>
-                    Yêu cầu trở thành giảng viên ({instructorRequests.length})
-                  </h3>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => exportToCSV(instructorRequests, 'instructor-requests')}
-                  >
-                    <FileDown className="w-4 h-4 mr-2" />
-                    Xuất CSV
-                  </Button>
-                </div>
-
-                {instructorRequests.length === 0 ? (
-                  <div className="text-center py-12">
-                    <UserCheck className="w-16 h-16 mx-auto mb-4 opacity-50" style={{ color: currentColors.textSecondary }} />
-                    <p className="text-lg font-medium" style={{ color: currentColors.text }}>Không có yêu cầu giảng viên nào</p>
-                    <p className="text-sm mt-2" style={{ color: currentColors.textSecondary }}>
-                      Các yêu cầu đăng ký giảng viên sẽ hiển thị ở đây
-                    </p>
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full border-collapse">
-                      <thead className="table-header bg-gray-50 border-b-2 border-gray-200">
-                        <tr>
-                          <th className="table-cell px-4 py-3 text-left text-sm font-semibold border" style={{ color: currentColors.text }}>ID</th>
-                          <th className="table-cell px-4 py-3 text-left text-sm font-semibold border" style={{ color: currentColors.text }}>Họ tên</th>
-                          <th className="table-cell px-4 py-3 text-left text-sm font-semibold border" style={{ color: currentColors.text }}>Email</th>
-                          <th className="table-cell px-4 py-3 text-left text-sm font-semibold border" style={{ color: currentColors.text }}>Ngày yêu cầu</th>
-                          <th className="table-cell px-4 py-3 text-left text-sm font-semibold border" style={{ color: currentColors.text }}>Trạng thái</th>
-                          <th className="table-cell px-4 py-3 text-left text-sm font-semibold border" style={{ color: currentColors.text }}>Hành động</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-200">
-                        {instructorRequests.map(request => (
-                          <tr key={request.user_id} className="table-row hover:bg-gray-50">
-                            <td className="table-cell px-4 py-3 text-sm border">{request.user_id}</td>
-                            <td className="table-cell px-4 py-3 text-sm font-medium border">{request.full_name}</td>
-                            <td className="table-cell px-4 py-3 text-sm border">{request.email}</td>
-                            <td className="table-cell px-4 py-3 text-sm border">
-                              {new Date(request.request_date).toLocaleDateString('vi-VN')}
-                            </td>
-                            <td className="table-cell px-4 py-3 border">
-                              <Badge variant={request.status === 'pending' ? 'secondary' : 'default'}>
-                                {request.status === 'pending' ? 'Chờ duyệt' : request.status}
-                              </Badge>
-                            </td>
-                            <td className="table-cell px-4 py-3 border">
-                              <div className="flex gap-2">
-                                <Button 
-                                  size="sm" 
-                                  variant="default"
-                                  onClick={() => approveInstructorRequest(request.user_id)}
-                                >
-                                  <CheckCircle className="w-4 h-4 mr-1" />
-                                  Duyệt
-                                </Button>
-                                <Button 
-                                  size="sm" 
-                                  variant="destructive"
-                                  onClick={() => {
-                                    setModalState({ 
-                                      type: 'rejectInstructorRequest', 
-                                      isOpen: true, 
-                                      data: { userId: request.user_id } 
-                                    });
-                                  }}
-                                >
-                                  <XCircle className="w-4 h-4 mr-1" />
-                                  Từ chối
-                                </Button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
                 )}
               </TabsContent>
 
@@ -5204,6 +5434,122 @@ const AdminPanel = () => {
                     Đổi mật khẩu
                   </>
                 )}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Course Detail Modal */}
+      {showCourseModal && selectedCourse && createPortal(
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="rounded-lg max-w-3xl w-full p-6 max-h-[90vh] overflow-y-auto" style={{ backgroundColor: currentColors.card }}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold" style={{ color: currentColors.text }}>
+                Chi tiết khóa học
+              </h2>
+              <button
+                onClick={() => {
+                  setShowCourseModal(false);
+                  setSelectedCourse(null);
+                }}
+                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
+              >
+                <X className="w-5 h-5" style={{ color: currentColors.text }} />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              {selectedCourse.thumbnail && (
+                <img 
+                  src={selectedCourse.thumbnail} 
+                  alt={selectedCourse.title}
+                  className="w-full h-48 rounded-lg object-cover"
+                />
+              )}
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium" style={{ color: currentColors.textSecondary }}>ID</label>
+                  <p className="mt-1" style={{ color: currentColors.text }}>{selectedCourse.course_id}</p>
+                </div>
+                
+                <div>
+                  <label className="text-sm font-medium" style={{ color: currentColors.textSecondary }}>Trạng thái</label>
+                  <p className="mt-1">
+                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${getCourseStatusBadge(selectedCourse.status)}`}>
+                      {getCourseStatusLabel(selectedCourse.status)}
+                    </span>
+                  </p>
+                </div>
+                
+                <div className="col-span-2">
+                  <label className="text-sm font-medium" style={{ color: currentColors.textSecondary }}>Tên khóa học</label>
+                  <p className="mt-1 font-medium" style={{ color: currentColors.text }}>{selectedCourse.title}</p>
+                </div>
+                
+                <div className="col-span-2">
+                  <label className="text-sm font-medium" style={{ color: currentColors.textSecondary }}>Mô tả</label>
+                  <p className="mt-1 text-sm" style={{ color: currentColors.text }}>
+                    {selectedCourse.description || 'Không có mô tả'}
+                  </p>
+                </div>
+                
+                <div>
+                  <label className="text-sm font-medium" style={{ color: currentColors.textSecondary }}>Giảng viên</label>
+                  <p className="mt-1" style={{ color: currentColors.text }}>{selectedCourse.instructor_name || 'N/A'}</p>
+                </div>
+                
+                <div>
+                  <label className="text-sm font-medium" style={{ color: currentColors.textSecondary }}>Danh mục</label>
+                  <p className="mt-1" style={{ color: currentColors.text }}>{selectedCourse.category_name || 'Chưa phân loại'}</p>
+                </div>
+                
+                <div>
+                  <label className="text-sm font-medium" style={{ color: currentColors.textSecondary }}>Giá</label>
+                  <p className="mt-1 font-bold" style={{ color: currentColors.primary }}>{formatCurrency(selectedCourse.price)}</p>
+                </div>
+                
+                <div>
+                  <label className="text-sm font-medium" style={{ color: currentColors.textSecondary }}>Số học viên</label>
+                  <p className="mt-1" style={{ color: currentColors.text }}>{selectedCourse.total_enrollments || 0}</p>
+                </div>
+                
+                <div>
+                  <label className="text-sm font-medium" style={{ color: currentColors.textSecondary }}>Số bài học</label>
+                  <p className="mt-1" style={{ color: currentColors.text }}>{selectedCourse.total_lessons || 0}</p>
+                </div>
+                
+                <div>
+                  <label className="text-sm font-medium" style={{ color: currentColors.textSecondary }}>Ngôn ngữ</label>
+                  <p className="mt-1" style={{ color: currentColors.text }}>{selectedCourse.language_code || 'N/A'}</p>
+                </div>
+                
+                <div>
+                  <label className="text-sm font-medium" style={{ color: currentColors.textSecondary }}>Cấp độ</label>
+                  <p className="mt-1" style={{ color: currentColors.text }}>{selectedCourse.level || 'N/A'}</p>
+                </div>
+                
+                <div>
+                  <label className="text-sm font-medium" style={{ color: currentColors.textSecondary }}>Ngày tạo</label>
+                  <p className="mt-1 text-sm" style={{ color: currentColors.text }}>
+                    {selectedCourse.created_at ? new Date(selectedCourse.created_at).toLocaleDateString('vi-VN') : 'N/A'}
+                  </p>
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex gap-3 mt-6 pt-4 border-t" style={{ borderColor: currentColors.border }}>
+              <button
+                onClick={() => {
+                  setShowCourseModal(false);
+                  setSelectedCourse(null);
+                }}
+                className="flex-1 px-4 py-2 rounded-lg font-medium hover:opacity-90"
+                style={{ backgroundColor: currentColors.border, color: currentColors.text }}
+              >
+                Đóng
               </button>
             </div>
           </div>

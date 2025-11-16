@@ -21,7 +21,8 @@ const initialState = {
   studySessions: {},
   isReconnecting: false,
   chatMessages: {}, // { conversationId: [messages] }
-  conversationTyping: {} // { conversationId: { userId: boolean } }
+  conversationTyping: {}, // { conversationId: { userId: boolean } }
+  isAccountLocked: false // Track if account is locked
 };
 
 // Action types
@@ -40,7 +41,8 @@ const WS_ACTIONS = {
   UPDATE_STUDY_SESSION: 'UPDATE_STUDY_SESSION',
   SET_RECONNECTING: 'SET_RECONNECTING',
   ADD_CHAT_MESSAGE: 'ADD_CHAT_MESSAGE',
-  SET_CONVERSATION_TYPING: 'SET_CONVERSATION_TYPING'
+  SET_CONVERSATION_TYPING: 'SET_CONVERSATION_TYPING',
+  SET_ACCOUNT_LOCKED: 'SET_ACCOUNT_LOCKED'
 };
 
 // Reducer function
@@ -146,6 +148,12 @@ function websocketReducer(state, action) {
           ...state.conversationTyping,
           [action.payload.conversationId]: action.payload.typing
         }
+      };
+    
+    case WS_ACTIONS.SET_ACCOUNT_LOCKED:
+      return {
+        ...state,
+        isAccountLocked: action.payload
       };
     
     default:
@@ -369,6 +377,18 @@ export function WebSocketProvider({ children }) {
       });
     });
 
+    // Account locked event - Real-time notification from admin
+    socket.on('account-locked', (data) => {
+      console.log('🔒 [WebSocket] Account locked event received:', data);
+      dispatch({ type: WS_ACTIONS.SET_ACCOUNT_LOCKED, payload: true });
+      
+      toast({
+        title: '⚠️ Tài khoản bị khóa',
+        description: 'Tài khoản của bạn đã bị khóa bởi quản trị viên',
+        variant: 'destructive'
+      });
+    });
+
     return socket;
   }, [authState.isAuthenticated, toast, dispatch]);
 
@@ -503,6 +523,11 @@ export function WebSocketProvider({ children }) {
   const clearAllNotifications = useCallback(() => {
     dispatch({ type: WS_ACTIONS.CLEAR_NOTIFICATIONS });
   }, []);
+  
+  // Account locked method
+  const resetAccountLocked = useCallback(() => {
+    dispatch({ type: WS_ACTIONS.SET_ACCOUNT_LOCKED, payload: false });
+  }, []);
 
   // Context value
   const value = {
@@ -536,6 +561,9 @@ export function WebSocketProvider({ children }) {
     // Notification methods
     clearNotification,
     clearAllNotifications,
+    
+    // Account locked method
+    resetAccountLocked,
     
     // Utility methods
     getCourseMessages: (courseId) => state.messages[courseId] || [],

@@ -699,19 +699,22 @@ router.get('/instructor-revenue', authenticateToken, requireAdmin, async (req, r
 
     const query = `
       SELECT 
-        i.instructor_id,
+        u.user_id,
         u.full_name as instructor_name,
         u.email,
         u.created_at,
-        ISNULL(SUM(inv.amount), 0) as total_revenue,
-        ISNULL(SUM(inv.amount), 0) * 0.10 as commission_owed,
-        COUNT(DISTINCT c.course_id) as course_count
-      FROM instructors i
-      JOIN users u ON i.user_id = u.user_id
-      LEFT JOIN courses c ON c.instructor_id = i.instructor_id
-      LEFT JOIN invoices inv ON inv.course_id = c.course_id AND inv.status = 'paid'
+        (SELECT COUNT(*) FROM courses WHERE owner_instructor_id = u.user_id) as total_courses,
+        (SELECT COUNT(DISTINCT e.user_id) 
+         FROM courses c2 
+         INNER JOIN enrollments e ON c2.course_id = e.course_id 
+         WHERE c2.owner_instructor_id = u.user_id) as total_students,
+        (SELECT ISNULL(SUM(inv.amount), 0) 
+         FROM courses c3
+         INNER JOIN invoices inv ON inv.course_id = c3.course_id AND inv.status = 'paid'
+         WHERE c3.owner_instructor_id = u.user_id) as total_revenue,
+        NULL as average_rating
+      FROM users u
       WHERE u.role_id = 2
-      GROUP BY i.instructor_id, u.full_name, u.email, u.created_at
       ORDER BY total_revenue DESC
     `;
 
@@ -847,7 +850,7 @@ router.get('/learning-stats', authenticateToken, requireAdmin, async (req, res) 
       SELECT TOP 5
         c.course_id,
         c.title,
-        c.thumbnail_url,
+        NULL as thumbnail_url,
         u.full_name as instructor_name,
         COUNT(e.enrollment_id) as enrolled_count,
         CAST(SUM(CASE WHEN e.completed_at IS NOT NULL THEN 100.0 ELSE 0 END) / NULLIF(COUNT(e.enrollment_id), 0) as DECIMAL(5,2)) as completion_rate,
@@ -856,7 +859,7 @@ router.get('/learning-stats', authenticateToken, requireAdmin, async (req, res) 
       LEFT JOIN users u ON c.owner_instructor_id = u.user_id
       LEFT JOIN enrollments e ON c.course_id = e.course_id
       WHERE c.status = 'active'
-      GROUP BY c.course_id, c.title, c.thumbnail_url, u.full_name
+      GROUP BY c.course_id, c.title, u.full_name
       ORDER BY enrolled_count DESC
     `);
 
@@ -886,11 +889,10 @@ router.get('/learning-stats', authenticateToken, requireAdmin, async (req, res) 
     const recentActivityResult = await pool.request().query(`
       SELECT 
         COUNT(DISTINCT e.user_id) as active_users_last_30days,
-        COUNT(DISTINCT CASE WHEN e.enrollment_date >= DATEADD(day, -30, GETDATE()) THEN e.user_id END) as new_enrollments_last_30days,
+        COUNT(DISTINCT CASE WHEN e.enrolled_at >= DATEADD(day, -30, GETDATE()) THEN e.user_id END) as new_enrollments_last_30days,
         COUNT(DISTINCT CASE WHEN e.completed_at >= DATEADD(day, -30, GETDATE()) THEN e.user_id END) as completions_last_30days
       FROM enrollments e
-      WHERE e.last_accessed >= DATEADD(day, -30, GETDATE())
-         OR e.enrollment_date >= DATEADD(day, -30, GETDATE())
+      WHERE e.enrolled_at >= DATEADD(day, -30, GETDATE())
          OR e.completed_at >= DATEADD(day, -30, GETDATE())
     `);
 

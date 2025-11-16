@@ -52,7 +52,7 @@ const PayoutsPage = () => {
   const fetchInstructorRevenue = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE_URL}/admin/revenue/instructors`, {
+      const response = await fetch(`${API_BASE_URL}/admin/instructor-revenue`, {
         headers: { 'Authorization': `Bearer ${token}` },
       });
       
@@ -76,15 +76,16 @@ const PayoutsPage = () => {
   };
 
   const filteredInstructors = instructors.filter((instructor) => {
-    if (filterStatus === 'hasCommission') return (instructor.commission_owed || 0) > 0;
-    if (filterStatus === 'noCommission') return (instructor.commission_owed || 0) === 0;
+    const commission = (instructor.total_revenue || 0) * 0.10;
+    if (filterStatus === 'hasCommission') return commission > 0;
+    if (filterStatus === 'noCommission') return commission === 0;
     return true;
   });
 
   // Calculate summary stats
   const totalRevenue = instructors.reduce((sum, i) => sum + (i.total_revenue || 0), 0);
-  const totalCommission = instructors.reduce((sum, i) => sum + (i.commission_owed || 0), 0);
-  const instructorsWithCommission = instructors.filter(i => (i.commission_owed || 0) > 0).length;
+  const totalCommission = instructors.reduce((sum, i) => sum + ((i.total_revenue || 0) * 0.10), 0);
+  const instructorsWithCommission = instructors.filter(i => ((i.total_revenue || 0) * 0.10) > 0).length;
 
   if (loading) {
     return (
@@ -98,10 +99,10 @@ const PayoutsPage = () => {
     <div className="p-6" style={{ backgroundColor: currentColors.background, minHeight: '100vh' }}>
       <div className="mb-8">
         <h1 className="text-3xl font-bold mb-2" style={{ color: currentColors.text }}>
-          Hoa hồng nền tảng
+          Doanh thu nền tảng
         </h1>
         <p style={{ color: currentColors.textSecondary }}>
-          Quản lý hoa hồng 10% từ doanh thu giảng viên - Hạn thanh toán: ngày 5 hàng tháng
+          Quản lý doanh thu 10% từ doanh thu giảng viên - Hạn thanh toán: ngày 5 hàng tháng
         </p>
         
         {/* Payment Due Date Badge */}
@@ -126,13 +127,13 @@ const PayoutsPage = () => {
             </p>
           </div>
           <div className="p-4 rounded-lg border" style={{ backgroundColor: currentColors.card, borderColor: currentColors.border }}>
-            <p className="text-sm mb-1" style={{ color: currentColors.textSecondary }}>Hoa hồng nền tảng (10%)</p>
+            <p className="text-sm mb-1" style={{ color: currentColors.textSecondary }}>Tổng Doanh thu nền tảng (10%)</p>
             <p className="text-2xl font-bold" style={{ color: currentColors.warning }}>
               {formatCurrency(totalCommission)}
             </p>
           </div>
           <div className="p-4 rounded-lg border" style={{ backgroundColor: currentColors.card, borderColor: currentColors.border }}>
-            <p className="text-sm mb-1" style={{ color: currentColors.textSecondary }}>GV có hoa hồng</p>
+            <p className="text-sm mb-1" style={{ color: currentColors.textSecondary }}>GV có doanh thu</p>
             <p className="text-2xl font-bold" style={{ color: currentColors.primary }}>
               {instructorsWithCommission}
             </p>
@@ -144,8 +145,8 @@ const PayoutsPage = () => {
       <div className="flex gap-2 mb-6">
         {[
           { id: 'all', label: 'Tất cả' },
-          { id: 'hasCommission', label: 'Có hoa hồng' },
-          { id: 'noCommission', label: 'Không có hoa hồng' },
+          { id: 'hasCommission', label: 'Có doanh thu' },
+          { id: 'noCommission', label: 'Không có doanh thu' },
         ].map((tab) => (
           <button
             key={tab.id}
@@ -193,7 +194,7 @@ const PayoutsPage = () => {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-2 gap-4">
                     <div>
                       <p className="text-xs mb-1" style={{ color: currentColors.textSecondary }}>
                         Doanh thu GV
@@ -204,18 +205,10 @@ const PayoutsPage = () => {
                     </div>
                     <div>
                       <p className="text-xs mb-1" style={{ color: currentColors.textSecondary }}>
-                        Hoa hồng nền tảng (10%)
+                        Doanh thu nền tảng (10%)
                       </p>
                       <p className="text-lg font-bold" style={{ color: currentColors.warning }}>
-                        {formatCurrency(instructor.commission_owed || 0)}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs mb-1" style={{ color: currentColors.textSecondary }}>
-                        Số khóa học
-                      </p>
-                      <p className="text-lg font-bold" style={{ color: currentColors.text }}>
-                        {instructor.course_count || 0}
+                        {formatCurrency((instructor.total_revenue || 0) * 0.10)}
                       </p>
                     </div>
                   </div>
@@ -240,15 +233,15 @@ const PayoutsPage = () => {
 
                 {/* Commission Info */}
                 <div className="ml-6 text-right">
-                  {(instructor.commission_owed || 0) > 0 ? (
+                  {((instructor.total_revenue || 0) * 0.10) > 0 ? (
                     <div>
                       <div className="px-4 py-2 rounded-lg mb-2" 
                            style={{ backgroundColor: currentColors.warning + '20' }}>
                         <p className="text-xs" style={{ color: currentColors.textSecondary }}>
-                          Hoa hồng phải thu
+                          Doanh thu phải thu
                         </p>
                         <p className="text-xl font-bold" style={{ color: currentColors.warning }}>
-                          {formatCurrency(instructor.commission_owed)}
+                          {formatCurrency((instructor.total_revenue || 0) * 0.10)}
                         </p>
                       </div>
                       <p className="text-xs" style={{ color: currentColors.textSecondary }}>
