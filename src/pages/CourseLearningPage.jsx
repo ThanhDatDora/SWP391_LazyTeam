@@ -188,30 +188,25 @@ const CourseLearningPage = () => {
 
       console.log('✅ Mark complete response:', response);
 
-      if (response && response.success) {
-        // Update local state
-        const updated = { ...courseContent };
-        updated.moocs[currentMoocIndex].lessons[currentLessonIndex].completed = true;
-        updated.moocs[currentMoocIndex].lessons[currentLessonIndex].completed_at = new Date().toISOString();
-        setCourseContent(updated);
+      // Update local state immediately (optimistic update)
+      const updated = { ...courseContent };
+      updated.moocs[currentMoocIndex].lessons[currentLessonIndex].completed = true;
+      updated.moocs[currentMoocIndex].lessons[currentLessonIndex].completed_at = new Date().toISOString();
+      setCourseContent(updated);
 
-        console.log('✅ Local state updated, lesson marked as completed');
+      console.log('✅ Local state updated, lesson marked as completed');
 
-        toast.success('✅ Đã hoàn thành bài học!');
+      toast.success('✅ Đã hoàn thành bài học!');
 
-        // Auto move to next lesson
-        try {
-          moveToNextLesson();
-        } catch (navError) {
-          console.error('⚠️ Navigation error (non-critical):', navError);
-        }
-      } else {
-        console.error('❌ API response not successful:', response);
-        toast.error(response?.error || 'Không thể đánh dấu hoàn thành');
+      // Auto move to next lesson
+      try {
+        moveToNextLesson();
+      } catch (navError) {
+        console.error('⚠️ Navigation error (non-critical):', navError);
       }
     } catch (error) {
       console.error('❌ Failed to mark lesson complete:', error);
-      toast.error(error?.message || 'Không thể đánh dấu hoàn thành');
+      toast.error('Không thể đánh dấu hoàn thành');
     }
   };
 

@@ -277,6 +277,7 @@ router.get('/profile', authenticateToken, async (req, res) => {
 // Update user profile
 router.put('/profile', authenticateToken, [
   body('fullName').optional({ checkFalsy: true }).trim().isLength({ min: 2 }),
+  body('email').optional({ checkFalsy: true }).trim().isEmail().normalizeEmail(),
   body('phone').optional({ checkFalsy: true }).trim().isMobilePhone('any'),
   body('address').optional({ checkFalsy: true }).trim().isLength({ max: 500 }),
   body('bio').optional({ checkFalsy: true }).trim().isLength({ max: 2000 }),
@@ -292,13 +293,26 @@ router.put('/profile', authenticateToken, [
       });
     }
 
-    const { fullName, phone, address, bio, gender, dateOfBirth } = req.body;
+    const { fullName, email, phone, address, bio, gender, dateOfBirth } = req.body;
     const pool = await getPool();
 
-    // Update user profile (removed OUTPUT because table has triggers)
+    if (email) {
+      const emailCheck = await pool.request()
+        .input('email', sql.NVarChar(255), email)
+        .input('userId', sql.BigInt, req.user.userId)
+        .query('SELECT user_id FROM users WHERE email = @email AND user_id != @userId');
+      
+      if (emailCheck.recordset.length > 0) {
+        return res.status(400).json({ 
+          message: 'Email này đã được sử dụng bởi người dùng khác' 
+        });
+      }
+    }
+
     await pool.request()
       .input('userId', sql.BigInt, req.user.userId)
       .input('fullName', sql.NVarChar(200), fullName || null)
+      .input('email', sql.NVarChar(255), email || null)
       .input('phone', sql.NVarChar(20), phone || null)
       .input('address', sql.NVarChar(500), address || null)
       .input('bio', sql.NVarChar(sql.MAX), bio || null)
@@ -308,6 +322,7 @@ router.put('/profile', authenticateToken, [
         UPDATE users 
         SET 
           full_name = COALESCE(@fullName, full_name),
+          email = COALESCE(@email, email),
           phone = COALESCE(@phone, phone),
           address = COALESCE(@address, address),
           bio = COALESCE(@bio, bio),
@@ -418,6 +433,75 @@ router.put('/avatar', authenticateToken, upload.single('avatar'), async (req, re
       }
     }
     res.status(500).json({ error: error.message });
+  }
+});
+
+// Change password (for logged-in users)
+router.put('/change-password', authenticateToken, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    const userId = req.user.userId;
+
+    // Validate input
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'Vui lòng nhập đầy đủ mật khẩu hiện tại và mật khẩu mới' 
+      });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'Mật khẩu mới phải có ít nhất 6 ký tự' 
+      });
+    }
+
+    const pool = await getPool();
+
+    // Get current user's password hash
+    const userResult = await pool.request()
+      .input('userId', sql.BigInt, userId)
+      .query('SELECT password_hash FROM users WHERE user_id = @userId');
+
+    if (userResult.recordset.length === 0) {
+      return res.status(404).json({ 
+        success: false,
+        error: 'Không tìm thấy người dùng' 
+      });
+    }
+
+    const user = userResult.recordset[0];
+
+    // Verify current password
+    const isValidPassword = await bcrypt.compare(currentPassword, user.password_hash);
+    if (!isValidPassword) {
+      return res.status(401).json({ 
+        success: false,
+        error: 'Mật khẩu hiện tại không chính xác' 
+      });
+    }
+
+    // Hash new password
+    const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+
+    // Update password
+    await pool.request()
+      .input('userId', sql.BigInt, userId)
+      .input('hashedPassword', sql.NVarChar, hashedNewPassword)
+      .query('UPDATE users SET password_hash = @hashedPassword, updated_at = GETDATE() WHERE user_id = @userId');
+
+    res.json({
+      success: true,
+      message: 'Đổi mật khẩu thành công'
+    });
+
+  } catch (error) {
+    console.error('Change password error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Có lỗi xảy ra khi đổi mật khẩu' 
+    });
   }
 });
 

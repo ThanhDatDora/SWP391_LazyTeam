@@ -12,6 +12,7 @@ import {
   ResponsiveContainer
 } from 'recharts';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/card';
+import { convertUSDtoVND, formatVND } from '../../utils/currency';
 
 export const RevenueLineChart = ({ data }) => {
   if (!data || data.length === 0) {
@@ -24,12 +25,15 @@ export const RevenueLineChart = ({ data }) => {
     );
   }
 
-  // Format data for chart
+  // Format data for chart (convert USD to VND)
   const chartData = data.map(item => ({
     month: item.month,
-    'Doanh thu': parseFloat(item.instructorShare) || 0,
+    'Doanh thu': convertUSDtoVND(parseFloat(item.instructor_share || item.instructorShare) || 0),
     'Số đơn': parseInt(item.sales) || 0
   })).reverse(); // Reverse to show oldest first
+  
+  console.log('📊 RevenueLineChart - Input data:', data);
+  console.log('📊 RevenueLineChart - Chart data:', chartData);
 
   return (
     <Card>
@@ -45,7 +49,7 @@ export const RevenueLineChart = ({ data }) => {
             <Tooltip 
               formatter={(value, name) => {
                 if (name === 'Doanh thu') {
-                  return `$${value.toFixed(2)}`;
+                  return `${value.toLocaleString('vi-VN')} VND`;
                 }
                 return value;
               }}
@@ -76,14 +80,14 @@ export const CourseRevenueChart = ({ data }) => {
     );
   }
 
-  // Take top 5 courses by revenue
+  // Take top 5 courses by revenue (convert USD to VND)
   const top5 = data
     .filter(item => item.sales > 0)
     .sort((a, b) => b.instructorShare - a.instructorShare)
     .slice(0, 5)
     .map(item => ({
       course: item.title.length > 20 ? item.title.substring(0, 20) + '...' : item.title,
-      'Doanh thu': parseFloat(item.instructorShare) || 0,
+      'Doanh thu': convertUSDtoVND(parseFloat(item.instructorShare) || 0),
       'Số đơn': parseInt(item.sales) || 0
     }));
 
@@ -111,7 +115,7 @@ export const CourseRevenueChart = ({ data }) => {
             <Tooltip 
               formatter={(value, name) => {
                 if (name === 'Doanh thu') {
-                  return `$${value.toFixed(2)}`;
+                  return `${value.toLocaleString('vi-VN')} VND`;
                 }
                 return value;
               }}

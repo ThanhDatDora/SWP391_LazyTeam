@@ -55,7 +55,7 @@ const COLORS = {
 const InstructorLayout = ({ children }) => {
   const location = useLocation();
   const navigate = useNavigate();
-    const { authState: _authState, clearAuthState } = useAuth();
+  const { authState: _authState, logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [theme, setTheme] = useState('light');
   const [expandedSections, setExpandedSections] = useState({
@@ -81,7 +81,7 @@ const InstructorLayout = ({ children }) => {
       console.log('🚪 Instructor logout clicked');
       
       // Call logout from AuthContext
-      logout();
+      await logout();
       
       // Clear any instructor-specific data
       localStorage.removeItem('instructorData');

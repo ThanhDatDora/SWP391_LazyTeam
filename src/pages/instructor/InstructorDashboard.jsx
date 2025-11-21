@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Badge } from '../../components/ui/badge';
@@ -23,6 +23,7 @@ import {
 import { api } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { RevenueLineChart, CourseRevenueChart, SalesOverviewChart } from '../../components/instructor/RevenueChart';
+import { convertUSDtoVND, formatVND } from '../../utils/currency';
 
 const InstructorDashboard = () => {
   const navigate = useNavigation();
@@ -45,28 +46,52 @@ const InstructorDashboard = () => {
       let loadedSubmissions = [];
       let loadedRevenue = null;
       
-      // Load instructor's courses - use general courses API and filter
+      // Load instructor's courses
       try {
-        const response = await api.courses.getCourses();
-        const allCourses = response.data?.data || response.data || [];
-        loadedCourses = Array.isArray(allCourses) 
-          ? allCourses.filter(course => course.owner_instructor_id === authState.user?.user_id)
-          : [];
-        setCourses(loadedCourses);
+        const response = await api.instructor.getCourses();
+        if (response.success) {
+          // Map API response to component format
+          loadedCourses = (response.data || []).map(course => ({
+            ...course,
+            id: course.course_id,
+            enrollmentCount: course.total_students || 0,
+            rating: course.avg_rating || 0
+          }));
+          setCourses(loadedCourses);
+          console.log('✅ Loaded courses:', loadedCourses.length);
+        }
       } catch (error) {
-        console.error('Error loading courses:', error);
+        console.error('❌ Error loading courses:', error);
         setCourses([]);
       }
 
-      // Load revenue data
+      // Load dashboard stats
+      let statsFromAPI = null;
+      try {
+        const statsResponse = await api.instructor.getStats();
+        if (statsResponse.success) {
+          statsFromAPI = statsResponse.data;
+          console.log('✅ Loaded stats from API:', statsFromAPI);
+        }
+      } catch (error) {
+        console.error('❌ Error loading stats:', error);
+      }
+
+      // Load revenue data (optional)
       try {
         const revenueResponse = await api.instructor.getRevenueSummary();
         if (revenueResponse.success) {
           loadedRevenue = revenueResponse.data;
+          console.log('✅ Revenue API Response:', loadedRevenue);
+          console.log('   Total Revenue USD:', loadedRevenue?.summary?.totalRevenue);
+          console.log('   Instructor Share USD:', loadedRevenue?.summary?.instructorShare);
+          console.log('   Instructor Share VND:', formatVND(convertUSDtoVND(loadedRevenue?.summary?.instructorShare || 0)));
+          console.log('   Monthly Revenue Data:', loadedRevenue?.monthlyRevenue);
+          console.log('   Monthly count:', loadedRevenue?.monthlyRevenue?.length || 0);
           setRevenueData(loadedRevenue);
         }
       } catch (error) {
-        console.warn('Revenue API not available:', error.message);
+        console.warn('⚠️ Revenue API not available:', error.message);
       }
 
       // Fetch real submissions from assignments API
@@ -77,29 +102,47 @@ const InstructorDashboard = () => {
           setSubmissions(loadedSubmissions);
         }
       } catch (error) {
-        console.error('Error loading submissions:', error);
+        console.error('❌ Error loading submissions:', error);
         setSubmissions([]);
       }
 
-      // Calculate stats from actual data
-      const totalStudents = loadedRevenue?.summary?.totalStudents || 0;
-      const totalExams = loadedCourses.reduce((sum, course) => sum + (course.exam_count || 2), 0);
-      const avgRating = loadedCourses.length > 0 
-        ? loadedCourses.reduce((sum, course) => sum + (course.rating || 4.5), 0) / loadedCourses.length
-        : 0;
+      // Merge stats from API with revenue data
+      if (statsFromAPI) {
+        // ✅ Use stats from API (has correct totalStudents = unique users)
+        const mergedStats = {
+          ...statsFromAPI,
+          totalRevenue: loadedRevenue?.summary?.instructorShare || 0
+        };
+        console.log('📊 Final merged stats:', mergedStats);
+        console.log('   Total Revenue in stats:', mergedStats.totalRevenue, 'USD');
+        console.log('   Total Revenue in VND:', formatVND(convertUSDtoVND(mergedStats.totalRevenue)));
+        setStats(mergedStats);
+      } else {
+        // ⚠️ Fallback: calculate stats from courses (may have duplicates)
+        console.warn('⚠️ Stats API failed, calculating from courses (may have duplicates)');
+        
+        // ❌ This counts enrollments, not unique users
+        // A user enrolled in 5 courses will be counted 5 times
+        const totalStudents = loadedCourses.reduce((sum, course) => 
+          sum + (course.total_students || 0), 0
+        );
+        const avgRating = loadedCourses.length > 0 
+          ? loadedCourses.reduce((sum, course) => sum + (parseFloat(course.avg_rating) || 0), 0) / loadedCourses.length
+          : 0;
 
-      setStats({
-        totalCourses: loadedCourses.length,
-        totalStudents,
-        totalExams,
-        avgRating: avgRating.toFixed(1),
-        pendingSubmissions: loadedSubmissions.filter(s => s.status === 'pending').length,
-        recentActivity: 15,
-        totalRevenue: loadedRevenue?.summary?.instructorShare || 0
-      });
+        setStats({
+          totalCourses: loadedCourses.length,
+          activeCourses: loadedCourses.filter(c => c.status === 'active').length,
+          totalStudents,
+          averageRating: avgRating.toFixed(1),
+          totalSubmissions: loadedSubmissions.length,
+          pendingGrading: loadedSubmissions.filter(s => s.status === 'submitted').length,
+          totalRevenue: loadedRevenue?.summary?.instructorShare || 0
+        });
+      }
 
     } catch (error) {
-      console.error('Error loading instructor dashboard:', error);
+      console.error('❌ Error loading instructor dashboard:', error);
     } finally {
       setLoading(false);
     }
@@ -187,7 +230,9 @@ const InstructorDashboard = () => {
               <div className="flex items-center">
                 <Award className="w-8 h-8 text-yellow-600" />
                 <div className="ml-4">
-                  <p className="text-2xl font-bold text-gray-900">{stats.avgRating}</p>
+                  <p className="text-2xl font-bold text-gray-900">
+                    {stats.averageRating ? parseFloat(stats.averageRating).toFixed(1) : '0.0'} ⭐
+                  </p>
                   <p className="text-sm text-gray-600">Đánh giá trung bình</p>
                 </div>
               </div>
@@ -200,7 +245,7 @@ const InstructorDashboard = () => {
                 <DollarSign className="w-8 h-8 text-teal-600" />
                 <div className="ml-4">
                   <p className="text-2xl font-bold text-gray-900">
-                    ${(stats.totalRevenue || 0).toFixed(2)}
+                    {formatVND(convertUSDtoVND(stats.totalRevenue || 0))}
                   </p>
                   <p className="text-sm text-gray-600">Tổng thu nhập</p>
                 </div>
@@ -231,7 +276,7 @@ const InstructorDashboard = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {courses.map(course => (
-              <Card key={course.id} className="hover:shadow-lg transition-shadow">
+              <Card key={course.course_id} className="hover:shadow-lg transition-shadow">
                 <CardContent className="p-6">
                   <div className="aspect-video bg-gradient-to-br from-teal-400 to-blue-500 rounded-lg mb-4 flex items-center justify-center">
                     <BookOpen className="w-8 h-8 text-white" />
@@ -257,11 +302,11 @@ const InstructorDashboard = () => {
                   </div>
 
                   <div className="flex items-center justify-between mb-4">
-                    <Badge variant={course.is_approved ? 'default' : 'secondary'}>
-                      {course.is_approved ? 'Đã duyệt' : 'Chờ duyệt'}
+                    <Badge variant={course.status === 'active' ? 'default' : course.status === 'archived' ? 'secondary' : 'outline'}>
+                      {course.status === 'active' ? 'Đang hoạt động' : course.status === 'archived' ? 'Lưu trữ' : course.status}
                     </Badge>
                     <Badge variant="outline">
-                      {course.is_free ? 'Miễn phí' : 'Có phí'}
+                      {course.price === 0 || course.price === null ? 'Miễn phí' : formatVND(convertUSDtoVND(course.price))}
                     </Badge>
                   </div>
 
@@ -270,7 +315,7 @@ const InstructorDashboard = () => {
                       variant="outline" 
                       size="sm" 
                       className="flex-1"
-                      onClick={() => navigate(`/instructor/courses/${course.id}`)}
+                      onClick={() => navigate(`/instructor/courses/${course.course_id}`)}
                     >
                       <Edit3 className="w-4 h-4 mr-1" />
                       Chỉnh sửa
@@ -279,7 +324,7 @@ const InstructorDashboard = () => {
                       variant="outline" 
                       size="sm" 
                       className="flex-1"
-                      onClick={() => navigate(`/course/${course.id}`)}
+                      onClick={() => navigate(`/course/${course.course_id}`)}
                     >
                       <Eye className="w-4 h-4 mr-1" />
                       Xem
@@ -366,7 +411,7 @@ const InstructorDashboard = () => {
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          {submission.score ? (
+                          {submission.score !== null && submission.score !== undefined ? (
                             <Badge variant="default">
                               {submission.score}/100
                             </Badge>
@@ -375,7 +420,7 @@ const InstructorDashboard = () => {
                           )}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {submission.status === 'pending' ? 'Chờ chấm' : 'Đã chấm'}
+                          {submission.score !== null && submission.score !== undefined ? 'Đã chấm' : 'Chờ chấm'}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center text-sm text-gray-500">
@@ -387,10 +432,10 @@ const InstructorDashboard = () => {
                           <Button 
                             variant="outline" 
                             size="sm"
-                            onClick={() => navigate(`/instructor/grade/${submission.essay_submission_id}`)}
+                            onClick={() => navigate(`/instructor/submissions/${submission.essay_submission_id}`)}
                           >
                             <Eye className="w-4 h-4 mr-1" />
-                            {submission.status === 'pending' ? 'Chấm điểm' : 'Xem chi tiết'}
+                            {submission.score !== null && submission.score !== undefined ? 'Xem chi tiết' : 'Chấm điểm'}
                           </Button>
                         </td>
                       </tr>
@@ -515,7 +560,7 @@ const InstructorDashboard = () => {
                       <DollarSign className="w-8 h-8 text-teal-600" />
                       <div className="ml-4">
                         <p className="text-2xl font-bold text-gray-900">
-                          ${(revenueData.summary?.instructorShare || 0).toFixed(2)}
+                          {formatVND(convertUSDtoVND(revenueData.summary?.instructorShare || 0))}
                         </p>
                         <p className="text-sm text-gray-600">Thu nhập của bạn (80%)</p>
                       </div>
@@ -597,16 +642,16 @@ const InstructorDashboard = () => {
                                 </div>
                               </td>
                               <td className="px-4 py-4 text-sm text-gray-900">
-                                ${parseFloat(course.price || 0).toFixed(2)}
+                                {formatVND(convertUSDtoVND(parseFloat(course.price || 0)))}
                               </td>
                               <td className="px-4 py-4 text-sm text-gray-900">
                                 {course.sales || 0}
                               </td>
                               <td className="px-4 py-4 text-sm font-medium text-gray-900">
-                                ${parseFloat(course.totalRevenue || 0).toFixed(2)}
+                                {formatVND(convertUSDtoVND(parseFloat(course.totalRevenue || 0)))}
                               </td>
                               <td className="px-4 py-4 text-sm font-bold text-teal-600">
-                                ${parseFloat(course.instructorShare || 0).toFixed(2)}
+                                {formatVND(convertUSDtoVND(parseFloat(course.instructorShare || 0)))}
                               </td>
                             </tr>
                           ))}

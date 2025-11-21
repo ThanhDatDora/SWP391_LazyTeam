@@ -649,4 +649,80 @@ router.post('/:id/enroll', authenticateToken, authorizeRoles('learner'), async (
   }
 });
 
+// Get MOOCs for a course (public)
+router.get('/:courseId/moocs', async (req, res) => {
+  try {
+    const { courseId } = req.params;
+    const pool = await getPool();
+
+    const result = await pool.request()
+      .input('courseId', sql.BigInt, courseId)
+      .query(`
+        SELECT 
+          mooc_id,
+          course_id,
+          title as name,
+          description,
+          order_no as order_index,
+          created_at
+        FROM moocs
+        WHERE course_id = @courseId
+        ORDER BY order_no
+      `);
+
+    res.json({
+      success: true,
+      data: result.recordset
+    });
+
+  } catch (error) {
+    console.error('Error getting MOOCs:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get MOOCs'
+    });
+  }
+});
+
+// Get lessons for a course (public)
+router.get('/:courseId/lessons', async (req, res) => {
+  try {
+    const { courseId } = req.params;
+    const pool = await getPool();
+
+    const result = await pool.request()
+      .input('courseId', sql.BigInt, courseId)
+      .query(`
+        SELECT 
+          l.lesson_id,
+          l.mooc_id,
+          l.title,
+          l.content_type,
+          l.content_url,
+          l.description,
+          l.order_no,
+          l.duration,
+          l.is_preview,
+          m.title as mooc_title,
+          m.order_no as mooc_order
+        FROM lessons l
+        JOIN moocs m ON l.mooc_id = m.mooc_id
+        WHERE m.course_id = @courseId
+        ORDER BY m.order_no, l.order_no
+      `);
+
+    res.json({
+      success: true,
+      data: result.recordset
+    });
+
+  } catch (error) {
+    console.error('Error getting lessons:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get lessons'
+    });
+  }
+});
+
 export default router;

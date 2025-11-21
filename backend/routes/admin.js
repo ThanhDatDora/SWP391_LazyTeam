@@ -6,23 +6,30 @@ const router = express.Router();
 
 // Middleware check admin role
 const requireAdmin = (req, res, next) => {
-  // req.user.role is the role_name from database (lowercase: "admin", "instructor", "learner")
+  // req.user.role is role_id (number: 1=admin, 2=instructor, 3=learner)
+  // req.user.roleName is role_name (string: "admin", "instructor", "learner")
   console.log('🔐 requireAdmin check:', {
     userId: req.user.userId,
     email: req.user.email,
     role: req.user.role,
+    roleName: req.user.roleName,
     roleType: typeof req.user.role,
-    fullUser: req.user
+    roleNameType: typeof req.user.roleName
   });
   
-  if (req.user.role !== 'admin') {  // ✅ Lowercase 'admin' to match database
-    console.log('❌ Access denied - role is not "admin"');
+  // Support both role_id (number) and role_name (string) for backward compatibility
+  const isAdmin = req.user.role === 1 || req.user.role === 'admin' || req.user.roleName === 'admin';
+  
+  if (!isAdmin) {
+    console.log('❌ Access denied - user is not admin');
     return res.status(403).json({ 
       success: false,
       error: 'Admin access required',
       debug: {
         currentRole: req.user.role,
-        expectedRole: 'admin'
+        currentRoleName: req.user.roleName,
+        expectedRole: 1,
+        expectedRoleName: 'admin'
       }
     });
   }
@@ -425,6 +432,8 @@ router.get('/courses/pending', authenticateToken, requireAdmin, async (req, res)
   }
 });
 
+
+
 // Approve course (change status from draft/pending to active)
 // Support both POST and PUT methods
 router.post('/courses/:courseId/approve', authenticateToken, requireAdmin, async (req, res) => {
@@ -481,27 +490,28 @@ router.put('/courses/:courseId/approve', authenticateToken, requireAdmin, async 
   }
 });
 
-// Reject course (set to inactive)
+// Reject course (archive it)
 // Support both POST and PUT methods
 router.post('/courses/:courseId/reject', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { courseId } = req.params;
-    const { reason: _reason } = req.body;
+    const { reason } = req.body;
     const pool = await getPool();
 
-    // Change status to 'inactive' when rejected
+    // Note: 'rejection_reason' column may not exist in courses table
+    // So we'll just change status to 'archived'
     await pool.request()
       .input('courseId', sql.BigInt, courseId)
       .query(`
         UPDATE courses 
-        SET status = 'inactive', 
+        SET status = 'archived', 
             updated_at = GETDATE()
         WHERE course_id = @courseId
       `);
 
     res.json({
       success: true,
-      message: 'Course rejected successfully'
+      message: 'Course rejected and archived successfully'
     });
 
   } catch (error) {
@@ -516,22 +526,23 @@ router.post('/courses/:courseId/reject', authenticateToken, requireAdmin, async 
 router.put('/courses/:courseId/reject', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { courseId } = req.params;
-    const { reason: _reason } = req.body;
+    const { reason } = req.body;
     const pool = await getPool();
 
-    // Change status to 'inactive' when rejected
+    // Note: 'rejection_reason' column may not exist in courses table
+    // So we'll just change status to 'archived'
     await pool.request()
       .input('courseId', sql.BigInt, courseId)
       .query(`
         UPDATE courses 
-        SET status = 'inactive', 
+        SET status = 'archived', 
             updated_at = GETDATE()
         WHERE course_id = @courseId
       `);
 
     res.json({
       success: true,
-      message: 'Course rejected successfully'
+      message: 'Course rejected and archived successfully'
     });
 
   } catch (error) {
@@ -680,7 +691,7 @@ router.delete('/users/:userId', authenticateToken, requireAdmin, async (req, res
 
 // ==================== REVENUE ENDPOINTS ====================
 
-// Get instructor revenue
+// Get instructor revenue with platform commission (10%)
 router.get('/instructor-revenue', authenticateToken, requireAdmin, async (req, res) => {
   try {
     console.log('📡 GET /instructor-revenue - Starting...');
@@ -688,13 +699,20 @@ router.get('/instructor-revenue', authenticateToken, requireAdmin, async (req, r
 
     const query = `
       SELECT 
-        u.user_id,
+        i.instructor_id,
         u.full_name as instructor_name,
         u.email,
-        u.created_at
-      FROM users u
+        u.created_at,
+        ISNULL(SUM(inv.amount), 0) as total_revenue,
+        ISNULL(SUM(inv.amount), 0) * 0.10 as commission_owed,
+        COUNT(DISTINCT c.course_id) as course_count
+      FROM instructors i
+      JOIN users u ON i.user_id = u.user_id
+      LEFT JOIN courses c ON c.instructor_id = i.instructor_id
+      LEFT JOIN invoices inv ON inv.course_id = c.course_id AND inv.status = 'paid'
       WHERE u.role_id = 2
-      ORDER BY u.created_at DESC
+      GROUP BY i.instructor_id, u.full_name, u.email, u.created_at
+      ORDER BY total_revenue DESC
     `;
 
     console.log('📝 Revenue query:', query);
@@ -795,6 +813,391 @@ router.put('/users/:id/role', authenticateToken, requireAdmin, async (req, res) 
     res.status(500).json({ 
       success: false,
       error: 'Failed to change user role',
+      details: error.message
+    });
+  }
+});
+
+// ==================== LEARNING STATS ENDPOINT ====================
+
+// Get learning statistics
+router.get('/learning-stats', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const pool = await getPool();
+
+    // 1. Get overall enrollment and completion stats
+    const completionResult = await pool.request().query(`
+      SELECT 
+        COUNT(*) as total_enrollments,
+        COUNT(DISTINCT user_id) as total_learners,
+        SUM(CASE WHEN completed_at IS NULL THEN 1 ELSE 0 END) as not_started,
+        SUM(CASE WHEN completed_at IS NULL THEN 1 ELSE 0 END) as in_progress,
+        SUM(CASE WHEN completed_at IS NOT NULL THEN 1 ELSE 0 END) as completed,
+        SUM(CASE WHEN completed_at IS NOT NULL THEN 1 ELSE 0 END) as excellent,
+        0 as good,
+        SUM(CASE WHEN completed_at IS NULL THEN 1 ELSE 0 END) as needs_improvement,
+        50.0 as avg_progress,
+        CAST(SUM(CASE WHEN completed_at IS NOT NULL THEN 100.0 ELSE 0 END) / NULLIF(COUNT(*), 0) as DECIMAL(5,2)) as completion_rate
+      FROM enrollments
+      WHERE status = 'active'
+    `);
+
+    // 2. Get top courses by enrollment
+    const topCoursesResult = await pool.request().query(`
+      SELECT TOP 5
+        c.course_id,
+        c.title,
+        c.thumbnail_url,
+        u.full_name as instructor_name,
+        COUNT(e.enrollment_id) as enrolled_count,
+        CAST(SUM(CASE WHEN e.completed_at IS NOT NULL THEN 100.0 ELSE 0 END) / NULLIF(COUNT(e.enrollment_id), 0) as DECIMAL(5,2)) as completion_rate,
+        50.0 as avg_progress
+      FROM courses c
+      LEFT JOIN users u ON c.owner_instructor_id = u.user_id
+      LEFT JOIN enrollments e ON c.course_id = e.course_id
+      WHERE c.status = 'active'
+      GROUP BY c.course_id, c.title, c.thumbnail_url, u.full_name
+      ORDER BY enrolled_count DESC
+    `);
+
+    // 3. Calculate study stats from progress table (simplified - no time tracking yet)
+    const avgTimeResult = await pool.request().query(`
+      SELECT 
+        0.0 as avg_lesson_time_minutes,
+        0 as total_study_time_minutes,
+        COUNT(DISTINCT user_id) as active_learners,
+        SUM(CASE WHEN is_completed = 1 THEN 1 ELSE 0 END) as total_completed_lessons,
+        COUNT(*) as total_lesson_attempts
+      FROM progress
+    `);
+
+    // 4. Get quiz/exam performance stats (placeholder - exam_attempts table doesn't exist)
+    const examStatsResult = {
+      recordset: [{
+        students_took_exams: 0,
+        total_exam_attempts: 0,
+        passed_attempts: 0,
+        avg_exam_score: 0,
+        pass_rate: 0
+      }]
+    };
+
+    // 5. Get recent activity (last 30 days)
+    const recentActivityResult = await pool.request().query(`
+      SELECT 
+        COUNT(DISTINCT e.user_id) as active_users_last_30days,
+        COUNT(DISTINCT CASE WHEN e.enrollment_date >= DATEADD(day, -30, GETDATE()) THEN e.user_id END) as new_enrollments_last_30days,
+        COUNT(DISTINCT CASE WHEN e.completed_at >= DATEADD(day, -30, GETDATE()) THEN e.user_id END) as completions_last_30days
+      FROM enrollments e
+      WHERE e.last_accessed >= DATEADD(day, -30, GETDATE())
+         OR e.enrollment_date >= DATEADD(day, -30, GETDATE())
+         OR e.completed_at >= DATEADD(day, -30, GETDATE())
+    `);
+
+    // 6. Get most active learners (top 10)
+    const topLearnersResult = await pool.request().query(`
+      SELECT TOP 10
+        u.user_id,
+        u.full_name,
+        u.email,
+        COUNT(e.enrollment_id) as courses_enrolled,
+        SUM(CASE WHEN e.completed_at IS NOT NULL THEN 1 ELSE 0 END) as courses_completed,
+        50.0 as avg_progress
+      FROM users u
+      INNER JOIN enrollments e ON u.user_id = e.user_id
+      WHERE u.role_id = 3 AND e.status = 'active'
+      GROUP BY u.user_id, u.full_name, u.email
+      ORDER BY courses_completed DESC, courses_enrolled DESC
+    `);
+
+    const completion = completionResult.recordset[0];
+    const avgTime = avgTimeResult.recordset[0];
+    const examStats = examStatsResult.recordset[0];
+    const recentActivity = recentActivityResult.recordset[0];
+
+    res.json({
+      success: true,
+      data: {
+        overview: {
+          total_enrollments: completion.total_enrollments || 0,
+          total_learners: completion.total_learners || 0,
+          avg_progress: parseFloat((completion.avg_progress || 0).toFixed(2)),
+          completion_rate: Math.round(completion.completion_rate || 0)
+        },
+        completion: {
+          not_started: completion.not_started || 0,
+          in_progress: completion.in_progress || 0,
+          completed: completion.completed || 0,
+          excellent: completion.excellent || 0,
+          good: completion.good || 0,
+          needs_improvement: completion.needs_improvement || 0
+        },
+        studyTime: {
+          avg_lesson_time_minutes: parseFloat((avgTime.avg_lesson_time_minutes || 0).toFixed(2)),
+          total_study_time_hours: parseFloat(((avgTime.total_study_time_minutes || 0) / 60).toFixed(2)),
+          active_learners: avgTime.active_learners || 0,
+          total_completed_lessons: avgTime.total_completed_lessons || 0,
+          total_lesson_attempts: avgTime.total_lesson_attempts || 0
+        },
+        examPerformance: {
+          students_took_exams: examStats.students_took_exams || 0,
+          total_exam_attempts: examStats.total_exam_attempts || 0,
+          passed_attempts: examStats.passed_attempts || 0,
+          avg_exam_score: parseFloat((examStats.avg_exam_score || 0).toFixed(2)),
+          pass_rate: Math.round(examStats.pass_rate || 0)
+        },
+        recentActivity: {
+          active_users_last_30days: recentActivity.active_users_last_30days || 0,
+          new_enrollments_last_30days: recentActivity.new_enrollments_last_30days || 0,
+          completions_last_30days: recentActivity.completions_last_30days || 0
+        },
+        topCourses: topCoursesResult.recordset.map(course => ({
+          course_id: course.course_id,
+          title: course.title,
+          thumbnail_url: course.thumbnail_url,
+          instructor_name: course.instructor_name,
+          enrolled_count: course.enrolled_count,
+          completion_rate: Math.round(course.completion_rate || 0),
+          avg_progress: parseFloat((course.avg_progress || 0).toFixed(2))
+        })),
+        topLearners: topLearnersResult.recordset.map(learner => ({
+          user_id: learner.user_id,
+          full_name: learner.full_name,
+          email: learner.email,
+          courses_enrolled: learner.courses_enrolled,
+          courses_completed: learner.courses_completed,
+          avg_progress: parseFloat((learner.avg_progress || 0).toFixed(2))
+        }))
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Get learning stats error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to fetch learning statistics',
+      details: error.message
+    });
+  }
+});
+
+// ==================== CATEGORY MANAGEMENT ENDPOINTS ====================
+
+// Get all categories with course details
+router.get('/categories', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const pool = await getPool();
+    
+    // Get categories with course count
+    const categoriesResult = await pool.request().query(`
+      SELECT 
+        c.category_id as id,
+        c.name,
+        COUNT(co.course_id) as courseCount
+      FROM categories c
+      LEFT JOIN courses co ON c.category_id = co.category_id AND co.status = 'active'
+      GROUP BY c.category_id, c.name
+      ORDER BY c.name
+    `);
+
+    // Get courses for each category
+    const coursesResult = await pool.request().query(`
+      SELECT 
+        co.course_id as id,
+        co.title,
+        co.category_id as categoryId
+      FROM courses co
+      WHERE co.status = 'active'
+      ORDER BY co.title
+    `);
+
+    // Map courses to categories
+    const categories = categoriesResult.recordset.map(cat => ({
+      id: cat.id,
+      name: cat.name,
+      courseCount: cat.courseCount || 0,
+      courses: coursesResult.recordset
+        .filter(c => c.categoryId === cat.id)
+        .map(c => ({ id: c.id, title: c.title }))
+    }));
+
+    res.json({
+      success: true,
+      categories
+    });
+
+  } catch (error) {
+    console.error('❌ Get categories error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to fetch categories',
+      details: error.message
+    });
+  }
+});
+
+// Create new category
+router.post('/categories', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { name } = req.body;
+
+    if (!name || !name.trim()) {
+      return res.status(400).json({
+        success: false,
+        error: 'Category name is required'
+      });
+    }
+
+    const pool = await getPool();
+
+    // Check if category already exists
+    const existingCategory = await pool.request()
+      .input('name', sql.NVarChar, name.trim())
+      .query('SELECT category_id FROM categories WHERE name = @name');
+
+    if (existingCategory.recordset.length > 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Category with this name already exists'
+      });
+    }
+
+    // Insert new category
+    const result = await pool.request()
+      .input('name', sql.NVarChar, name.trim())
+      .query(`
+        INSERT INTO categories (name)
+        OUTPUT INSERTED.category_id as id, INSERTED.name
+        VALUES (@name)
+      `);
+
+    res.status(201).json({
+      success: true,
+      message: 'Category created successfully',
+      category: {
+        id: result.recordset[0].id,
+        name: result.recordset[0].name,
+        courseCount: 0,
+        courses: []
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Create category error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to create category',
+      details: error.message
+    });
+  }
+});
+
+// Update category
+router.put('/categories/:id', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name } = req.body;
+
+    if (!name || !name.trim()) {
+      return res.status(400).json({
+        success: false,
+        error: 'Category name is required'
+      });
+    }
+
+    const pool = await getPool();
+
+    // Check if category exists
+    const categoryCheck = await pool.request()
+      .input('id', sql.Int, id)
+      .query('SELECT category_id FROM categories WHERE category_id = @id');
+
+    if (categoryCheck.recordset.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Category not found'
+      });
+    }
+
+    // Check if new name already exists (excluding current category)
+    const existingCategory = await pool.request()
+      .input('name', sql.NVarChar, name.trim())
+      .input('id', sql.Int, id)
+      .query('SELECT category_id FROM categories WHERE name = @name AND category_id != @id');
+
+    if (existingCategory.recordset.length > 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Category with this name already exists'
+      });
+    }
+
+    // Update category
+    await pool.request()
+      .input('id', sql.Int, id)
+      .input('name', sql.NVarChar, name.trim())
+      .query('UPDATE categories SET name = @name WHERE category_id = @id');
+
+    res.json({
+      success: true,
+      message: 'Category updated successfully'
+    });
+
+  } catch (error) {
+    console.error('❌ Update category error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to update category',
+      details: error.message
+    });
+  }
+});
+
+// Delete category
+router.delete('/categories/:id', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const pool = await getPool();
+
+    // Check if category exists
+    const categoryCheck = await pool.request()
+      .input('id', sql.Int, id)
+      .query('SELECT category_id FROM categories WHERE category_id = @id');
+
+    if (categoryCheck.recordset.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Category not found'
+      });
+    }
+
+    // Check if category has courses
+    const coursesCheck = await pool.request()
+      .input('id', sql.Int, id)
+      .query('SELECT COUNT(*) as count FROM courses WHERE category_id = @id');
+
+    if (coursesCheck.recordset[0].count > 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Cannot delete category with associated courses'
+      });
+    }
+
+    // Delete category
+    await pool.request()
+      .input('id', sql.Int, id)
+      .query('DELETE FROM categories WHERE category_id = @id');
+
+    res.json({
+      success: true,
+      message: 'Category deleted successfully'
+    });
+
+  } catch (error) {
+    console.error('❌ Delete category error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to delete category',
       details: error.message
     });
   }

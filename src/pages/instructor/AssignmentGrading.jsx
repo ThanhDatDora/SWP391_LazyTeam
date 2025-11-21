@@ -6,6 +6,7 @@ import { Badge } from '../../components/ui/badge';
 import { Textarea } from '../../components/ui/textarea';
 import { Input } from '../../components/ui/input';
 import { useNavigation } from '@/hooks/useNavigation';
+import api from '@/services/api';
 import { 
   FileText, 
   Download, 
@@ -60,18 +61,15 @@ const AssignmentGrading = () => {
   const loadSubmissions = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`/api/assignments/lesson/${lessonId}/submissions`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      });
+      const result = await api.assignments.getSubmissions(lessonId);
       
-      const data = await response.json();
-      if (data.success) {
-        setSubmissions(data.data);
-        if (data.data.length > 0 && !selectedSubmission) {
-          selectSubmission(data.data[0]);
+      if (result.success) {
+        setSubmissions(result.data);
+        if (result.data.length > 0 && !selectedSubmission) {
+          selectSubmission(result.data[0]);
         }
+      } else {
+        toast.error(result.error || 'Không thể tải danh sách bài nộp');
       }
     } catch (error) {
       console.error('Error loading submissions:', error);
@@ -104,21 +102,13 @@ const AssignmentGrading = () => {
 
     try {
       setGrading(true);
-      const response = await fetch('/api/assignments/grade', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify({
-          submission_id: selectedSubmission.essay_submission_id,
-          score: scoreValue,
-          feedback: feedback.trim()
-        })
-      });
+      const result = await api.assignments.grade(
+        selectedSubmission.essay_submission_id,
+        scoreValue,
+        feedback.trim()
+      );
 
-      const data = await response.json();
-      if (data.success) {
+      if (result.success) {
         toast.success('Chấm điểm thành công!');
         await loadSubmissions();
         
@@ -136,7 +126,7 @@ const AssignmentGrading = () => {
           selectSubmission(nextUngraded);
         }
       } else {
-        toast.error(data.message || 'Không thể chấm điểm');
+        toast.error(result.error || result.message || 'Không thể chấm điểm');
       }
     } catch (error) {
       console.error('Error grading submission:', error);

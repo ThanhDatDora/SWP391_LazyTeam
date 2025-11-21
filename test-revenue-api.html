@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Revenue API</title>
+</head>
+<body>
+    <h1>Testing Revenue API</h1>
+    <button onclick="testRevenue()">Test /api/instructor/revenue/summary</button>
+    <pre id="result"></pre>
+
+    <script>
+        async function testRevenue() {
+            const token = localStorage.getItem('token');
+            
+            if (!token) {
+                document.getElementById('result').textContent = 'ERROR: No token found. Please login first at http://localhost:5173';
+                return;
+            }
+
+            try {
+                const response = await fetch('http://localhost:3001/api/instructor/revenue/summary', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const data = await response.json();
+                
+                document.getElementById('result').textContent = JSON.stringify(data, null, 2);
+                
+                if (data.success) {
+                    console.log('✅ API Success!');
+                    console.log('Total Revenue USD:', data.data.summary.totalRevenue);
+                    console.log('Total Revenue VND:', Math.round(data.data.summary.totalRevenue * 1000).toLocaleString('vi-VN') + 'đ');
+                    console.log('Instructor Share USD:', data.data.summary.instructorShare);
+                    console.log('Instructor Share VND:', Math.round(data.data.summary.instructorShare * 1000).toLocaleString('vi-VN') + 'đ');
+                }
+            } catch (error) {
+                document.getElementById('result').textContent = 'ERROR: ' + error.message;
+            }
+        }
+    </script>
+</body>
+</html>

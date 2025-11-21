@@ -6,6 +6,21 @@ import compression from 'compression';
 import rateLimit from 'express-rate-limit';
 import { connectDB } from './config/database.js';
 import { createServer } from 'http';
+import { validateBackendEnvironment } from './config/envValidator.js';
+
+// Load environment variables first
+dotenv.config();
+
+// Validate environment before starting
+console.log('🔍 Validating environment configuration...');
+try {
+  validateBackendEnvironment();
+} catch (error) {
+  console.error('❌ Environment validation failed:', error.message);
+  if (process.env.NODE_ENV === 'production') {
+    process.exit(1);
+  }
+}
 
 // Import enhanced middleware
 import { 
@@ -25,7 +40,7 @@ import notificationsRoutes from './routes/notifications.js';
 import checkoutRoutes from './routes/checkout.js';
 import adminRoutes from './routes/admin.js';
 import adminRevenueRoutes from './routes/admin-revenue.js';
-import instructorRevenueRoutes from './routes/instructor-revenue.js';
+import instructorRoutes from './routes/instructor.js';
 import enrollmentRoutes from './routes/enrollments.js';
 import quizRoutes from './routes/quizzes.js';
 import examRoutes from './routes/exams.js';
@@ -141,15 +156,20 @@ app.use((req, res, next) => {
   const start = Date.now();
   req.id = Math.random().toString(36).substring(7);
   
-  // Log request
-  console.log(`📥 [${req.id}] ${req.method} ${req.originalUrl} - ${req.ip}`);
+  // Log request (only in development or if LOG_LEVEL is debug)
+  if (process.env.NODE_ENV !== 'production' || process.env.LOG_LEVEL === 'debug') {
+    console.log(`📥 [${req.id}] ${req.method} ${req.originalUrl} - ${req.ip}`);
+  }
   
   // Log response time
   res.on('finish', () => {
     const duration = Date.now() - start;
     const status = res.statusCode;
     const statusEmoji = status >= 400 ? '❌' : status >= 300 ? '⚠️' : '✅';
-    console.log(`📤 [${req.id}] ${statusEmoji} ${status} - ${duration}ms`);
+    
+    if (process.env.NODE_ENV !== 'production' || process.env.LOG_LEVEL === 'debug') {
+      console.log(`📤 [${req.id}] ${statusEmoji} ${status} - ${duration}ms`);
+    }
   });
   
   next();
@@ -177,6 +197,19 @@ app.use(express.static('.'));
 
 // Serve uploaded files (avatars)
 app.use('/uploads', express.static('uploads'));
+
+// Optional: Auth route debugging (only in development with DEBUG_AUTH=true)
+if (process.env.NODE_ENV === 'development' && process.env.DEBUG_AUTH === 'true') {
+  app.use('/api/auth', (req, res, next) => {
+    console.log('\n🔍 === AUTH ROUTE DEBUG ===');
+    console.log('🔍 Method:', req.method);
+    console.log('🔍 URL:', req.url);
+    console.log('🔍 Headers:', req.headers);
+    console.log('🔍 Body:', req.body);
+    console.log('🔍 === END DEBUG ===\n');
+    next();
+  });
+}
 
 // Health check route
 app.get('/api/health', asyncHandler(async (req, res) => {
@@ -227,17 +260,12 @@ app.use('/api/notifications', notificationsRoutes);
 app.use('/api/checkout', checkoutRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/admin-revenue', adminRevenueRoutes);
-app.use('/api/instructor', instructorRevenueRoutes);
+app.use('/api/instructor', instructorRoutes);
 app.use('/api/enrollments', enrollmentRoutes);
 app.use('/api/quizzes', quizRoutes);
 app.use('/api/exams', examRoutes);
 app.use('/api/learning/exams', newExamRoutes);
 app.use('/api/assignments', assignmentsRoutes);
-
-
-// TODO: Add more routes as needed
-// app.use('/api/users', userRoutes);
-// app.use('/api/payments', paymentRoutes);
 
 // 404 handler for API routes (must be before global error handler)
 app.use('/api/*', notFoundHandler);
@@ -299,8 +327,9 @@ const startServer = async () => {
       console.error('❌ Server error:', error);
       if (error.code === 'EADDRINUSE') {
         console.log(`💡 Port ${PORT} is already in use. Try a different port.`);
+        console.log(`💡 Or kill the process: netstat -ano | findstr :${PORT}`);
       }
-      // process.exit(1); // Commented for debugging
+      process.exit(1);
     });
     
     server.on('listening', () => {

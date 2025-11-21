@@ -181,9 +181,10 @@ export const apiWithFallback = async (apiFn, fallbackFn, options = {}) => {
     console.warn('⚠️ API failed, using fallback:', error.message);
     
     if (useFallback && fallbackFn) {
+      const fallbackData = fallbackFn();
       return {
         success: true,
-        data: fallbackFn(),
+        ...fallbackData,  // Spread fallback data directly instead of nesting
         fromCache: true,
         offline: true
       };

@@ -61,6 +61,8 @@ const InstructorDashboard = lazy(() => import('../pages/instructor/InstructorDas
 const CourseManagement = lazy(() => import('../pages/instructor/CourseManagement'));
 const InstructorCourseManagement = lazy(() => import('../pages/instructor/InstructorCourseManagement'));
 const CourseCreateForm = lazy(() => import('../pages/instructor/CourseCreateForm'));
+const AssignmentGrading = lazy(() => import('../pages/instructor/AssignmentGrading'));
+const SubmissionDetail = lazy(() => import('../pages/instructor/SubmissionDetail'));
 
 // Legacy Pages (keeping for compatibility) - Lazy load these
 const TestPage = lazy(() => import('../pages/TestPage'));
@@ -507,10 +509,18 @@ const AppRouter = () => {
         } 
       />
       <Route 
-        path="/instructor/courses/:id" 
+        path="/instructor/courses/:courseId/assignments/grade" 
         element={
           <ProtectedRoute allowedRoles={[2, 1]}>
-            <CourseManagement />
+            <AssignmentGrading />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/instructor/submissions/:submissionId" 
+        element={
+          <ProtectedRoute allowedRoles={[2, 1]}>
+            <SubmissionDetail />
           </ProtectedRoute>
         } 
       />

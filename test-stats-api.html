@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Stats API - Debug 57 Issue</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; background: #f5f5f5; }
+        .result { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; }
+        pre { background: #f0f0f0; padding: 15px; border-radius: 4px; overflow-x: auto; }
+        button { padding: 10px 20px; background: #0066cc; color: white; border: none; border-radius: 4px; cursor: pointer; margin: 5px; }
+        button:hover { background: #0052a3; }
+        .error { color: red; }
+        .success { color: green; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Test Stats API - Debug totalStudents = 57</h1>
+    
+    <div>
+        <button onclick="testStatsAPI()">1. Test /api/instructor/stats</button>
+        <button onclick="testCoursesAPI()">2. Test /api/instructor/courses</button>
+        <button onclick="testBothAndCompare()">3. Test Both & Compare</button>
+        <button onclick="clearCache()">Clear Browser Cache</button>
+    </div>
+
+    <div id="result" class="result"></div>
+
+    <script>
+        const API_BASE = 'http://localhost:3001';
+        
+        function getToken() {
+            const authStr = localStorage.getItem('auth');
+            if (authStr) {
+                try {
+                    const auth = JSON.parse(authStr);
+                    return auth.token;
+                } catch (e) {
+                    return null;
+                }
+            }
+            return null;
+        }
+
+        async function testStatsAPI() {
+            const resultEl = document.getElementById('result');
+            resultEl.innerHTML = '<p>Testing...</p>';
+            
+            try {
+                const token = getToken();
+                if (!token) {
+                    resultEl.innerHTML = '<p class="error">No token found! Please login first.</p>';
+                    return;
+                }
+
+                const response = await fetch(`${API_BASE}/api/instructor/stats`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Cache-Control': 'no-cache, no-store, must-revalidate',
+                        'Pragma': 'no-cache',
+                        'Expires': '0'
+                    }
+                });
+
+                const data = await response.json();
+                
+                resultEl.innerHTML = `
+<h2 class="success">✅ Stats API Response</h2>
+<p><strong>URL:</strong> ${API_BASE}/api/instructor/stats</p>
+<p><strong>Status:</strong> ${response.status}</p>
+
+<h3>Stats Data:</h3>
+<pre>${JSON.stringify(data, null, 2)}</pre>
+
+<h3>totalStudents Value:</h3>
+<pre style="font-size: 24px; color: ${data.data?.totalStudents === 57 ? 'red' : 'green'}">
+${data.data?.totalStudents} ${data.data?.totalStudents === 57 ? '❌ WRONG!' : '✅ CORRECT!'}
+</pre>
+                `;
+            } catch (error) {
+                resultEl.innerHTML = `<p class="error">❌ Error: ${error.message}</p>`;
+            }
+        }
+
+        async function testCoursesAPI() {
+            const resultEl = document.getElementById('result');
+            resultEl.innerHTML = '<p>Testing...</p>';
+            
+            try {
+                const token = getToken();
+                if (!token) {
+                    resultEl.innerHTML = '<p class="error">No token found!</p>';
+                    return;
+                }
+
+                const response = await fetch(`${API_BASE}/api/instructor/courses`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Cache-Control': 'no-cache, no-store, must-revalidate'
+                    }
+                });
+
+                const data = await response.json();
+                const courses = data.data || [];
+                
+                let totalFromCourses = 0;
+                const breakdown = courses.map(c => {
+                    totalFromCourses += (c.total_students || 0);
+                    return `Course ${c.course_id}: ${c.total_students} students`;
+                }).join('\n');
+
+                resultEl.innerHTML = `
+<h2 class="success">✅ Courses API Response</h2>
+<p><strong>Total courses:</strong> ${courses.length}</p>
+
+<h3>Per-Course Students:</h3>
+<pre>${breakdown}</pre>
+
+<h3>Sum of all total_students:</h3>
+<pre style="font-size: 24px; color: ${totalFromCourses === 57 ? 'red' : 'green'}">
+${totalFromCourses} ${totalFromCourses === 57 ? '❌ (This is WRONG - counting enrollments not unique users)' : '✅'}
+</pre>
+
+<h3>Full Response:</h3>
+<pre>${JSON.stringify(data, null, 2)}</pre>
+                `;
+            } catch (error) {
+                resultEl.innerHTML = `<p class="error">❌ Error: ${error.message}</p>`;
+            }
+        }
+
+        async function testBothAndCompare() {
+            const resultEl = document.getElementById('result');
+            resultEl.innerHTML = '<p>Testing both APIs...</p>';
+            
+            try {
+                const token = getToken();
+                if (!token) {
+                    resultEl.innerHTML = '<p class="error">No token!</p>';
+                    return;
+                }
+
+                const headers = {
+                    'Authorization': `Bearer ${token}`,
+                    'Cache-Control': 'no-cache, no-store, must-revalidate'
+                };
+
+                const [statsRes, coursesRes] = await Promise.all([
+                    fetch(`${API_BASE}/api/instructor/stats`, { headers }),
+                    fetch(`${API_BASE}/api/instructor/courses`, { headers })
+                ]);
+
+                const statsData = await statsRes.json();
+                const coursesData = await coursesRes.json();
+
+                const totalFromStats = statsData.data?.totalStudents;
+                const courses = coursesData.data || [];
+                const totalFromCourses = courses.reduce((sum, c) => sum + (c.total_students || 0), 0);
+
+                resultEl.innerHTML = `
+<h2>📊 Comparison Results</h2>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+    <div style="background: #fff3cd; padding: 15px; border-radius: 8px;">
+        <h3>Stats API</h3>
+        <p style="font-size: 32px; margin: 10px 0;"><strong>${totalFromStats}</strong></p>
+        <p>totalStudents from /api/instructor/stats</p>
+    </div>
+    
+    <div style="background: #f8d7da; padding: 15px; border-radius: 8px;">
+        <h3>Courses Sum</h3>
+        <p style="font-size: 32px; margin: 10px 0;"><strong>${totalFromCourses}</strong></p>
+        <p>Sum of total_students from all courses</p>
+    </div>
+</div>
+
+<div style="background: ${totalFromStats === totalFromCourses ? '#d4edda' : '#f8d7da'}; padding: 15px; border-radius: 8px; margin-top: 20px;">
+    <h3>${totalFromStats === totalFromCourses ? '✅ MATCH!' : '❌ MISMATCH!'}</h3>
+    <p>${totalFromStats === totalFromCourses 
+        ? 'Both APIs return the same value - good!' 
+        : `Stats shows ${totalFromStats} but courses sum to ${totalFromCourses}`}</p>
+</div>
+
+<h3>Expected: 12 unique students</h3>
+<p>If showing 57, the query is counting enrollments not unique users!</p>
+
+<details>
+    <summary>Stats API Full Response</summary>
+    <pre>${JSON.stringify(statsData, null, 2)}</pre>
+</details>
+
+<details>
+    <summary>Courses API Full Response</summary>
+    <pre>${JSON.stringify(coursesData, null, 2)}</pre>
+</details>
+                `;
+            } catch (error) {
+                resultEl.innerHTML = `<p class="error">❌ Error: ${error.message}</p>`;
+            }
+        }
+
+        function clearCache() {
+            localStorage.removeItem('apiCache');
+            sessionStorage.clear();
+            document.getElementById('result').innerHTML = `
+<p class="success">✅ Cleared:</p>
+<ul>
+    <li>localStorage apiCache</li>
+    <li>sessionStorage</li>
+</ul>
+<p>Now refresh the page or test again!</p>
+            `;
+        }
+
+        // Auto-run test on load
+        window.onload = () => {
+            if (getToken()) {
+                testBothAndCompare();
+            } else {
+                document.getElementById('result').innerHTML = '<p class="error">Please login first at http://localhost:5173</p>';
+            }
+        };
+    </script>
+</body>
+</html>

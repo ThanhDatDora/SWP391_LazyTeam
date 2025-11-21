@@ -82,12 +82,25 @@ const apiRequest = async (endpoint, options = {}) => {
           validationErrors: data.errors
         };
       }
-      throw new Error(data.message || 'API request failed');
+      
+      // Return standardized error format
+      return {
+        success: false,
+        error: data.error || data.message || 'API request failed'
+      };
     }
     
-    // ✅ FIX: Don't double-wrap if backend already returns { success: true, data: ... }
-    // Just return the backend response directly
-    const result = data.success !== undefined ? data : { success: true, data };
+    // ✅ SMART HANDLING: Check if backend already wrapped response
+    // If backend returns { success: true, data: {...} }, use it as-is
+    // Otherwise, wrap it for consistency
+    let result;
+    if (data && typeof data === 'object' && 'success' in data) {
+      // Backend already wrapped - use as-is
+      result = data;
+    } else {
+      // Backend returned raw data - wrap it
+      result = { success: true, data };
+    }
     
     // Cache successful GET requests (but not auth endpoints)
     if ((!options.method || options.method === 'GET') && !isAuthEndpoint) {
@@ -636,6 +649,15 @@ export const instructorAPI = {
     return await courseAPI.updateCourse(courseId, courseData);
   },
 
+  // Dashboard APIs
+  async getCourses() {
+    return await apiRequest('/instructor/courses');
+  },
+
+  async getStats() {
+    return await apiRequest('/instructor/stats');
+  },
+
   // Revenue APIs
   async getRevenueSummary() {
     return await apiRequest('/instructor/revenue/summary');
@@ -771,6 +793,17 @@ const assignmentsAPI = {
 
   async getInstructorSubmissions() {
     return await apiRequest('/assignments/instructor/submissions');
+  },
+
+  async getSubmissionDetail(submissionId) {
+    return await apiRequest(`/assignments/submissions/${submissionId}`);
+  },
+
+  async gradeSubmission(submissionId, data) {
+    return await apiRequest(`/assignments/submissions/${submissionId}/grade`, {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
   }
 };
 

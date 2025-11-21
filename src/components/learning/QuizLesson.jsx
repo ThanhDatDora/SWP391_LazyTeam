@@ -27,6 +27,17 @@ const QuizLesson = ({ lesson, onComplete }) => {
 
     try {
       const parsed = JSON.parse(lesson.content_url);
+      
+      // ✅ FIX: Ensure correctAnswer is NUMBER, not string
+      if (parsed.questions && Array.isArray(parsed.questions)) {
+        parsed.questions = parsed.questions.map(q => ({
+          ...q,
+          correctAnswer: typeof q.correctAnswer === 'string' 
+            ? parseInt(q.correctAnswer, 10) 
+            : q.correctAnswer
+        }));
+      }
+      
       setQuizData(parsed);
       if (parsed.timeLimit) {
         setTimeLeft(parsed.timeLimit * 60); // Convert minutes to seconds
@@ -68,13 +79,40 @@ const QuizLesson = ({ lesson, onComplete }) => {
 
   const handleSubmit = () => {
     let correctCount = 0;
+    
+    console.log('🎯 Grading quiz...', {
+      totalQuestions: quizData.questions.length,
+      selectedAnswers
+    });
+    
     quizData.questions.forEach(q => {
-      if (selectedAnswers[q.id] === q.correctAnswer) {
+      const userAnswer = selectedAnswers[q.id];
+      const correctAnswer = q.correctAnswer;
+      const isCorrect = userAnswer === correctAnswer;
+      
+      console.log(`Question ${q.id}:`, {
+        question: q.question,
+        userAnswer,
+        userAnswerType: typeof userAnswer,
+        correctAnswer,
+        correctAnswerType: typeof correctAnswer,
+        isCorrect,
+        comparison: `${userAnswer} === ${correctAnswer}`
+      });
+      
+      if (isCorrect) {
         correctCount++;
       }
     });
 
     const percentage = (correctCount / quizData.questions.length) * 100;
+    
+    console.log('📊 Quiz Results:', {
+      correctCount,
+      totalQuestions: quizData.questions.length,
+      percentage: percentage.toFixed(2) + '%'
+    });
+    
     setScore(percentage);
     setShowResults(true);
 

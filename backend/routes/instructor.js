@@ -1,9 +1,63 @@
 import express from 'express';
 import { authenticateToken, authorizeRoles } from '../middleware/auth.js';
-import sql from 'mssql';
-import { getPool } from '../config/database.js';
+import { getPool, sql } from '../config/database.js';
 
 const router = express.Router();
+
+// ==================== INSTRUCTOR COURSES ====================
+
+/**
+ * GET /api/instructor/courses
+ * Get all courses for the authenticated instructor
+ */
+router.get('/courses', authenticateToken, authorizeRoles('instructor', 'admin'), async (req, res) => {
+  try {
+    const instructorId = req.user.userId;
+    const pool = await getPool();
+
+    console.log('📚 Getting courses for instructor:', instructorId);
+
+    const result = await pool.request()
+      .input('instructor_id', sql.BigInt, instructorId)
+      .query(`
+        SELECT 
+          c.course_id,
+          c.title,
+          c.description,
+          c.price,
+          c.status,
+          c.created_at,
+          c.updated_at,
+          COUNT(DISTINCT e.user_id) as total_students,
+          COUNT(DISTINCT m.mooc_id) as total_moocs,
+          ISNULL(AVG(CAST(r.rating as FLOAT)), 0) as avg_rating
+        FROM courses c
+        LEFT JOIN enrollments e ON c.course_id = e.course_id
+        LEFT JOIN moocs m ON c.course_id = m.course_id
+        LEFT JOIN reviews r ON c.course_id = r.course_id
+        WHERE c.owner_instructor_id = @instructor_id
+        GROUP BY 
+          c.course_id, c.title, c.description, c.price, 
+          c.status, c.created_at, c.updated_at
+        ORDER BY c.created_at DESC
+      `);
+
+    console.log(`✅ Found ${result.recordset.length} courses`);
+
+    res.json({
+      success: true,
+      data: result.recordset
+    });
+
+  } catch (error) {
+    console.error('❌ Error getting instructor courses:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get courses',
+      message: error.message
+    });
+  }
+});
 
 // ==================== MOOC MANAGEMENT ====================
 
@@ -486,34 +540,28 @@ router.get('/courses/:courseId/students', authenticateToken, authorizeRoles('ins
 
     const pool = await getPool();
     const result = await pool.request()
-      .input('course_id', sql.Int, courseId)
+      .input('course_id', sql.BigInt, courseId)
       .query(`
         SELECT 
           e.enrollment_id,
           e.user_id,
           e.enrolled_at,
-          e.is_completed,
-          e.completion_date,
           u.full_name,
           u.email,
-          u.avatar,
-          COUNT(DISTINCT p.progress_id) as completed_lessons,
+          e.progress_percentage,
           COUNT(DISTINCT l.lesson_id) as total_lessons
         FROM enrollments e
         JOIN users u ON e.user_id = u.user_id
         LEFT JOIN moocs m ON e.course_id = m.course_id
         LEFT JOIN lessons l ON m.mooc_id = l.mooc_id
-        LEFT JOIN progress p ON u.user_id = p.user_id AND l.lesson_id = p.lesson_id AND p.is_completed = 1
         WHERE e.course_id = @course_id
         GROUP BY 
           e.enrollment_id,
           e.user_id,
           e.enrolled_at,
-          e.is_completed,
-          e.completion_date,
           u.full_name,
           u.email,
-          u.avatar
+          e.progress_percentage
         ORDER BY e.enrolled_at DESC
       `);
 
@@ -531,6 +579,73 @@ router.get('/courses/:courseId/students', authenticateToken, authorizeRoles('ins
   }
 });
 
+// ==================== DASHBOARD STATS ====================
+
+/**
+ * GET /api/instructor/stats
+ * Get instructor dashboard statistics
+ */
+router.get('/stats', authenticateToken, authorizeRoles('instructor', 'admin'), async (req, res) => {
+  try {
+    const instructorId = req.user.userId;
+    const pool = await getPool();
+
+    console.log('📊 Getting stats for instructor:', instructorId);
+
+    // Get course count and student count
+    const statsResult = await pool.request()
+      .input('instructor_id', sql.BigInt, instructorId)
+      .query(`
+        SELECT 
+          COUNT(DISTINCT c.course_id) as total_courses,
+          COUNT(DISTINCT e.user_id) as total_students,
+          ISNULL(AVG(CAST(r.rating as FLOAT)), 0) as avg_rating,
+          SUM(CASE WHEN c.status = 'active' THEN 1 ELSE 0 END) as active_courses
+        FROM courses c
+        LEFT JOIN enrollments e ON c.course_id = e.course_id
+        LEFT JOIN reviews r ON c.course_id = r.course_id
+        WHERE c.owner_instructor_id = @instructor_id
+      `);
+
+    // Get assignment submissions count
+    const submissionsResult = await pool.request()
+      .input('instructor_id', sql.BigInt, instructorId)
+      .query(`
+        SELECT 
+          COUNT(*) as total_submissions,
+          SUM(CASE WHEN es.status = 'submitted' THEN 1 ELSE 0 END) as pending_grading
+        FROM essay_submissions es
+        INNER JOIN essay_tasks et ON es.task_id = et.task_id
+        INNER JOIN moocs m ON et.mooc_id = m.mooc_id
+        INNER JOIN courses c ON m.course_id = c.course_id
+        WHERE c.owner_instructor_id = @instructor_id
+      `);
+
+    const stats = statsResult.recordset[0];
+    const submissions = submissionsResult.recordset[0];
+
+    res.json({
+      success: true,
+      data: {
+        totalCourses: stats.total_courses || 0,
+        activeCourses: stats.active_courses || 0,
+        totalStudents: stats.total_students || 0,
+        averageRating: stats.avg_rating || 0,
+        totalSubmissions: submissions.total_submissions || 0,
+        pendingGrading: submissions.pending_grading || 0
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error getting instructor stats:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get stats',
+      message: error.message
+    });
+  }
+});
+
 // ==================== REVENUE & ANALYTICS ====================
 
 /**
@@ -542,54 +657,53 @@ router.get('/revenue/summary', authenticateToken, authorizeRoles('instructor', '
     const instructorId = req.user.userId;
     const pool = await getPool();
 
-    // Get total revenue from paid enrollments (80% instructor share)
+    // Calculate revenue from payments table (stored in USD)
+    // amount_cents is stored as USD cents (price × 100)
+    // No need to divide by 1000 anymore - payments are in USD
     const revenueQuery = await pool.request()
-      .input('instructor_id', sql.Int, instructorId)
+      .input('instructor_id', sql.BigInt, instructorId)
       .query(`
         SELECT 
-          COUNT(DISTINCT e.enrollment_id) as total_sales,
-          COUNT(DISTINCT e.enrollment_id) as total_students,
-          ISNULL(SUM(p.amount), 0) as total_revenue,
-          ISNULL(SUM(p.amount * 0.8), 0) as instructor_share
+          COUNT(DISTINCT p.payment_id) as total_sales,
+          COUNT(DISTINCT e.user_id) as total_students,
+          ISNULL(SUM(p.amount_cents / 100.0), 0) as total_revenue,
+          ISNULL(SUM(p.amount_cents / 100.0 * 0.8), 0) as instructor_share
         FROM courses c
         LEFT JOIN enrollments e ON c.course_id = e.course_id
-        LEFT JOIN invoices i ON e.enrollment_id = i.enrollment_id
-        LEFT JOIN payments p ON i.invoice_id = p.invoice_id AND p.status = 'paid'
+        LEFT JOIN payments p ON e.enrollment_id = p.enrollment_id AND p.status IN ('paid', 'completed')
         WHERE c.owner_instructor_id = @instructor_id
       `);
 
     // Get monthly revenue for last 6 months
     const monthlyQuery = await pool.request()
-      .input('instructor_id', sql.Int, instructorId)
+      .input('instructor_id', sql.BigInt, instructorId)
       .query(`
         SELECT 
-          FORMAT(p.payment_date, 'yyyy-MM') as month,
+          FORMAT(p.paid_at, 'yyyy-MM') as month,
           COUNT(DISTINCT e.enrollment_id) as sales,
-          ISNULL(SUM(p.amount), 0) as revenue,
-          ISNULL(SUM(p.amount * 0.8), 0) as instructor_share
+          ISNULL(SUM(p.amount_cents / 100.0), 0) as revenue,
+          ISNULL(SUM(p.amount_cents / 100.0 * 0.8), 0) as instructor_share
         FROM courses c
         LEFT JOIN enrollments e ON c.course_id = e.course_id
-        LEFT JOIN invoices i ON e.enrollment_id = i.enrollment_id
-        LEFT JOIN payments p ON i.invoice_id = p.invoice_id AND p.status = 'paid'
+        LEFT JOIN payments p ON e.enrollment_id = p.enrollment_id AND p.status IN ('paid', 'completed')
         WHERE c.owner_instructor_id = @instructor_id
-          AND p.payment_date >= DATEADD(MONTH, -6, GETDATE())
-        GROUP BY FORMAT(p.payment_date, 'yyyy-MM')
+          AND p.paid_at >= DATEADD(MONTH, -6, GETDATE())
+        GROUP BY FORMAT(p.paid_at, 'yyyy-MM')
         ORDER BY month DESC
       `);
 
     // Get top courses by revenue
     const topCoursesQuery = await pool.request()
-      .input('instructor_id', sql.Int, instructorId)
+      .input('instructor_id', sql.BigInt, instructorId)
       .query(`
         SELECT TOP 5
           c.course_id,
           c.title,
           COUNT(DISTINCT e.enrollment_id) as enrollments,
-          ISNULL(SUM(p.amount), 0) as revenue
+          ISNULL(SUM(p.amount_cents / 100.0), 0) as revenue
         FROM courses c
         LEFT JOIN enrollments e ON c.course_id = e.course_id
-        LEFT JOIN invoices i ON e.enrollment_id = i.enrollment_id
-        LEFT JOIN payments p ON i.invoice_id = p.invoice_id AND p.status = 'paid'
+        LEFT JOIN payments p ON e.enrollment_id = p.enrollment_id AND p.status IN ('paid', 'completed')
         WHERE c.owner_instructor_id = @instructor_id
         GROUP BY c.course_id, c.title
         ORDER BY revenue DESC

@@ -16,23 +16,50 @@ const AssignmentLesson = ({ lesson, onComplete }) => {
   const [submissionText, setSubmissionText] = React.useState('');
   const [submitted, setSubmitted] = React.useState(false);
   const [submitting, setSubmitting] = React.useState(false);
+  const [existingSubmission, setExistingSubmission] = React.useState(null);
+  const [loadingSubmission, setLoadingSubmission] = React.useState(true);
+  const [showResubmitForm, setShowResubmitForm] = React.useState(false);
 
   React.useEffect(() => {
     // Check if content_url is null or invalid
     if (!lesson.content_url || lesson.content_url === 'null' || lesson.content_url === 'N/A') {
       console.warn('⚠️ Assignment has no content_url:', lesson);
       setParseError(true);
+      setLoadingSubmission(false);
       return;
     }
 
     try {
       const parsed = JSON.parse(lesson.content_url);
       setAssignmentData(parsed);
+      loadExistingSubmission();
     } catch (error) {
       console.error('Failed to parse assignment data:', error);
       setParseError(true);
+      setLoadingSubmission(false);
     }
-  }, [lesson.content_url]);
+  }, [lesson.content_url, lesson.lesson_id]);
+
+  const loadExistingSubmission = async () => {
+    try {
+      setLoadingSubmission(true);
+      const result = await api.assignments.getSubmission(lesson.lesson_id);
+      console.log('📥 Loaded submission:', result.data);
+      if (result.success && result.data) {
+        setExistingSubmission(result.data);
+        setSubmitted(true);
+        setSubmissionText(result.data.content_text || '');
+      } else {
+        // No existing submission
+        setExistingSubmission(null);
+        setSubmitted(false);
+      }
+    } catch (error) {
+      console.error('Error loading submission:', error);
+    } finally {
+      setLoadingSubmission(false);
+    }
+  };
 
   const handleFileChange = (e) => {
     const selectedFile = e.target.files[0];
@@ -57,14 +84,15 @@ const AssignmentLesson = ({ lesson, onComplete }) => {
 
       if (response.success) {
         setSubmitted(true);
+        setShowResubmitForm(false); // Hide form after successful submit
         toast.success('Nộp bài thành công!');
+        
+        // Reload submission to get latest data
+        await loadExistingSubmission();
 
-        // Mark as complete
-        if (onComplete && !lesson.completed) {
-          setTimeout(() => {
-            onComplete();
-          }, 1000);
-        }
+        // NOTE: Do NOT mark assignment as complete here
+        // Assignment should only be completed when instructor grades it
+        // The backend will auto-complete when grading happens
       } else {
         throw new Error(response.error || 'Submission failed');
       }
@@ -169,7 +197,7 @@ const AssignmentLesson = ({ lesson, onComplete }) => {
           )}
 
           {/* Submission Form */}
-          {!submitted && !lesson.completed && (
+          {(showResubmitForm || (!submitted && !existingSubmission)) && (
             <Card className="shadow-lg border-2 border-orange-200">
               <CardContent className="p-6">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Nộp bài làm</h3>
@@ -215,40 +243,149 @@ const AssignmentLesson = ({ lesson, onComplete }) => {
                 </div>
 
                 {/* Submit Button */}
-                <Button
-                  onClick={handleSubmit}
-                  disabled={(!submissionText.trim() && !file) || submitting}
-                  className="w-full bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white py-3"
-                >
-                  {submitting ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                      Đang nộp bài...
-                    </>
-                  ) : (
-                    <>
-                      <Upload className="h-4 w-4 mr-2" />
-                      Nộp bài
-                    </>
+                <div className="space-y-2">
+                  <Button
+                    onClick={handleSubmit}
+                    disabled={(!submissionText.trim() && !file) || submitting}
+                    className="w-full bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white py-3"
+                  >
+                    {submitting ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        Đang nộp bài...
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="h-4 w-4 mr-2" />
+                        {existingSubmission ? 'Nộp lại bài' : 'Nộp bài'}
+                      </>
+                    )}
+                  </Button>
+                  
+                  {/* Cancel button when resubmitting */}
+                  {showResubmitForm && existingSubmission && (
+                    <Button
+                      onClick={() => {
+                        setShowResubmitForm(false);
+                        setSubmitted(true);
+                        setSubmissionText(existingSubmission.content_text || '');
+                        setFile(null);
+                      }}
+                      variant="outline"
+                      className="w-full"
+                    >
+                      Hủy
+                    </Button>
                   )}
-                </Button>
+                </div>
               </CardContent>
             </Card>
           )}
 
-          {/* Success Message */}
-          {submitted && (
-            <Card className="shadow-lg border-2 border-green-200 bg-green-50">
+          {/* Grading Result & Resubmit */}
+          {existingSubmission && !showResubmitForm && (
+            <Card className={`shadow-lg border-2 ${
+              existingSubmission.score !== null 
+                ? existingSubmission.score >= 50 
+                  ? 'border-green-200 bg-green-50' 
+                  : 'border-red-200 bg-red-50'
+                : 'border-yellow-200 bg-yellow-50'
+            }`}>
               <CardContent className="p-6">
-                <div className="text-center">
-                  <div className="w-16 h-16 rounded-full bg-green-100 mx-auto mb-4 flex items-center justify-center">
-                    <CheckCircle className="h-8 w-8 text-green-600" />
-                  </div>
-                  <h3 className="text-xl font-semibold text-green-900 mb-2">Nộp bài thành công!</h3>
-                  <p className="text-green-700">
-                    Bài làm của bạn đã được gửi. Giảng viên sẽ chấm điểm và phản hồi sớm nhất.
-                  </p>
-                </div>
+                {existingSubmission.score !== null ? (
+                  <>
+                    {/* Graded */}
+                    <div className="text-center mb-4">
+                      <div className={`w-20 h-20 rounded-full mx-auto mb-4 flex items-center justify-center ${
+                        existingSubmission.score >= 50 ? 'bg-green-100' : 'bg-red-100'
+                      }`}>
+                        {existingSubmission.score >= 50 ? (
+                          <CheckCircle className="h-10 w-10 text-green-600" />
+                        ) : (
+                          <AlertCircle className="h-10 w-10 text-red-600" />
+                        )}
+                      </div>
+                      <h3 className={`text-2xl font-bold mb-2 ${
+                        existingSubmission.score >= 50 ? 'text-green-900' : 'text-red-900'
+                      }`}>
+                        Điểm: {existingSubmission.score}/100
+                      </h3>
+                      <p className={`font-medium ${
+                        existingSubmission.score >= 50 ? 'text-green-700' : 'text-red-700'
+                      }`}>
+                        {existingSubmission.score >= 50 ? 'Đã hoàn thành!' : 'Chưa đạt yêu cầu'}
+                      </p>
+                    </div>
+
+                    {/* Feedback */}
+                    {existingSubmission.feedback && (
+                      <div className="bg-white rounded-lg p-4 mb-4">
+                        <h4 className="font-semibold text-gray-900 mb-2">Nhận xét của giảng viên:</h4>
+                        <p className="text-gray-700 whitespace-pre-wrap">{existingSubmission.feedback}</p>
+                      </div>
+                    )}
+
+                    {/* Grader Info */}
+                    {existingSubmission.grader_name && (
+                      <p className="text-sm text-gray-600 text-center mb-4">
+                        Chấm bởi: {existingSubmission.grader_name} - {new Date(existingSubmission.graded_at).toLocaleString('vi-VN')}
+                      </p>
+                    )}
+
+                    {/* Previous Submission Content */}
+                    <div className="bg-white rounded-lg p-4 mb-4">
+                      <h4 className="font-semibold text-gray-900 mb-2">Nội dung bài làm của bạn:</h4>
+                      <p className="text-gray-700 whitespace-pre-wrap">
+                        {existingSubmission.content_text || 'Không có nội dung văn bản'}
+                      </p>
+                      {existingSubmission.file_url && (
+                        <div className="mt-3 pt-3 border-t border-gray-200">
+                          <p className="text-sm text-gray-600 mb-2">File đính kèm:</p>
+                          <a
+                            href={`http://localhost:3001${existingSubmission.file_url}`}
+                            download
+                            className="inline-flex items-center gap-2 text-blue-600 hover:underline"
+                          >
+                            <FileText className="w-4 h-4" />
+                            {existingSubmission.file_name || 'Tải file đã nộp'}
+                          </a>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Resubmit/Improve Buttons */}
+                    <div className="mt-4 space-y-2">
+                      <Button
+                        onClick={() => {
+                          setShowResubmitForm(true);
+                          setSubmitted(false);
+                          setSubmissionText(existingSubmission.content_text || '');
+                        }}
+                        className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white"
+                      >
+                        {existingSubmission.score < 50 ? 'Làm lại để cải thiện điểm' : 'Nộp lại để cải thiện điểm'}
+                      </Button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    {/* Waiting for grading */}
+                    <div className="text-center">
+                      <div className="w-16 h-16 rounded-full bg-yellow-100 mx-auto mb-4 flex items-center justify-center">
+                        <Clock className="h-8 w-8 text-yellow-600" />
+                      </div>
+                      <h3 className="text-xl font-semibold text-yellow-900 mb-2">Đang chờ chấm điểm</h3>
+                      <p className="text-yellow-700 mb-4">
+                        Bài làm của bạn đã được gửi. Giảng viên sẽ chấm điểm và phản hồi sớm nhất.
+                      </p>
+                      {existingSubmission.submitted_at && (
+                        <p className="text-sm text-gray-600">
+                          Nộp lúc: {new Date(existingSubmission.submitted_at).toLocaleString('vi-VN')}
+                        </p>
+                      )}
+                    </div>
+                  </>
+                )}
               </CardContent>
             </Card>
           )}
