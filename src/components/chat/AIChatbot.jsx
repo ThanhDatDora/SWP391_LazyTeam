@@ -16,7 +16,7 @@ import { Send, X, MessageCircle, Loader2, Sparkles, Trash2, RotateCcw } from 'lu
 import { useAuth } from '../../contexts/AuthContext';
 
 const GEMINI_API_KEY = 'AIzaSyD7tyKqjZE17xudVXMjPnP-LEJ9SgQ173o';
-const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
 
 /**
  * AIChatbot Component
