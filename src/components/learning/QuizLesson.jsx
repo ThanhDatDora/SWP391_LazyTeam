@@ -16,37 +16,93 @@ const QuizLesson = ({ lesson, onComplete }) => {
   const [score, setScore] = React.useState(0);
   const [timeLeft, setTimeLeft] = React.useState(null);
   const [parseError, setParseError] = React.useState(false);
+  const [loading, setLoading] = React.useState(true);
 
   React.useEffect(() => {
-    // Check if content_url is null or invalid
-    if (!lesson.content_url || lesson.content_url === 'null' || lesson.content_url === 'N/A') {
-      console.warn('⚠️ Quiz has no content_url:', lesson);
-      setParseError(true);
-      return;
-    }
+    const loadQuizData = async () => {
+      // Check if content_url is null or invalid
+      if (!lesson.content_url || lesson.content_url === 'null' || lesson.content_url === 'N/A') {
+        console.warn('⚠️ Quiz has no content_url:', lesson);
+        setParseError(true);
+        setLoading(false);
+        return;
+      }
 
-    try {
-      const parsed = JSON.parse(lesson.content_url);
-      
-      // ✅ FIX: Ensure correctAnswer is NUMBER, not string
-      if (parsed.questions && Array.isArray(parsed.questions)) {
-        parsed.questions = parsed.questions.map(q => ({
-          ...q,
-          correctAnswer: typeof q.correctAnswer === 'string' 
-            ? parseInt(q.correctAnswer, 10) 
-            : q.correctAnswer
-        }));
+      try {
+        const parsed = JSON.parse(lesson.content_url);
+        
+        // Check if this is new format (Question Bank)
+        if (parsed.type === 'quiz_v2') {
+          console.log('🎯 Loading Quiz from Question Bank...', parsed);
+          
+          // Fetch random questions from Question Bank
+          const token = localStorage.getItem('token');
+          const response = await fetch(
+            `${import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001'}/api/question-bank/mooc/${lesson.mooc_id}/random?limit=${parsed.numQuestions}`,
+            {
+              headers: {
+                'Authorization': `Bearer ${token}`
+              }
+            }
+          );
+
+          if (!response.ok) {
+            throw new Error('Failed to fetch questions from Question Bank');
+          }
+
+          const data = await response.json();
+          
+          if (!data.success || !data.data || data.data.length === 0) {
+            throw new Error('No questions available in Question Bank');
+          }
+
+          // Transform Question Bank format to quiz format
+          const questions = data.data.map((q, index) => ({
+            id: q.question_id,
+            question: q.stem,
+            options: q.options.map(opt => opt.content),
+            correctAnswer: q.options.findIndex(opt => !!opt.is_correct)
+          }));
+
+          const quizDataFormatted = {
+            type: 'quiz_v2',
+            timeLimit: parsed.timeLimit,
+            passingScore: parsed.passingScore,
+            questions: questions
+          };
+
+          console.log('✅ Loaded questions from Question Bank:', quizDataFormatted);
+          setQuizData(quizDataFormatted);
+          if (parsed.timeLimit) {
+            setTimeLeft(parsed.timeLimit * 60);
+          }
+        } else {
+          // Old format with inline questions
+          if (parsed.questions && Array.isArray(parsed.questions)) {
+            parsed.questions = parsed.questions.map(q => ({
+              ...q,
+              correctAnswer: typeof q.correctAnswer === 'string' 
+                ? parseInt(q.correctAnswer, 10) 
+                : q.correctAnswer
+            }));
+          }
+          
+          setQuizData(parsed);
+          if (parsed.timeLimit) {
+            setTimeLeft(parsed.timeLimit * 60);
+          }
+        }
+        
+        setLoading(false);
+      } catch (error) {
+        console.error('Failed to load quiz:', error);
+        setParseError(true);
+        setLoading(false);
       }
-      
-      setQuizData(parsed);
-      if (parsed.timeLimit) {
-        setTimeLeft(parsed.timeLimit * 60); // Convert minutes to seconds
-      }
-    } catch (error) {
-      console.error('Failed to parse quiz data:', error);
-      setParseError(true);
-    }
-  }, [lesson.content_url]);
+    };
+
+    loadQuizData();
+  }, [lesson.content_url, lesson.mooc_id]);
 
   React.useEffect(() => {
     if (timeLeft === null || timeLeft <= 0 || showResults) return;
@@ -132,6 +188,21 @@ const QuizLesson = ({ lesson, onComplete }) => {
     }
   };
 
+  // Loading UI
+  if (loading) {
+    return (
+      <div className="h-full flex items-center justify-center bg-gradient-to-br from-purple-50 via-white to-pink-50">
+        <div className="text-center p-8">
+          <div className="w-20 h-20 rounded-full bg-purple-100 mx-auto mb-4 flex items-center justify-center">
+            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-purple-600"></div>
+          </div>
+          <h3 className="text-2xl font-semibold text-gray-900 mb-2">Đang tải Quiz...</h3>
+          <p className="text-gray-600">Đang chuẩn bị câu hỏi từ Question Bank</p>
+        </div>
+      </div>
+    );
+  }
+
   // Error UI if no valid quiz data
   if (parseError || !quizData) {
     return (
@@ -141,7 +212,9 @@ const QuizLesson = ({ lesson, onComplete }) => {
             <HelpCircle className="h-10 w-10 text-orange-600" />
           </div>
           <h3 className="text-2xl font-semibold text-gray-900 mb-2">Quiz chưa có nội dung</h3>
-          <p className="text-gray-600 mb-4">Quiz này đang trong quá trình cập nhật</p>
+          <p className="text-gray-600 mb-4">
+            {parseError ? 'Không thể tải câu hỏi. Vui lòng kiểm tra lại Question Bank.' : 'Quiz này đang trong quá trình cập nhật'}
+          </p>
           <p className="text-xs text-gray-500 font-mono bg-gray-100 p-3 rounded inline-block">
             content_url: {lesson.content_url || 'null'}
           </p>

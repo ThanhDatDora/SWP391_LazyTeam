@@ -58,11 +58,13 @@ const AdminSettings = lazy(() => import('../pages/admin/AdminSettings'));
 
 // Instructor Pages
 const InstructorDashboard = lazy(() => import('../pages/instructor/InstructorDashboard'));
+const InstructorProfile = lazy(() => import('../pages/instructor/InstructorProfile'));
 const CourseManagement = lazy(() => import('../pages/instructor/CourseManagement'));
 const InstructorCourseManagement = lazy(() => import('../pages/instructor/InstructorCourseManagement'));
 const CourseCreateForm = lazy(() => import('../pages/instructor/CourseCreateForm'));
 const AssignmentGrading = lazy(() => import('../pages/instructor/AssignmentGrading'));
 const SubmissionDetail = lazy(() => import('../pages/instructor/SubmissionDetail'));
+const QuestionBank = lazy(() => import('../pages/instructor/QuestionBank'));
 
 // Legacy Pages (keeping for compatibility) - Lazy load these
 const TestPage = lazy(() => import('../pages/TestPage'));
@@ -493,6 +495,14 @@ const AppRouter = () => {
         } 
       />
       <Route 
+        path="/instructor/profile" 
+        element={
+          <ProtectedRoute allowedRoles={[2, 1]}>
+            <InstructorProfile />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
         path="/instructor/courses/create" 
         element={
           <ProtectedRoute allowedRoles={[2, 1]}>
@@ -513,6 +523,14 @@ const AppRouter = () => {
         element={
           <ProtectedRoute allowedRoles={[2, 1]}>
             <AssignmentGrading />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/instructor/courses/:courseId/question-bank" 
+        element={
+          <ProtectedRoute allowedRoles={[2, 1]}>
+            <QuestionBank />
           </ProtectedRoute>
         } 
       />

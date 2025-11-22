@@ -6,7 +6,6 @@ import { Badge } from '../../components/ui/badge';
 import { Textarea } from '../../components/ui/textarea';
 import { Input } from '../../components/ui/input';
 import { useNavigation } from '@/hooks/useNavigation';
-import api from '@/services/api';
 import { 
   FileText, 
   Download, 

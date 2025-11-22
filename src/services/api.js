@@ -319,6 +319,10 @@ export const courseAPI = {
       method: 'POST',
       body: JSON.stringify({ feedback })
     });
+  },
+
+  async getAllLessonsByCourse(courseId) {
+    return await apiRequest(`/courses/${courseId}/lessons`);
   }
 };
 
@@ -666,6 +670,44 @@ export const instructorAPI = {
   async getTransactions(params = {}) {
     const queryString = new URLSearchParams(params).toString();
     return await apiRequest(`/instructor/revenue/transactions${queryString ? '?' + queryString : ''}`);
+  },
+
+  // Profile APIs
+  async getProfile() {
+    return await apiRequest('/instructor/profile');
+  },
+
+  async updateProfile(profileData) {
+    return await apiRequest('/instructor/profile', {
+      method: 'PUT',
+      body: JSON.stringify(profileData)
+    });
+  },
+
+  async addCertification(certData) {
+    return await apiRequest('/instructor/certifications', {
+      method: 'POST',
+      body: JSON.stringify(certData)
+    });
+  },
+
+  async deleteCertification(certId) {
+    return await apiRequest(`/instructor/certifications/${certId}`, {
+      method: 'DELETE'
+    });
+  },
+
+  async addExperience(expData) {
+    return await apiRequest('/instructor/experiences', {
+      method: 'POST',
+      body: JSON.stringify(expData)
+    });
+  },
+
+  async deleteExperience(expId) {
+    return await apiRequest(`/instructor/experiences/${expId}`, {
+      method: 'DELETE'
+    });
   }
 };
 
@@ -807,6 +849,37 @@ const assignmentsAPI = {
   }
 };
 
+// Question Bank API
+export const questionBankAPI = {
+  async getQuestionsByMooc(moocId) {
+    return await apiRequest(`/question-bank/mooc/${moocId}`);
+  },
+
+  async getQuestionStats(moocId) {
+    return await apiRequest(`/question-bank/mooc/${moocId}/stats`);
+  },
+
+  async createQuestion(questionData) {
+    return await apiRequest('/question-bank', {
+      method: 'POST',
+      body: JSON.stringify(questionData)
+    });
+  },
+
+  async updateQuestion(questionId, questionData) {
+    return await apiRequest(`/question-bank/${questionId}`, {
+      method: 'PUT',
+      body: JSON.stringify(questionData)
+    });
+  },
+
+  async deleteQuestion(questionId) {
+    return await apiRequest(`/question-bank/${questionId}`, {
+      method: 'DELETE'
+    });
+  }
+};
+
 // Cache utilities
 export const cacheUtils = {
   clear: () => {
@@ -846,6 +919,7 @@ export const api = {
   checkout: checkoutAPI,
   vnpay: vnpayAPI,
   assignments: assignmentsAPI,
+  questionBank: questionBankAPI,
   cache: cacheUtils
 };
 

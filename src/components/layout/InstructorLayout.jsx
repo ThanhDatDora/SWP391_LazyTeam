@@ -109,6 +109,7 @@ const InstructorLayout = ({ children }) => {
     if (path === '/instructor/students') return 'students';
     if (path === '/instructor/revenue') return 'revenue';
     if (path === '/instructor/settings') return 'settings';
+    if (path === '/instructor/profile') return 'profile';
     return 'dashboard';
   };
 
@@ -397,6 +398,30 @@ const InstructorLayout = ({ children }) => {
 
               {/* Divider */}
               <div className="h-px my-3" style={{ backgroundColor: currentColors.border }} />
+
+              {/* Profile */}
+              <Link
+                to="/instructor/profile"
+                onClick={() => setSidebarOpen(false)}
+                className={`sidebar-menu-item ${activeMenu === 'profile' ? 'active' : ''} w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200`}
+                style={{
+                  backgroundColor: activeMenu === 'profile' ? currentColors.primary + '20' : 'transparent',
+                  color: activeMenu === 'profile' ? currentColors.primary : currentColors.text,
+                  fontWeight: activeMenu === 'profile' ? '600' : '500'
+                }}
+              >
+                <div 
+                  className="p-2 rounded-lg"
+                  style={{
+                    backgroundColor: activeMenu === 'profile' 
+                      ? (theme === 'dark' ? 'rgba(94, 234, 212, 0.2)' : 'rgba(255, 255, 255, 0.5)')
+                      : 'transparent'
+                  }}
+                >
+                  <Users className="w-5 h-5" />
+                </div>
+                <span className="font-medium">Hồ sơ của tôi</span>
+              </Link>
 
               {/* Settings */}
               <Link

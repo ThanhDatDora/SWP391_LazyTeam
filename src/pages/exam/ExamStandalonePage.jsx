@@ -32,14 +32,16 @@ const ExamStandalonePage = () => {
         
         console.log('📋 Direct course response:', courseResponse);
         console.log('📋 Response success:', courseResponse.success);
+        console.log('📋 Response data:', courseResponse.data);
         console.log('📋 Response course:', courseResponse.course);
         
-        if (!courseResponse.success || !courseResponse.course) {
+        // Backend returns {success: true, course: {...}} format
+        if (!courseResponse.success || (!courseResponse.data && !courseResponse.course)) {
           console.error('❌ Invalid course response:', courseResponse);
           throw new Error(courseResponse.error || 'Không thể tải thông tin khóa học');
         }
         
-        const courseData = courseResponse.course;
+        const courseData = courseResponse.data || courseResponse.course;
         console.log('✅ Course data loaded:', courseData);
         setCourse(courseData);
 

@@ -20,6 +20,31 @@ export const Dialog = ({ open, onOpenChange, children }) => {
   );
 };
 
+export const DialogTrigger = ({ asChild, children, onClick, ...props }) => {
+  if (asChild) {
+    // Clone the child element and merge onClick handlers
+    return React.cloneElement(children, {
+      ...props,
+      onClick: (e) => {
+        // Call the original onClick if exists
+        if (children.props.onClick) {
+          children.props.onClick(e);
+        }
+        // Call the DialogTrigger onClick (which opens the dialog)
+        if (onClick) {
+          onClick(e);
+        }
+      }
+    });
+  }
+  
+  return (
+    <button onClick={onClick} {...props}>
+      {children}
+    </button>
+  );
+};
+
 export const DialogContent = ({ children, className = '' }) => {
   return (
     <div className={`relative mx-auto max-w-lg bg-white rounded-lg shadow-xl p-6 ${className}`}>

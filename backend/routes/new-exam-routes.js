@@ -388,6 +388,26 @@ router.post('/:examId/submit', async (req, res) => {
       }
     }
 
+    // Create notification for exam result
+    const notificationTitle = passed 
+      ? '🎉 Kết quả thi - ĐẠT' 
+      : '📊 Kết quả thi - CHƯA ĐẠT';
+    const notificationMessage = passed
+      ? `Chúc mừng! Bạn đã vượt qua bài thi với điểm ${Math.round(score)}/100 (${correctAnswers}/${totalQuestions} câu đúng).`
+      : `Bạn đã hoàn thành bài thi với điểm ${Math.round(score)}/100 (${correctAnswers}/${totalQuestions} câu đúng). Điểm đạt tối thiểu là 70. Bạn có thể thi lại để cải thiện kết quả.`;
+
+    await pool.request()
+      .input('userId', sql.BigInt, userId)
+      .input('title', sql.NVarChar(255), notificationTitle)
+      .input('message', sql.NVarChar(sql.MAX), notificationMessage)
+      .input('type', sql.NVarChar(50), passed ? 'success' : 'warning')
+      .input('link', sql.NVarChar(500), `/learning/exam/${attempt.mooc_id}/result/${attempt_id}`)
+      .input('icon', sql.NVarChar(50), passed ? 'Award' : 'AlertCircle')
+      .query(`
+        INSERT INTO notifications (user_id, title, message, type, link, icon, is_read, created_at)
+        VALUES (@userId, @title, @message, @type, @link, @icon, 0, GETDATE())
+      `);
+
     res.json({
       success: true,
       data: {

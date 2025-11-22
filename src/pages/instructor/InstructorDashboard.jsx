@@ -302,9 +302,21 @@ const InstructorDashboard = () => {
                   </div>
 
                   <div className="flex items-center justify-between mb-4">
-                    <Badge variant={course.status === 'active' ? 'default' : course.status === 'archived' ? 'secondary' : 'outline'}>
-                      {course.status === 'active' ? 'Đang hoạt động' : course.status === 'archived' ? 'Lưu trữ' : course.status}
-                    </Badge>
+                    <div className="flex gap-2">
+                      <Badge variant={
+                        course.status === 'active' ? 'default' : 
+                        course.status === 'archived' ? 'secondary' : 
+                        course.status === 'pending' || course.status === 'draft' ? 'warning' : 'outline'
+                      } className={
+                        course.status === 'pending' || course.status === 'draft' ? 'bg-yellow-100 text-yellow-800 border-yellow-300' : 
+                        course.status === 'active' ? 'bg-green-100 text-green-800 border-green-300' : ''
+                      }>
+                        {course.status === 'active' ? 'Đã duyệt' : 
+                         course.status === 'archived' ? 'Đã từ chối' : 
+                         course.status === 'pending' ? 'Chờ duyệt' : 
+                         course.status === 'draft' ? 'Bản nháp' : course.status}
+                      </Badge>
+                    </div>
                     <Badge variant="outline">
                       {course.price === 0 || course.price === null ? 'Miễn phí' : formatVND(convertUSDtoVND(course.price))}
                     </Badge>

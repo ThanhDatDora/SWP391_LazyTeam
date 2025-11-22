@@ -46,6 +46,7 @@ import quizRoutes from './routes/quizzes.js';
 import examRoutes from './routes/exams.js';
 import newExamRoutes from './routes/new-exam-routes.js';
 import assignmentsRoutes from './routes/assignments.js';
+import questionBankRoutes from './routes/question-bank.js';
 import webhookRoutes from './routes/webhook.js';
 import vnpayRoutes from './routes/vnpay.js';
 import sepayRoutes from './routes/sepay.routes.js';
@@ -266,6 +267,7 @@ app.use('/api/quizzes', quizRoutes);
 app.use('/api/exams', examRoutes);
 app.use('/api/learning/exams', newExamRoutes);
 app.use('/api/assignments', assignmentsRoutes);
+app.use('/api/question-bank', questionBankRoutes);
 
 // 404 handler for API routes (must be before global error handler)
 app.use('/api/*', notFoundHandler);

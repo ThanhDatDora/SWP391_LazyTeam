@@ -41,6 +41,12 @@ const CourseDetailPageNew = () => {
   const [expandedSections, setExpandedSections] = useState({});
   const [relatedCourses, setRelatedCourses] = useState([]);
   const [isEnrolled, setIsEnrolled] = useState(false);
+  const [userRating, setUserRating] = useState(0);
+  const [userComment, setUserComment] = useState('');
+  const [instructorRating, setInstructorRating] = useState(0);
+  const [instructorComment, setInstructorComment] = useState('');
+  const [instructorReviews, setInstructorReviews] = useState([]);
+  const [instructorReviewStats, setInstructorReviewStats] = useState({ averageRating: 0, reviewCount: 0 });
 
   useEffect(() => {
     if (courseId) {
@@ -81,44 +87,39 @@ const CourseDetailPageNew = () => {
       if (data.success && data.course) {
         console.log('📦 Course data from API:', data.course);
         
-        // Enhance course data with default values if missing
+        // Use real data from backend, NO MORE FAKE DATA
         const enhancedCourse = {
           ...data.course,
-          rating: data.course.rating || 4.5,
-          reviewCount: data.course.reviewCount || Math.floor(Math.random() * 1000) + 100,
-          enrollmentCount: data.course.enrollmentCount || Math.floor(Math.random() * 5000) + 500,
-          totalLessons: data.course.totalLessons || 34,
-          language: data.course.language || 'Tiếng Việt',
+          // Use actual rating or 0 if no reviews yet
+          rating: data.course.rating || 0,
+          reviewCount: data.course.reviewCount || 0,
+          enrollmentCount: data.course.enrollmentCount || 0,
+          totalLessons: data.course.totalLessons || 0,
+          language: data.course.language || 'vi',
           
-          // What you'll learn
-          whatYouWillLearn: data.course.whatYouWillLearn || [
-            'Nắm vững các khái niệm cơ bản và nâng cao của khóa học',
-            'Áp dụng kiến thức vào các dự án thực tế',
-            'Phát triển kỹ năng giải quyết vấn đề một cách chuyên nghiệp',
-            'Xây dựng portfolio ấn tượng với các dự án hoàn chỉnh',
-            'Hiểu rõ best practices và coding standards trong ngành',
-            'Sẵn sàng cho các vị trí công việc trong lĩnh vực này'
-          ],
+          // What you'll learn - from backend or empty
+          whatYouWillLearn: data.course.whatYouWillLearn || [],
           
-          // Requirements
-          requirements: data.course.requirements || [
-            'Không yêu cầu kiến thức nền tảng - phù hợp cho người mới bắt đầu',
-            'Máy tính có kết nối internet',
-            'Tinh thần học hỏi và sẵn sàng thực hành',
-            'Cam kết dành thời gian học tập đều đặn'
-          ],
+          // Requirements - from backend or empty  
+          requirements: data.course.requirements || [],
           
-          // Curriculum
-          curriculum: data.course.curriculum || generateDefaultCurriculum(data.course.level),
+          // Curriculum - from backend or empty
+          curriculum: data.course.curriculum || [],
           
-          // Instructor info
-          instructorBio: data.course.instructorBio || 'Giảng viên có nhiều năm kinh nghiệm trong lĩnh vực giảng dạy và thực tế.',
-          instructorCourses: data.course.instructorCourses || Math.floor(Math.random() * 10) + 3,
-          instructorStudents: data.course.instructorStudents || Math.floor(Math.random() * 50000) + 10000
+          // Instructor info - from backend (instructors table)
+          instructorBio: data.course.instructorBio || '',
+          instructorHeadline: data.course.instructorHeadline || '',
+          instructorCourses: data.course.instructorCourses || 0,
+          instructorStudents: data.course.instructorStudents || 0
         };
         
         setCourse(enhancedCourse);
         setExpandedSections({ 0: true });
+        
+        // Load instructor reviews if instructorId exists
+        if (enhancedCourse.instructorId) {
+          loadInstructorReviews(enhancedCourse.instructorId);
+        }
       } else {
         toast.error('Không tìm thấy khóa học');
         setTimeout(() => navigate('/courses'), 2000);
@@ -128,6 +129,120 @@ const CourseDetailPageNew = () => {
       toast.error('Không thể tải thông tin khóa học');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSubmitReview = async (e) => {
+    e.preventDefault();
+    
+    if (userRating === 0) {
+      toast.error('Vui lòng chọn số sao đánh giá');
+      return;
+    }
+
+    if (userComment.trim().length < 10) {
+      toast.error('Nhận xét phải có ít nhất 10 ký tự');
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        toast.error('Vui lòng đăng nhập để đánh giá');
+        navigate('/login');
+        return;
+      }
+
+      const response = await fetch(`http://localhost:3001/api/courses/${courseId}/reviews`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          rating: userRating,
+          comment: userComment.trim()
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        toast.success(data.message);
+        // Reset form
+        setUserRating(0);
+        setUserComment('');
+        // Reload course to show updated rating and review
+        loadCourseDetail();
+      } else {
+        toast.error(data.message || 'Không thể gửi đánh giá');
+      }
+    } catch (error) {
+      console.error('Submit review error:', error);
+      toast.error('Đã xảy ra lỗi. Vui lòng thử lại sau.');
+    }
+  };
+
+  const loadInstructorReviews = async (instructorId) => {
+    try {
+      const response = await fetch(`http://localhost:3001/api/courses/instructors/${instructorId}/reviews`);
+      const data = await response.json();
+      
+      if (data.success) {
+        setInstructorReviews(data.reviews || []);
+        setInstructorReviewStats(data.stats || { averageRating: 0, reviewCount: 0 });
+      }
+    } catch (error) {
+      console.error('Load instructor reviews error:', error);
+    }
+  };
+
+  const handleSubmitInstructorReview = async (e) => {
+    e.preventDefault();
+    
+    if (instructorRating === 0) {
+      toast.error('Vui lòng chọn số sao đánh giá');
+      return;
+    }
+
+    if (instructorComment.trim().length < 10) {
+      toast.error('Nhận xét phải có ít nhất 10 ký tự');
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        toast.error('Vui lòng đăng nhập để đánh giá');
+        navigate('/login');
+        return;
+      }
+
+      const response = await fetch(`http://localhost:3001/api/courses/instructors/${course.instructorId}/reviews`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          rating: instructorRating,
+          comment: instructorComment.trim()
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        toast.success(data.message);
+        setInstructorRating(0);
+        setInstructorComment('');
+        loadInstructorReviews(course.instructorId);
+      } else {
+        toast.error(data.message || 'Không thể gửi đánh giá');
+      }
+    } catch (error) {
+      console.error('Submit instructor review error:', error);
+      toast.error('Đã xảy ra lỗi. Vui lòng thử lại sau.');
     }
   };
 
@@ -692,6 +807,73 @@ const CourseDetailPageNew = () => {
                       <h2 className="text-2xl font-bold text-gray-900">Đánh giá của học viên</h2>
                     </div>
 
+                    {/* Review Form - Only for enrolled learners */}
+                    {isEnrolled && (
+                      <div className="bg-white border border-gray-200 rounded-lg p-6 mb-6">
+                        <h3 className="text-lg font-semibold mb-4">Đánh giá khóa học này</h3>
+                        <form onSubmit={handleSubmitReview} className="space-y-4">
+                          {/* Rating Stars */}
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Xếp hạng của bạn
+                            </label>
+                            <div className="flex items-center gap-2">
+                              {[1, 2, 3, 4, 5].map((star) => (
+                                <button
+                                  key={star}
+                                  type="button"
+                                  onClick={() => setUserRating(star)}
+                                  className="transition-transform hover:scale-110"
+                                >
+                                  <Star
+                                    className={`w-8 h-8 cursor-pointer ${
+                                      star <= userRating
+                                        ? 'fill-yellow-400 text-yellow-400'
+                                        : 'text-gray-300 hover:text-yellow-400'
+                                    }`}
+                                  />
+                                </button>
+                              ))}
+                              <span className="ml-2 text-sm text-gray-600">
+                                {userRating > 0 ? `${userRating} sao` : 'Chọn số sao'}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Comment Input */}
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Nhận xét của bạn (tối thiểu 10 ký tự)
+                            </label>
+                            <textarea
+                              value={userComment}
+                              onChange={(e) => setUserComment(e.target.value)}
+                              placeholder="Chia sẻ trải nghiệm của bạn về khóa học này..."
+                              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                              rows={4}
+                              minLength={10}
+                              maxLength={1000}
+                              required
+                            />
+                            <p className="text-sm text-gray-500 mt-1">
+                              {userComment.length}/1000 ký tự
+                            </p>
+                          </div>
+
+                          {/* Submit Button */}
+                          <div className="flex justify-end">
+                            <button
+                              type="submit"
+                              disabled={userRating === 0 || userComment.length < 10}
+                              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                            >
+                              Gửi đánh giá
+                            </button>
+                          </div>
+                        </form>
+                      </div>
+                    )}
+
                     {/* Rating Overview */}
                     <div className="flex items-center gap-8 p-6 bg-gray-50 rounded-lg">
                       <div className="text-center">
@@ -877,8 +1059,142 @@ const CourseDetailPageNew = () => {
                       </div>
                     </div>
 
-                    {/* Student Testimonials about Instructor */}
+                    {/* Instructor Review Form - Only for enrolled learners */}
+                    {isEnrolled && (
+                      <div className="bg-white border border-gray-200 rounded-lg p-6">
+                        <h3 className="text-lg font-semibold mb-4">Đánh giá giảng viên</h3>
+                        <form onSubmit={handleSubmitInstructorReview} className="space-y-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Xếp hạng
+                            </label>
+                            <div className="flex items-center gap-2">
+                              {[1, 2, 3, 4, 5].map((star) => (
+                                <button
+                                  key={star}
+                                  type="button"
+                                  onClick={() => setInstructorRating(star)}
+                                  className="transition-transform hover:scale-110"
+                                >
+                                  <Star
+                                    className={`w-8 h-8 ${
+                                      star <= instructorRating
+                                        ? 'fill-yellow-400 text-yellow-400'
+                                        : 'text-gray-300'
+                                    }`}
+                                  />
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Nhận xét
+                            </label>
+                            <textarea
+                              value={instructorComment}
+                              onChange={(e) => setInstructorComment(e.target.value)}
+                              placeholder="Chia sẻ trải nghiệm học tập với giảng viên này..."
+                              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                              rows="4"
+                              minLength="10"
+                              maxLength="1000"
+                              required
+                            />
+                            <p className="text-sm text-gray-500 mt-1">
+                              {instructorComment.length}/1000 ký tự (tối thiểu 10 ký tự)
+                            </p>
+                          </div>
+
+                          <button
+                            type="submit"
+                            disabled={instructorRating === 0 || instructorComment.trim().length < 10}
+                            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                          >
+                            Gửi đánh giá
+                          </button>
+                        </form>
+                      </div>
+                    )}
+
+                    {/* Instructor Reviews */}
                     <div>
+                      <h3 className="text-xl font-bold text-gray-900 mb-4">
+                        Đánh giá từ học viên ({instructorReviewStats.reviewCount})
+                      </h3>
+                      
+                      {instructorReviewStats.reviewCount > 0 && (
+                        <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+                          <div className="flex items-center gap-4">
+                            <div className="text-center">
+                              <div className="text-4xl font-bold text-gray-900">
+                                {instructorReviewStats.averageRating.toFixed(1)}
+                              </div>
+                              <div className="flex gap-1 mt-2">
+                                {[1, 2, 3, 4, 5].map((star) => (
+                                  <Star
+                                    key={star}
+                                    className={`w-5 h-5 ${
+                                      star <= Math.round(instructorReviewStats.averageRating)
+                                        ? 'fill-yellow-400 text-yellow-400'
+                                        : 'text-gray-300'
+                                    }`}
+                                  />
+                                ))}
+                              </div>
+                            </div>
+                            <div className="text-sm text-gray-600">
+                              Trung bình từ {instructorReviewStats.reviewCount} đánh giá
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="space-y-4">
+                        {instructorReviews.length > 0 ? (
+                          instructorReviews.map((review) => (
+                            <div key={review.instructor_review_id} className="p-4 bg-gray-50 rounded-lg">
+                              <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center gap-3">
+                                  <img
+                                    src={review.avatar_url || `https://ui-avatars.com/api/?name=${review.user_name}&background=random`}
+                                    alt={review.user_name}
+                                    className="w-10 h-10 rounded-full"
+                                  />
+                                  <div>
+                                    <div className="font-semibold text-gray-900">{review.user_name}</div>
+                                    <div className="text-xs text-gray-500">
+                                      {new Date(review.created_at).toLocaleDateString('vi-VN')}
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="flex gap-1">
+                                  {[1, 2, 3, 4, 5].map((star) => (
+                                    <Star
+                                      key={star}
+                                      className={`w-4 h-4 ${
+                                        star <= review.rating
+                                          ? 'fill-yellow-400 text-yellow-400'
+                                          : 'text-gray-300'
+                                      }`}
+                                    />
+                                  ))}
+                                </div>
+                              </div>
+                              <p className="text-gray-700 mt-2">{review.comment}</p>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="text-center py-8 text-gray-500">
+                            Chưa có đánh giá nào cho giảng viên này
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Student Testimonials about Instructor - Old fake data removed */}
+                    <div className="hidden">
                       <h3 className="text-xl font-bold text-gray-900 mb-4">Học viên nói gì</h3>
                       <div className="space-y-4">
                         {[

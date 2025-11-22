@@ -203,13 +203,7 @@ const CoursesPage = () => {
     
     return (
     <div 
-      onClick={() => {
-        if (isEnrolled) {
-          navigate(`/learn/${course.course_id}`);
-        } else {
-          goCourse(course.course_id);
-        }
-      }}
+      onClick={() => goCourse(course.course_id)}
       className="group hover:shadow-xl transition-all duration-300 bg-white rounded-2xl overflow-hidden border-0 shadow-md cursor-pointer"
     >
       <div className="relative">
@@ -314,7 +308,7 @@ const CoursesPage = () => {
               )}
             </div>
           )}
-          <button 
+          <button
             onClick={(e) => {
               e.stopPropagation();
               if (isEnrolled) {
@@ -329,7 +323,7 @@ const CoursesPage = () => {
                 : 'bg-teal-600 hover:bg-teal-700 text-white'
             }`}
           >
-            {isEnrolled ? 'Học tiếp' : showProgress ? 'Continue' : 'Enroll Now'}
+            {isEnrolled ? 'Học tiếp' : 'Đăng ký ngay'}
           </button>
         </div>
       </div>

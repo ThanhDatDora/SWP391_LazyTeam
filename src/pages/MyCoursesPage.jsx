@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BookOpen, Calendar, Clock, Play, Award, Search, Filter, Grid, List } from 'lucide-react';
+import { BookOpen, Calendar, Clock, Play, Award, Search, Filter, Grid, List, X } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
@@ -8,6 +8,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNavigation } from '../hooks/useNavigation';
 import LearnerNavbar from '../components/layout/LearnerNavbar';
 import Footer from '../components/layout/Footer';
+import Certificate from '../components/Certificate';
 import { api } from '../services/api';
 
 const MyCoursesPage = () => {
@@ -18,6 +19,8 @@ const MyCoursesPage = () => {
   const [filterStatus, setFilterStatus] = useState('all'); // 'all', 'in-progress', 'completed'
   const [enrolledCourses, setEnrolledCourses] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [certificate, setCertificate] = useState(null);
+  const [showCertificate, setShowCertificate] = useState(false);
 
   useEffect(() => {
     console.log('🔄 MyCoursesPage: User changed, reloading courses...', {
@@ -169,6 +172,50 @@ const MyCoursesPage = () => {
       setEnrolledCourses(mockCourses);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const checkCompletion = async (courseId) => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        console.error('❌ No token found');
+        return;
+      }
+
+      console.log(`📋 Checking completion for course ${courseId}...`);
+      const response = await fetch(`http://localhost:3001/api/enrollments/course/${courseId}/check-completion`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const data = await response.json();
+      console.log('📋 Completion check response:', data);
+
+      if (response.ok) {
+        if (data.completed) {
+          console.log('✅ Course completed! Certificate:', data.certificate);
+          setCertificate(data.certificate);
+          setShowCertificate(true);
+          
+          if (data.newly_awarded) {
+            // Reload courses to update status
+            loadMyCourses();
+          }
+        } else {
+          console.log('⚠️ Course not completed:', data.requirements);
+          alert(`Bạn chưa hoàn thành khóa học:\n- Lessons hoàn thành: ${data.requirements.completed_lessons}/${data.requirements.total_lessons}\n- Exams đã pass: ${data.requirements.passed_moocs}/${data.requirements.total_moocs}`);
+        }
+      } else {
+        console.error('❌ Check completion failed:', data.message);
+        alert(data.message || 'Không thể kiểm tra hoàn thành');
+      }
+    } catch (error) {
+      console.error('❌ Error checking completion:', error);
+      alert('Lỗi khi kiểm tra hoàn thành khóa học');
     }
   };
 
@@ -365,12 +412,26 @@ const MyCoursesPage = () => {
                           Last accessed: {formatDate(course.lastAccessed)}
                         </div>
                         
-                        <Button 
-                          className="w-full" 
-                          variant={course.status === 'completed' ? 'outline' : 'default'}
-                        >
-                          {course.status === 'completed' ? 'Review Course' : 'Continue Learning'}
-                        </Button>
+                        <div className="space-y-2">
+                          <Button 
+                            className="w-full" 
+                            variant={course.status === 'completed' ? 'outline' : 'default'}
+                            onClick={() => navigate(`/learn/${course.id}`)}
+                          >
+                            {course.status === 'completed' ? 'Review Course' : 'Continue Learning'}
+                          </Button>
+                          {course.progress >= 90 && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="w-full text-green-700 border-green-600 hover:bg-green-50"
+                              onClick={() => checkCompletion(course.id)}
+                            >
+                              <Award className="w-4 h-4 mr-2" />
+                              Nhận chứng chỉ
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     </>
                   ) : (
@@ -421,9 +482,21 @@ const MyCoursesPage = () => {
                         <Button 
                           variant={course.status === 'completed' ? 'outline' : 'default'}
                           size="sm"
+                          onClick={() => navigate(`/learn/${course.id}`)}
                         >
                           {course.status === 'completed' ? 'Review' : 'Continue'}
                         </Button>
+                        {course.progress >= 90 && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-green-700 border-green-600 hover:bg-green-50"
+                            onClick={() => checkCompletion(course.id)}
+                          >
+                            <Award className="w-4 h-4 mr-1" />
+                            Chứng chỉ
+                          </Button>
+                        )}
                       </div>
                     </div>
                   )}
@@ -513,15 +586,14 @@ const MyCoursesPage = () => {
                           >
                             Review Course
                           </Button>
-                          {course.certificate && (
-                            <Button 
-                              size="sm" 
-                              className="w-full bg-green-600 hover:bg-green-700"
-                            >
-                              <Award className="w-4 h-4 mr-2" />
-                              Download Certificate
-                            </Button>
-                          )}
+                          <Button 
+                            size="sm" 
+                            className="w-full bg-green-600 hover:bg-green-700"
+                            onClick={() => checkCompletion(course.id)}
+                          >
+                            <Award className="w-4 h-4 mr-2" />
+                            Nhận chứng chỉ
+                          </Button>
                         </div>
                       </div>
                     </CardContent>
@@ -531,6 +603,27 @@ const MyCoursesPage = () => {
           </div>
         )}
       </div>
+      
+      {/* Certificate Modal */}
+      {showCertificate && certificate && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto relative">
+            <button
+              onClick={() => setShowCertificate(false)}
+              className="absolute top-4 right-4 z-10 bg-white rounded-full p-2 shadow-lg hover:bg-gray-100"
+            >
+              <X className="w-6 h-6" />
+            </button>
+            <Certificate
+              student_name={certificate.student_name}
+              course_title={certificate.course_title}
+              instructor_name={certificate.instructor_name}
+              completion_date={certificate.completion_date}
+              course_id={certificate.course_id}
+            />
+          </div>
+        </div>
+      )}
       
       <Footer />
     </div>
