@@ -104,15 +104,23 @@ export function AIChatbot({ className = '' }) {
   // Fetch courses context for AI
   const fetchCoursesContext = async () => {
     try {
+      console.log('📡 Fetching courses from backend...');
       const response = await fetch('http://localhost:3001/api/ai-chatbot/courses-context');
+      console.log('📡 Backend response status:', response.status);
+      
       const data = await response.json();
+      console.log('📡 Backend response data:', data);
       
       if (data.success) {
+        console.log('✅ Courses fetched successfully:', data.data.length, 'courses');
+        console.log('📋 Sample course:', data.data[0]);
         return data.data;
       }
+      console.warn('⚠️ Backend returned success=false');
       return [];
     } catch (error) {
       console.error('❌ Error fetching courses context:', error);
+      console.error('❌ Error details:', error.message);
       return [];
     }
   };
@@ -121,37 +129,100 @@ export function AIChatbot({ className = '' }) {
   const callGeminiAPI = async (prompt, coursesData = []) => {
     try {
       console.log('🔵 Calling Gemini API with prompt:', prompt);
+      console.log('📚 Courses data available:', coursesData.length);
       
       // Build context with courses data
-      let systemPrompt = `Bạn là trợ lý AI cho nền tảng học trực tuyến "Mini Coursera". 
-Nhiệm vụ của bạn là hỗ trợ học viên và khách hàng về:
-- Tư vấn, giới thiệu khóa học phù hợp
-- Hướng dẫn sử dụng tính năng nền tảng
-- Trả lời các câu hỏi về khóa học, giá cả, thời lượng
-- Gợi ý khóa học dựa trên mục tiêu học tập
+      let systemPrompt = `Bạn là trợ lý AI chuyên nghiệp cho nền tảng học trực tuyến "Mini Coursera". 
 
-Hãy trả lời bằng tiếng Việt, thân thiện, chuyên nghiệp và súc tích.
+NHIỆM VỤ CHÍNH:
+- Tư vấn và giới thiệu các khóa học THỰC TẾ có sẵn trên nền tảng
+- Trả lời câu hỏi về giá, thời lượng, nội dung khóa học
+- Gợi ý khóa học phù hợp theo nhu cầu học viên
+- Hướng dẫn sử dụng các tính năng của nền tảng
+
+QUY TẮC TRẢ LỜI:
+✅ CHỈ giới thiệu các khóa học CÓ TRONG DANH SÁCH thực tế
+✅ Dùng tên khóa học CHÍNH XÁC từ database
+✅ Trích dẫn đúng giá, cấp độ, danh mục từ dữ liệu
+✅ Trả lời bằng tiếng Việt, thân thiện, chuyên nghiệp
+❌ KHÔNG bịa đặt tên khóa học không tồn tại
+❌ KHÔNG đưa ra thông tin sai lệch về giá/nội dung
 `;
 
       // Add courses data if available
       if (coursesData && coursesData.length > 0) {
-        systemPrompt += `\n\nDanh sách các khóa học hiện có trên nền tảng:\n`;
-        coursesData.slice(0, 20).forEach((course, index) => {
-          systemPrompt += `\n${index + 1}. "${course.title}"
-   - Mô tả: ${course.description?.substring(0, 100)}...
-   - Danh mục: ${course.category}
-   - Cấp độ: ${course.level}
-   - Giá: ${course.price?.toLocaleString('vi-VN')} VNĐ
-   - Giảng viên: ${course.instructor}
-   - Số học viên: ${course.students}
-   - Đánh giá: ${course.rating}/5`;
+        console.log('✅ Adding courses context to AI prompt');
+        
+        // Nhóm theo category
+        const categorizedCourses = {};
+        coursesData.forEach(course => {
+          const cat = course.category || 'Khác';
+          if (!categorizedCourses[cat]) categorizedCourses[cat] = [];
+          categorizedCourses[cat].push(course);
         });
         
-        systemPrompt += `\n\nKhi người dùng hỏi về khóa học, hãy tham khảo danh sách trên để đưa ra gợi ý chính xác.
-Nếu họ hỏi về giá, cấp độ, danh mục - hãy dựa vào thông tin thực tế ở trên.`;
+        systemPrompt += `\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📚 DANH SÁCH ${coursesData.length} KHÓA HỌC THỰC TẾ TRÊN NỀN TẢNG
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+        
+        Object.keys(categorizedCourses).forEach(category => {
+          systemPrompt += `\n🏷️ **${category.toUpperCase()}** (${categorizedCourses[category].length} khóa):\n`;
+          categorizedCourses[category].forEach((course, idx) => {
+            systemPrompt += `
+${idx + 1}. 📖 "${course.title}"
+   💰 Giá: ${course.price ? course.price.toLocaleString('vi-VN') + ' VNĐ' : 'Miễn phí'}
+   📊 Cấp độ: ${course.level || 'Tất cả trình độ'}
+   👨‍🏫 Giảng viên: ${course.instructor || 'Đang cập nhật'}
+   ⏱️ Thời lượng: ${course.duration || 'Linh hoạt'} tuần
+   🌐 Ngôn ngữ: ${course.language || 'Tiếng Việt'}
+   📝 Mô tả: ${course.description?.substring(0, 120) || 'Khóa học chất lượng'}...
+`;
+          });
+        });
+        
+        systemPrompt += `\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 HƯỚNG DẪN TRẢ LỜI CỤ THỂ:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1️⃣ Khi hỏi "có khóa học gì" / "tư vấn khóa học":
+   → Liệt kê 3-5 khóa phù hợp NHẤT từ danh sách trên
+   → Nhóm theo danh mục để dễ đọc
+   → Ghi rõ: Tên + Giá + Cấp độ
+
+2️⃣ Khi hỏi về danh mục cụ thể (VD: "khóa lập trình"):
+   → Liệt kê TẤT CẢ khóa học trong danh mục đó
+   → Sắp xếp theo cấp độ (Beginner → Advanced)
+
+3️⃣ Khi hỏi về giá:
+   → Dùng CHÍNH XÁC số tiền từ danh sách
+   → Gợi ý các khóa trong tầm giá
+
+4️⃣ Khi hỏi "tất cả khóa học":
+   → Tóm tắt theo danh mục
+   → Đưa số lượng từng danh mục
+   → Highlight 2-3 khóa nổi bật
+
+VÍ DỤ TRẢ LỜI TỐT:
+"Hiện nền tảng có ${coursesData.length} khóa học thuộc ${Object.keys(categorizedCourses).length} lĩnh vực. Dưới đây là một số khóa nổi bật:
+
+🎯 **${Object.keys(categorizedCourses)[0]}:**
+${categorizedCourses[Object.keys(categorizedCourses)[0]].slice(0, 2).map(c => `- ${c.title} (${c.price?.toLocaleString('vi-VN')} VNĐ)`).join('\n')}
+..."
+`;
+      } else {
+        console.warn('⚠️ No courses data available for AI');
+        systemPrompt += `\n\n⚠️ LƯU Ý: Hiện không lấy được dữ liệu khóa học từ hệ thống.
+Hãy xin lỗi người dùng và đề xuất họ:
+- Làm mới trang và thử lại
+- Hoặc liên hệ bộ phận hỗ trợ: support@minicoursera.com`;
       }
 
-      systemPrompt += `\n\nCâu hỏi của người dùng: ${prompt}`;
+      systemPrompt += `\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+❓ CÂU HỎI CỦA NGƯỜI DÙNG:
+${prompt}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+      
+      console.log('📝 System prompt length:', systemPrompt.length, 'characters');
       
       const response = await fetch(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
         method: 'POST',

@@ -15,27 +15,28 @@ const router = express.Router();
  */
 router.get('/courses-context', async (req, res) => {
   try {
+    console.log('📡 AI Chatbot: Fetching courses context...');
     const pool = await connectDB();
     
+    // Query với các cột thực tế trong database
     const result = await pool.request().query`
       SELECT 
         c.course_id,
         c.title,
         c.description,
         c.price,
-        c.category,
+        cat.name as category,
         c.level,
-        c.language,
-        c.duration_weeks,
-        u.full_name as instructor_name,
-        (SELECT COUNT(*) FROM enrollments e WHERE e.course_id = c.course_id) as total_students,
-        (SELECT AVG(CAST(rating AS FLOAT)) FROM course_reviews cr WHERE cr.course_id = c.course_id) as avg_rating
+        c.language_code,
+        u.full_name as instructor_name
       FROM courses c
-      LEFT JOIN users u ON c.instructor_id = u.user_id
-      WHERE c.is_published = 1
+      LEFT JOIN users u ON c.owner_instructor_id = u.user_id
+      LEFT JOIN categories cat ON c.category_id = cat.category_id
+      WHERE c.status = 'active'
       ORDER BY c.created_at DESC
     `;
 
+    console.log('✅ Fetched courses from DB:', result.recordset.length);
     const courses = result.recordset;
 
     // Format data cho AI
@@ -46,28 +47,30 @@ router.get('/courses-context', async (req, res) => {
       price: course.price,
       category: course.category,
       level: course.level,
-      language: course.language,
-      duration: course.duration_weeks,
-      instructor: course.instructor_name,
-      students: course.total_students || 0,
-      rating: course.avg_rating ? parseFloat(course.avg_rating).toFixed(1) : 'Chưa có'
+      language: course.language_code,
+      duration: '10 hours', // Default duration
+      instructor: course.instructor_name
     }));
+
+    console.log('✅ Formatted courses context:', coursesContext.length);
 
     res.json({
       success: true,
       data: coursesContext,
       summary: {
         total: coursesContext.length,
-        categories: [...new Set(courses.map(c => c.category))],
-        levels: [...new Set(courses.map(c => c.level))]
+        categories: [...new Set(courses.map(c => c.category).filter(Boolean))],
+        levels: [...new Set(courses.map(c => c.level).filter(Boolean))]
       }
     });
 
   } catch (error) {
     console.error('❌ Error fetching courses context:', error);
+    console.error('❌ Error stack:', error.stack);
     res.status(500).json({
       success: false,
-      message: 'Không thể lấy dữ liệu khóa học'
+      message: 'Không thể lấy dữ liệu khóa học',
+      error: error.message
     });
   }
 });
