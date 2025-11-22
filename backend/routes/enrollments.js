@@ -495,4 +495,202 @@ router.get('/course/:courseId/progress', authenticateToken, async (req, res) => 
   }
 });
 
+// Check and award course completion certificate
+router.post('/course/:courseId/check-completion', authenticateToken, async (req, res) => {
+  try {
+    const pool = await getPool();
+    const { courseId } = req.params;
+    const userId = req.user.userId;
+
+    console.log(`🎓 Checking completion for courseId: ${courseId}, userId: ${userId}`);
+
+    // 1. Get total lessons and moocs in course
+    const courseStats = await pool.request()
+      .input('courseId', sql.BigInt, courseId)
+      .query(`
+        SELECT 
+          COUNT(DISTINCT l.lesson_id) as total_lessons,
+          COUNT(DISTINCT m.mooc_id) as total_moocs
+        FROM moocs m
+        LEFT JOIN lessons l ON m.mooc_id = l.mooc_id
+        WHERE m.course_id = @courseId
+      `);
+
+    const { total_lessons, total_moocs } = courseStats.recordset[0];
+    console.log(`📊 Course stats: ${total_lessons} lessons, ${total_moocs} moocs`);
+
+    // 2. Get user's completed lessons
+    const completedLessons = await pool.request()
+      .input('courseId', sql.BigInt, courseId)
+      .input('userId', sql.BigInt, userId)
+      .query(`
+        SELECT COUNT(DISTINCT p.lesson_id) as completed_count
+        FROM progress p
+        JOIN lessons l ON p.lesson_id = l.lesson_id
+        JOIN moocs m ON l.mooc_id = m.mooc_id
+        WHERE m.course_id = @courseId 
+          AND p.user_id = @userId 
+          AND p.is_completed = 1
+      `);
+
+    const completed_lessons = completedLessons.recordset[0].completed_count;
+    console.log(`✅ Completed lessons: ${completed_lessons}/${total_lessons}`);
+
+    // 3. Get user's passed exams (each mooc should have passed exam)
+    const passedExams = await pool.request()
+      .input('courseId', sql.BigInt, courseId)
+      .input('userId', sql.BigInt, userId)
+      .query(`
+        SELECT COUNT(DISTINCT m.mooc_id) as passed_moocs
+        FROM moocs m
+        WHERE m.course_id = @courseId
+          AND EXISTS (
+            SELECT 1 FROM exam_attempts ea
+            WHERE ea.mooc_id = m.mooc_id
+              AND ea.user_id = @userId
+              AND ea.passed = 1
+          )
+      `);
+
+    const passed_moocs = passedExams.recordset[0].passed_moocs;
+    console.log(`📝 Passed exams: ${passed_moocs}/${total_moocs} moocs`);
+
+    // 4. Check if all requirements met
+    const all_lessons_completed = completed_lessons >= total_lessons && total_lessons > 0;
+    const all_exams_passed = passed_moocs >= total_moocs && total_moocs > 0;
+    const is_completed = all_lessons_completed && all_exams_passed;
+
+    console.log(`🎯 Completion status: lessons=${all_lessons_completed}, exams=${all_exams_passed}, overall=${is_completed}`);
+
+    if (is_completed) {
+      // 5. Check if already awarded
+      const enrollment = await pool.request()
+        .input('courseId', sql.BigInt, courseId)
+        .input('userId', sql.BigInt, userId)
+        .query(`
+          SELECT enrollment_id, completed_at
+          FROM enrollments
+          WHERE course_id = @courseId AND user_id = @userId
+        `);
+
+      if (enrollment.recordset.length === 0) {
+        return res.status(404).json({ success: false, message: 'Enrollment not found' });
+      }
+
+      const enrollmentData = enrollment.recordset[0];
+
+      if (!enrollmentData.completed_at) {
+        // 6. Award certificate - Update enrollment
+        await pool.request()
+          .input('enrollmentId', sql.BigInt, enrollmentData.enrollment_id)
+          .query(`
+            UPDATE enrollments
+            SET completed_at = GETDATE(),
+                progress = 100
+            WHERE enrollment_id = @enrollmentId
+          `);
+
+        // 7. Get course and user info for certificate
+        const certInfo = await pool.request()
+          .input('courseId', sql.BigInt, courseId)
+          .input('userId', sql.BigInt, userId)
+          .query(`
+            SELECT 
+              u.full_name as student_name,
+              u.email as student_email,
+              c.title as course_title,
+              c.course_id,
+              i.instructor_id,
+              iu.full_name as instructor_name,
+              GETDATE() as completion_date
+            FROM users u
+            CROSS JOIN courses c
+            LEFT JOIN instructors i ON c.owner_instructor_id = i.instructor_id
+            LEFT JOIN users iu ON i.user_id = iu.user_id
+            WHERE u.user_id = @userId AND c.course_id = @courseId
+          `);
+
+        const cert = certInfo.recordset[0];
+
+        console.log('🎉 Certificate awarded!');
+
+        // TODO: Send email notification with certificate
+        // await emailService.sendCertificate(cert);
+
+        return res.json({
+          success: true,
+          completed: true,
+          newly_awarded: true,
+          message: 'Chúc mừng! Bạn đã hoàn thành khóa học và nhận được chứng chỉ',
+          certificate: {
+            student_name: cert.student_name,
+            course_title: cert.course_title,
+            instructor_name: cert.instructor_name,
+            completion_date: cert.completion_date,
+            course_id: cert.course_id
+          }
+        });
+      } else {
+        // Already completed
+        const certInfo = await pool.request()
+          .input('courseId', sql.BigInt, courseId)
+          .input('userId', sql.BigInt, userId)
+          .query(`
+            SELECT 
+              u.full_name as student_name,
+              c.title as course_title,
+              iu.full_name as instructor_name,
+              e.completed_at as completion_date,
+              c.course_id
+            FROM enrollments e
+            JOIN users u ON e.user_id = u.user_id
+            JOIN courses c ON e.course_id = c.course_id
+            LEFT JOIN instructors i ON c.owner_instructor_id = i.instructor_id
+            LEFT JOIN users iu ON i.user_id = iu.user_id
+            WHERE e.user_id = @userId AND e.course_id = @courseId
+          `);
+
+        const cert = certInfo.recordset[0];
+
+        return res.json({
+          success: true,
+          completed: true,
+          newly_awarded: false,
+          message: 'Bạn đã hoàn thành khóa học trước đó',
+          certificate: {
+            student_name: cert.student_name,
+            course_title: cert.course_title,
+            instructor_name: cert.instructor_name,
+            completion_date: cert.completion_date,
+            course_id: cert.course_id
+          }
+        });
+      }
+    } else {
+      // Not completed yet
+      return res.json({
+        success: true,
+        completed: false,
+        message: 'Bạn chưa hoàn thành khóa học',
+        requirements: {
+          total_lessons,
+          completed_lessons,
+          lessons_completed: all_lessons_completed,
+          total_moocs,
+          passed_moocs,
+          exams_passed: all_exams_passed
+        }
+      });
+    }
+
+  } catch (error) {
+    console.error('❌ Error checking completion:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to check completion',
+      message: error.message
+    });
+  }
+});
+
 export default router;

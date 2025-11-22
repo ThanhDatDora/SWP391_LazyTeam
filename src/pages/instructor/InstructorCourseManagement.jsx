@@ -34,6 +34,8 @@ import {
 import { api } from '../../services/api';
 import { toast } from 'react-hot-toast';
 
+const BACKEND_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api';
+
 const InstructorCourseManagement = () => {
   const { courseId } = useParams();
   const navigate = useNavigation();
@@ -66,8 +68,8 @@ const InstructorCourseManagement = () => {
     content_type: 'video',
     content_url: '',
     description: '',
+    instructions: '',
     order_no: 1,
-    duration: 0,
     is_preview: false
   });
 
@@ -80,24 +82,25 @@ const InstructorCourseManagement = () => {
       setLoading(true);
       
       // Load course details
-      const courseResponse = await fetch(`/api/courses/${courseId}`);
-      const courseData = await courseResponse.json();
-      if (courseData.success) {
-        setCourse(courseData.data);
+      const courseResponse = await api.courses.getCourseById(courseId);
+      if (courseResponse.success) {
+        setCourse(courseResponse.data);
+      } else {
+        toast.error('Không thể tải thông tin khóa học');
+        navigate('/instructor');
+        return;
       }
 
-      // Load MOOCs
-      const moocsResponse = await fetch(`/api/courses/${courseId}/moocs`);
-      const moocsData = await moocsResponse.json();
-      if (moocsData.success) {
-        setMoocs(moocsData.data);
+      // Load MOOCs using content API
+      const moocsResponse = await api.content.getMoocsByCourse(courseId);
+      if (moocsResponse.success) {
+        setMoocs(moocsResponse.data);
       }
 
       // Load all lessons for the course
-      const lessonsResponse = await fetch(`/api/courses/${courseId}/lessons`);
-      const lessonsData = await lessonsResponse.json();
-      if (lessonsData.success) {
-        setLessons(lessonsData.data);
+      const lessonsResponse = await api.courses.getAllLessonsByCourse(courseId);
+      if (lessonsResponse.success) {
+        setLessons(lessonsResponse.data);
       }
 
       // Load assignment submissions
@@ -193,8 +196,8 @@ const InstructorCourseManagement = () => {
       }
 
       const url = editingItem 
-        ? `/api/moocs/${editingItem.mooc_id}`
-        : `/api/courses/${courseId}/moocs`;
+        ? `${BACKEND_URL}/content/moocs/${editingItem.mooc_id}`
+        : `${BACKEND_URL}/instructor/courses/${courseId}/moocs`;
       
       const method = editingItem ? 'PUT' : 'POST';
 
@@ -230,8 +233,11 @@ const InstructorCourseManagement = () => {
       content_type: 'video',
       content_url: '',
       description: '',
+      instructions: '',
+      numQuestions: 5,
+      timeLimit: 10,
+      passingScore: 70,
       order_no: 1,
-      duration: 0,
       is_preview: false
     });
     setShowLessonDialog(true);
@@ -239,14 +245,53 @@ const InstructorCourseManagement = () => {
 
   const handleEditLesson = (lesson) => {
     setEditingItem(lesson);
+    
+    // Parse JSON từ content_url cho assignment và quiz
+    let description = '';
+    let instructions = '';
+    let numQuestions = 5;
+    let timeLimit = 10;
+    let passingScore = 70;
+    let content_url = lesson.content_url || '';
+    
+    if (lesson.content_type === 'assignment' && lesson.content_url) {
+      try {
+        const assignmentData = JSON.parse(lesson.content_url);
+        description = assignmentData.description || '';
+        instructions = assignmentData.instructions || '';
+        content_url = ''; // Clear URL for assignment
+      } catch (e) {
+        console.error('Failed to parse assignment data:', e);
+      }
+    }
+
+    if (lesson.content_type === 'quiz' && lesson.content_url) {
+      try {
+        const quizData = JSON.parse(lesson.content_url);
+        if (quizData.type === 'quiz_v2') {
+          // New format - Question Bank
+          numQuestions = quizData.numQuestions || 5;
+          timeLimit = quizData.timeLimit || 10;
+          passingScore = quizData.passingScore || 70;
+          content_url = ''; // Clear URL for quiz
+        }
+        // Old format with questions array - keep as is for backward compatibility
+      } catch (e) {
+        console.error('Failed to parse quiz data:', e);
+      }
+    }
+    
     setLessonForm({
       mooc_id: lesson.mooc_id,
       title: lesson.title,
       content_type: lesson.content_type,
-      content_url: lesson.content_url || '',
-      description: lesson.description || '',
+      content_url: content_url,
+      description: description,
+      instructions: instructions,
+      numQuestions: numQuestions,
+      timeLimit: timeLimit,
+      passingScore: passingScore,
       order_no: lesson.order_no,
-      duration: lesson.duration || 0,
       is_preview: lesson.is_preview || false
     });
     setShowLessonDialog(true);
@@ -264,9 +309,68 @@ const InstructorCourseManagement = () => {
         return;
       }
 
+      // Validation cho assignment
+      if (lessonForm.content_type === 'assignment') {
+        if (!lessonForm.description?.trim()) {
+          toast.error('Vui lòng nhập mô tả bài tập');
+          return;
+        }
+        if (!lessonForm.instructions?.trim()) {
+          toast.error('Vui lòng nhập hướng dẫn chi tiết');
+          return;
+        }
+      }
+
+      // Validation cho quiz
+      if (lessonForm.content_type === 'quiz') {
+        if (!lessonForm.numQuestions || lessonForm.numQuestions < 1) {
+          toast.error('Số câu hỏi phải >= 1');
+          return;
+        }
+        if (!lessonForm.timeLimit || lessonForm.timeLimit < 1) {
+          toast.error('Thời gian phải >= 1 phút');
+          return;
+        }
+        if (lessonForm.passingScore < 0 || lessonForm.passingScore > 100) {
+          toast.error('Điểm đạt phải từ 0-100');
+          return;
+        }
+      }
+
+      // Chuẩn bị data
+      let dataToSend = { ...lessonForm };
+      
+      // Nếu là assignment, serialize thành JSON trong content_url
+      if (lessonForm.content_type === 'assignment') {
+        dataToSend.content_url = JSON.stringify({
+          type: 'assignment',
+          title: lessonForm.title,
+          description: lessonForm.description || '',
+          instructions: lessonForm.instructions || ''
+        });
+        // Xóa description và instructions khỏi request body
+        delete dataToSend.description;
+        delete dataToSend.instructions;
+      }
+
+      // Nếu là quiz, serialize config thành JSON trong content_url
+      if (lessonForm.content_type === 'quiz') {
+        dataToSend.content_url = JSON.stringify({
+          type: 'quiz_v2',  // v2 = uses Question Bank
+          numQuestions: lessonForm.numQuestions || 5,
+          timeLimit: lessonForm.timeLimit || 10,
+          passingScore: lessonForm.passingScore || 70
+        });
+        // Xóa quiz config khỏi request body
+        delete dataToSend.numQuestions;
+        delete dataToSend.timeLimit;
+        delete dataToSend.passingScore;
+        delete dataToSend.description;
+      }
+
       const url = editingItem
-        ? `/api/lessons/${editingItem.lesson_id}`
-        : `/api/lessons`;
+        ? `${BACKEND_URL}/instructor/lessons/${editingItem.lesson_id}`
+        : `${BACKEND_URL}/instructor/lessons`;
 
       const method = editingItem ? 'PUT' : 'POST';
 
@@ -276,7 +380,7 @@ const InstructorCourseManagement = () => {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         },
-        body: JSON.stringify(lessonForm)
+        body: JSON.stringify(dataToSend)
       });
 
       const data = await response.json();
@@ -491,6 +595,14 @@ const InstructorCourseManagement = () => {
                           </p>
                         </div>
                         <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => navigate(`/instructor/courses/${courseId}/question-bank?moocId=${mooc.mooc_id}&moocTitle=${encodeURIComponent('Week ' + mooc.order_no + ': ' + mooc.title)}`)}
+                          >
+                            <FileText className="w-4 h-4 mr-1" />
+                            Câu hỏi
+                          </Button>
                           <Button
                             variant="outline"
                             size="sm"
@@ -958,7 +1070,7 @@ const InstructorCourseManagement = () => {
 
       {/* Lesson Dialog */}
       <Dialog open={showLessonDialog} onOpenChange={setShowLessonDialog}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {editingItem ? 'Chỉnh sửa bài học' : 'Tạo bài học mới'}
@@ -970,11 +1082,16 @@ const InstructorCourseManagement = () => {
                 MOOC <span className="text-red-500">*</span>
               </label>
               <Select
-                value={lessonForm.mooc_id.toString()}
+                value={lessonForm.mooc_id ? lessonForm.mooc_id.toString() : ''}
                 onValueChange={(value) => setLessonForm({ ...lessonForm, mooc_id: parseInt(value) })}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Chọn MOOC" />
+                  <SelectValue placeholder="Chọn MOOC">
+                    {lessonForm.mooc_id && moocs.find(m => m.mooc_id === lessonForm.mooc_id) 
+                      ? `Week ${moocs.find(m => m.mooc_id === lessonForm.mooc_id).order_no}: ${moocs.find(m => m.mooc_id === lessonForm.mooc_id).title}`
+                      : 'Chọn MOOC'
+                    }
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {moocs.map((mooc) => (
@@ -1004,39 +1121,124 @@ const InstructorCourseManagement = () => {
                 onValueChange={(value) => setLessonForm({ ...lessonForm, content_type: value })}
               >
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue placeholder="Chọn loại nội dung">
+                    {lessonForm.content_type === 'video' && 'Video'}
+                    {lessonForm.content_type === 'assignment' && 'Assignment (Bài tập)'}
+                    {lessonForm.content_type === 'reading' && 'Reading (Tài liệu đọc)'}
+                    {lessonForm.content_type === 'quiz' && 'Quiz (Bài kiểm tra)'}
+                    {!lessonForm.content_type && 'Chọn loại nội dung'}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="video">Video</SelectItem>
                   <SelectItem value="assignment">Assignment (Bài tập)</SelectItem>
                   <SelectItem value="reading">Reading (Tài liệu đọc)</SelectItem>
+                  <SelectItem value="quiz">Quiz (Bài kiểm tra)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            <div>
-              <label className="block text-sm font-medium mb-2">
-                {lessonForm.content_type === 'video' ? 'URL Video (YouTube/Vimeo)' : 'URL/Nội dung'}
-              </label>
-              <Input
-                value={lessonForm.content_url}
-                onChange={(e) => setLessonForm({ ...lessonForm, content_url: e.target.value })}
-                placeholder={
-                  lessonForm.content_type === 'video' 
-                    ? 'https://www.youtube.com/embed/...'
-                    : 'Nhập URL hoặc nội dung'
-                }
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-2">Mô tả</label>
-              <Textarea
-                value={lessonForm.description}
-                onChange={(e) => setLessonForm({ ...lessonForm, description: e.target.value })}
-                placeholder="Nhập mô tả bài học"
-                rows={3}
-              />
-            </div>
-            <div className="grid grid-cols-3 gap-4">
+            
+            {/* URL field - chỉ hiển thị cho video và reading */}
+            {lessonForm.content_type !== 'assignment' && (
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  {lessonForm.content_type === 'video' ? 'URL Video (YouTube/Vimeo)' : 'URL/Nội dung'}
+                </label>
+                <Input
+                  value={lessonForm.content_url}
+                  onChange={(e) => setLessonForm({ ...lessonForm, content_url: e.target.value })}
+                  placeholder={
+                    lessonForm.content_type === 'video' 
+                      ? 'https://www.youtube.com/embed/...'
+                      : 'Nhập URL hoặc nội dung'
+                  }
+                />
+              </div>
+            )}
+            
+            {/* Description field - chỉ cho assignment */}
+            {lessonForm.content_type === 'assignment' && (
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  Mô tả bài tập <span className="text-red-500">*</span>
+                </label>
+                <Textarea
+                  value={lessonForm.description}
+                  onChange={(e) => setLessonForm({ ...lessonForm, description: e.target.value })}
+                  placeholder="Mô tả bài tập (yêu cầu, mục tiêu, ...) - Có thể viết text thường, không cần code HTML"
+                  rows={3}
+                />
+              </div>
+            )}
+
+            {/* Instructions field - chỉ cho assignment */}
+            {lessonForm.content_type === 'assignment' && (
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  Hướng dẫn chi tiết <span className="text-red-500">*</span>
+                </label>
+                <Textarea
+                  value={lessonForm.instructions}
+                  onChange={(e) => setLessonForm({ ...lessonForm, instructions: e.target.value })}
+                  placeholder="Hướng dẫn chi tiết cách làm bài tập, tiêu chí đánh giá, ..."
+                  rows={4}
+                />
+              </div>
+            )}
+
+            {/* Quiz Config - chỉ cho quiz */}
+            {lessonForm.content_type === 'quiz' && (
+              <div className="space-y-3 p-3 bg-purple-50 rounded-lg border border-purple-200">
+                <h4 className="font-semibold text-sm text-purple-900">Cấu hình Quiz (Question Bank)</h4>
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium mb-2">
+                      Số câu hỏi <span className="text-red-500">*</span>
+                    </label>
+                    <Input
+                      type="number"
+                      min="1"
+                      max="20"
+                      value={lessonForm.numQuestions || 5}
+                      onChange={(e) => setLessonForm({ ...lessonForm, numQuestions: parseInt(e.target.value) || 5 })}
+                      placeholder="5"
+                    />
+                    <p className="text-xs text-gray-600 mt-1">Random từ Question Bank</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-2">
+                      Thời gian (phút) <span className="text-red-500">*</span>
+                    </label>
+                    <Input
+                      type="number"
+                      min="1"
+                      max="60"
+                      value={lessonForm.timeLimit || 10}
+                      onChange={(e) => setLessonForm({ ...lessonForm, timeLimit: parseInt(e.target.value) || 10 })}
+                      placeholder="10"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-2">
+                      Điểm đạt (%) <span className="text-red-500">*</span>
+                    </label>
+                    <Input
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={lessonForm.passingScore || 70}
+                      onChange={(e) => setLessonForm({ ...lessonForm, passingScore: parseInt(e.target.value) || 70 })}
+                      placeholder="70"
+                    />
+                  </div>
+                </div>
+                <p className="text-xs text-purple-700">
+                  💡 Random <strong>{lessonForm.numQuestions || 5} câu</strong> từ Question Bank. Mỗi lần làm khác nhau.
+                </p>
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium mb-2">Thứ tự</label>
                 <Input
@@ -1046,17 +1248,6 @@ const InstructorCourseManagement = () => {
                   onChange={(e) => setLessonForm({ ...lessonForm, order_no: parseInt(e.target.value) })}
                 />
               </div>
-              {lessonForm.content_type === 'video' && (
-                <div>
-                  <label className="block text-sm font-medium mb-2">Thời lượng (phút)</label>
-                  <Input
-                    type="number"
-                    min="0"
-                    value={lessonForm.duration}
-                    onChange={(e) => setLessonForm({ ...lessonForm, duration: parseInt(e.target.value) })}
-                  />
-                </div>
-              )}
               <div className="flex items-end">
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input

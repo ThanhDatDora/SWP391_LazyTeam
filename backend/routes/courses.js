@@ -45,7 +45,7 @@ router.get('/', [
       queryParams.push({ name: 'search', type: sql.NVarChar, value: `%${search}%` });
     }
 
-    // Only show active courses
+    // Only show active courses for public view (approved courses)
     whereConditions.push("c.status = 'active'");
 
     const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
@@ -297,7 +297,8 @@ router.get('/:id', async (req, res) => {
           c.owner_instructor_id as instructorId,
           COALESCE(u.full_name, u.email, 'Instructor') as instructorName,
           u.avatar_url as instructorAvatar,
-          u.bio as instructorBio,
+          COALESCE(inst.bio, u.bio) as instructorBio,
+          inst.headline as instructorHeadline,
           cat.name as categoryName,
           cat.category_id as categoryId,
           'https://via.placeholder.com/800x450' as thumbnail,
@@ -306,11 +307,14 @@ router.get('/:id', async (req, res) => {
           (SELECT COUNT(*) FROM reviews WHERE course_id = c.course_id) as reviewCount,
           (SELECT COUNT(*) FROM lessons l 
            INNER JOIN moocs m ON l.mooc_id = m.mooc_id 
-           WHERE m.course_id = c.course_id) as totalLessons
+           WHERE m.course_id = c.course_id) as totalLessons,
+          (SELECT COUNT(DISTINCT c2.course_id) FROM courses c2 WHERE c2.owner_instructor_id = c.owner_instructor_id AND c2.status = 'active') as instructorCourses,
+          (SELECT COUNT(DISTINCT e.user_id) FROM enrollments e INNER JOIN courses c2 ON e.course_id = c2.course_id WHERE c2.owner_instructor_id = c.owner_instructor_id) as instructorStudents
         FROM courses c
         LEFT JOIN users u ON c.owner_instructor_id = u.user_id
+        LEFT JOIN instructors inst ON u.user_id = inst.user_id
         LEFT JOIN categories cat ON c.category_id = cat.category_id
-        WHERE c.course_id = @courseId AND c.status = 'active'
+        WHERE c.course_id = @courseId
       `);
 
     if (result.recordset.length === 0) {
@@ -412,7 +416,7 @@ router.get('/:id', async (req, res) => {
 
     res.json({ 
       success: true,
-      course 
+      course: course  // Changed from 'data' to 'course' to match frontend
     });
 
   } catch (error) {
@@ -420,6 +424,90 @@ router.get('/:id', async (req, res) => {
     res.status(500).json({ 
       success: false,
       message: 'Internal server error' 
+    });
+  }
+});
+
+// POST /:id/reviews - Add review/rating for a course (Learner only, must be enrolled)
+router.post('/:id/reviews', authenticateToken, authorizeRoles('learner'), [
+  body('rating').isInt({ min: 1, max: 5 }),
+  body('comment').trim().isLength({ min: 10, max: 1000 })
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ 
+        success: false,
+        errors: errors.array() 
+      });
+    }
+
+    const { id: courseId } = req.params;
+    const { rating, comment } = req.body;
+    const userId = req.user.userId;
+
+    const pool = await getPool();
+
+    // Check if user is enrolled in this course
+    const enrollmentCheck = await pool.request()
+      .input('userId', sql.BigInt, userId)
+      .input('courseId', sql.BigInt, courseId)
+      .query('SELECT enrollment_id FROM enrollments WHERE user_id = @userId AND course_id = @courseId');
+
+    if (enrollmentCheck.recordset.length === 0) {
+      return res.status(403).json({ 
+        success: false,
+        message: 'Bạn phải đăng ký khóa học này để có thể đánh giá' 
+      });
+    }
+
+    // Check if user already reviewed this course
+    const existingReview = await pool.request()
+      .input('userId', sql.BigInt, userId)
+      .input('courseId', sql.BigInt, courseId)
+      .query('SELECT review_id FROM reviews WHERE user_id = @userId AND course_id = @courseId');
+
+    if (existingReview.recordset.length > 0) {
+      // Update existing review
+      await pool.request()
+        .input('reviewId', sql.BigInt, existingReview.recordset[0].review_id)
+        .input('rating', sql.Int, rating)
+        .input('comment', sql.NVarChar, comment)
+        .query(`
+          UPDATE reviews 
+          SET rating = @rating, comment = @comment, created_at = GETDATE()
+          WHERE review_id = @reviewId
+        `);
+
+      return res.json({ 
+        success: true,
+        message: 'Đã cập nhật đánh giá của bạn'
+      });
+    } else {
+      // Create new review
+      const result = await pool.request()
+        .input('userId', sql.BigInt, userId)
+        .input('courseId', sql.BigInt, courseId)
+        .input('rating', sql.Int, rating)
+        .input('comment', sql.NVarChar, comment)
+        .query(`
+          INSERT INTO reviews (user_id, course_id, rating, comment, created_at)
+          VALUES (@userId, @courseId, @rating, @comment, GETDATE());
+          SELECT SCOPE_IDENTITY() as review_id;
+        `);
+
+      return res.json({ 
+        success: true,
+        message: 'Cảm ơn bạn đã đánh giá khóa học!',
+        reviewId: result.recordset[0].review_id
+      });
+    }
+
+  } catch (error) {
+    console.error('Create review error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Không thể gửi đánh giá. Vui lòng thử lại sau.' 
     });
   }
 });
@@ -459,16 +547,18 @@ router.post('/', authenticateToken, authorizeRoles('instructor', 'admin'), [
     let finalCategoryId = categoryId;
     if (!finalCategoryId && category) {
       const categoryMap = {
-        'programming': 1,
-        'web-development': 2,
-        'mobile-development': 3,
-        'data-science': 4,
-        'machine-learning': 5,
-        'design': 6,
-        'business': 7,
-        'marketing': 8,
-        'language': 9,
-        'other': 10
+        'programming': 1,           // Programming
+        'web-development': 2,       // Web Development
+        'data-science': 3,          // Data Science
+        'mobile-development': 4,    // Mobile Development
+        'machine-learning': 5,      // AI & Machine Learning
+        'ai': 5,                    // AI & Machine Learning (alias)
+        'business': 6,              // Business & Management
+        'management': 6,            // Business & Management (alias)
+        'design': 7,                // Design
+        'photography': 8,           // Photography
+        'marketing': 9,             // Marketing
+        'other': 1                  // Default to Programming
       };
       finalCategoryId = categoryMap[category] || 1;
     }
@@ -511,9 +601,9 @@ router.post('/', authenticateToken, authorizeRoles('instructor', 'admin'), [
       const createInstructor = await pool.request()
         .input('userId', sql.BigInt, req.user.userId)
         .query(`
-          INSERT INTO instructors (user_id, bio, expertise, rating)
+          INSERT INTO instructors (user_id, headline, bio, verified)
           OUTPUT INSERTED.instructor_id
-          VALUES (@userId, N'Giảng viên mới', N'Chưa cập nhật', 0)
+          VALUES (@userId, N'Giảng viên', N'Chưa cập nhật', 0)
         `);
       instructorId = createInstructor.recordset[0].instructor_id;
     } else {
@@ -524,7 +614,7 @@ router.post('/', authenticateToken, authorizeRoles('instructor', 'admin'), [
         const _finalWhatYouWillLearn = Array.isArray(req.body.whatYouWillLearn) ? req.body.whatYouWillLearn : [];
     const finalDuration = duration ? duration.toString() : '0';
 
-    // Create course
+    // Create course with pending status (waiting for admin approval)
     const result = await pool.request()
       .input('title', sql.NVarChar, title)
       .input('description', sql.NText, description)
@@ -535,13 +625,13 @@ router.post('/', authenticateToken, authorizeRoles('instructor', 'admin'), [
       .input('languageCode', sql.NVarChar(10), language || 'vi')
       .query(`
         INSERT INTO courses (
-          title, description, instructor_id, category_id, price,
-          level, language_code, status, is_approved, created_at, updated_at
+          title, description, owner_instructor_id, category_id, price,
+          level, language_code, status, created_at, updated_at
         )
         OUTPUT INSERTED.*
         VALUES (
           @title, @description, @instructorId, @categoryId, @price,
-          @level, @languageCode, 'active', 0, GETDATE(), GETDATE()
+          @level, @languageCode, 'pending', GETDATE(), GETDATE()
         )
       `);
 
@@ -549,13 +639,14 @@ router.post('/', authenticateToken, authorizeRoles('instructor', 'admin'), [
 
     res.status(201).json({
       success: true,
-      message: 'Course created successfully',
+      message: 'Khóa học đã được tạo và đang chờ Admin duyệt',
       data: {
         course_id: newCourse.course_id,
         title: newCourse.title,
         description: newCourse.description,
         price: newCourse.price,
-        level: newCourse.level
+        level: newCourse.level,
+        status: newCourse.status
       }
     });
 
@@ -662,9 +753,8 @@ router.get('/:courseId/moocs', async (req, res) => {
           mooc_id,
           course_id,
           title as name,
-          description,
           order_no as order_index,
-          created_at
+          pass_mark
         FROM moocs
         WHERE course_id = @courseId
         ORDER BY order_no
@@ -699,9 +789,7 @@ router.get('/:courseId/lessons', async (req, res) => {
           l.title,
           l.content_type,
           l.content_url,
-          l.description,
           l.order_no,
-          l.duration,
           l.is_preview,
           m.title as mooc_title,
           m.order_no as mooc_order
@@ -721,6 +809,159 @@ router.get('/:courseId/lessons', async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to get lessons'
+    });
+  }
+});
+
+// POST /api/courses/instructors/:instructorId/reviews - Submit instructor review
+router.post('/instructors/:instructorId/reviews', 
+  authenticateToken, 
+  authorizeRoles('learner'),
+  [
+    body('rating').isInt({ min: 1, max: 5 }).withMessage('Rating phải từ 1-5'),
+    body('comment').isLength({ min: 10, max: 1000 }).withMessage('Nhận xét phải từ 10-1000 ký tự')
+  ],
+  async (req, res) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({
+          success: false,
+          message: 'Dữ liệu không hợp lệ',
+          errors: errors.array()
+        });
+      }
+
+      const { instructorId } = req.params;
+      const { rating, comment } = req.body;
+      const userId = req.user.userId;
+
+      const pool = await getPool();
+
+      // Check if user has enrolled in any course from this instructor
+      const enrollmentCheck = await pool.request()
+        .input('userId', sql.BigInt, userId)
+        .input('instructorId', sql.BigInt, instructorId)
+        .query(`
+          SELECT COUNT(*) as count
+          FROM enrollments e
+          JOIN courses c ON e.course_id = c.course_id
+          JOIN instructors i ON c.owner_instructor_id = i.instructor_id
+          WHERE e.user_id = @userId AND i.instructor_id = @instructorId
+        `);
+
+      if (enrollmentCheck.recordset[0].count === 0) {
+        return res.status(403).json({
+          success: false,
+          message: 'Bạn phải học ít nhất một khóa học của giảng viên này để có thể đánh giá'
+        });
+      }
+
+      // Check if review already exists
+      const existingReview = await pool.request()
+        .input('userId', sql.BigInt, userId)
+        .input('instructorId', sql.BigInt, instructorId)
+        .query(`
+          SELECT instructor_review_id 
+          FROM instructor_reviews 
+          WHERE user_id = @userId AND instructor_id = @instructorId
+        `);
+
+      let result;
+      if (existingReview.recordset.length > 0) {
+        // Update existing review
+        result = await pool.request()
+          .input('userId', sql.BigInt, userId)
+          .input('instructorId', sql.BigInt, instructorId)
+          .input('rating', sql.Int, rating)
+          .input('comment', sql.NVarChar, comment)
+          .query(`
+            UPDATE instructor_reviews 
+            SET rating = @rating, comment = @comment, created_at = GETDATE()
+            WHERE user_id = @userId AND instructor_id = @instructorId
+          `);
+
+        res.json({
+          success: true,
+          message: 'Cập nhật đánh giá thành công'
+        });
+      } else {
+        // Create new review
+        result = await pool.request()
+          .input('userId', sql.BigInt, userId)
+          .input('instructorId', sql.BigInt, instructorId)
+          .input('rating', sql.Int, rating)
+          .input('comment', sql.NVarChar, comment)
+          .query(`
+            INSERT INTO instructor_reviews (instructor_id, user_id, rating, comment)
+            VALUES (@instructorId, @userId, @rating, @comment);
+            SELECT SCOPE_IDENTITY() as instructor_review_id;
+          `);
+
+        res.json({
+          success: true,
+          message: 'Gửi đánh giá thành công',
+          instructor_review_id: result.recordset[0].instructor_review_id
+        });
+      }
+
+    } catch (error) {
+      console.error('Error submitting instructor review:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Đã xảy ra lỗi khi gửi đánh giá'
+      });
+    }
+  }
+);
+
+// GET /api/courses/instructors/:instructorId/reviews - Get instructor reviews
+router.get('/instructors/:instructorId/reviews', async (req, res) => {
+  try {
+    const { instructorId } = req.params;
+    const pool = await getPool();
+
+    const result = await pool.request()
+      .input('instructorId', sql.BigInt, instructorId)
+      .query(`
+        SELECT 
+          ir.instructor_review_id,
+          ir.rating,
+          ir.comment,
+          ir.created_at,
+          u.full_name as user_name,
+          u.avatar_url
+        FROM instructor_reviews ir
+        JOIN users u ON ir.user_id = u.user_id
+        WHERE ir.instructor_id = @instructorId
+        ORDER BY ir.created_at DESC
+      `);
+
+    // Calculate average rating
+    const statsResult = await pool.request()
+      .input('instructorId', sql.BigInt, instructorId)
+      .query(`
+        SELECT 
+          AVG(CAST(rating as FLOAT)) as average_rating,
+          COUNT(*) as review_count
+        FROM instructor_reviews
+        WHERE instructor_id = @instructorId
+      `);
+
+    res.json({
+      success: true,
+      reviews: result.recordset,
+      stats: {
+        averageRating: statsResult.recordset[0].average_rating || 0,
+        reviewCount: statsResult.recordset[0].review_count || 0
+      }
+    });
+
+  } catch (error) {
+    console.error('Error getting instructor reviews:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Đã xảy ra lỗi khi lấy đánh giá'
     });
   }
 });

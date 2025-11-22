@@ -381,6 +381,28 @@ exports.submitExam = async (req, res) => {
       }
     }
 
+    // Create notification for learner about exam result
+    const notificationTitle = passed 
+      ? '🎉 Bài kiểm tra đã hoàn thành - ĐẠT' 
+      : '📝 Bài kiểm tra đã hoàn thành - CHƯA ĐẠT';
+    const notificationMessage = passed
+      ? `Bạn đã hoàn thành bài kiểm tra với điểm ${Math.round(score)}/100 (${correctAnswers}/${totalQuestions} câu đúng). Xuất sắc!`
+      : `Điểm bài kiểm tra: ${Math.round(score)}/100 (${correctAnswers}/${totalQuestions} câu đúng). Bạn cần đạt 70 điểm để qua bài. Hãy thử lại!`;
+
+    await sql.query`
+      INSERT INTO notifications (user_id, title, message, type, link, icon, is_read, created_at)
+      VALUES (
+        ${userId}, 
+        ${notificationTitle}, 
+        ${notificationMessage}, 
+        ${passed ? 'success' : 'warning'},
+        ${`/exams/attempts/${attempt_id}/result`},
+        ${passed ? 'CheckCircle' : 'XCircle'},
+        0, 
+        GETDATE()
+      )
+    `;
+
     res.json({
       success: true,
       data: {

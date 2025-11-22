@@ -11,6 +11,8 @@ import { useAuth } from '../../contexts/AuthContext';
 import { ArrowLeft, Save, Upload, Loader2 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
+const BACKEND_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api';
+
 const CATEGORIES = [
   { value: 'programming', label: 'Lập trình' },
   { value: 'web-development', label: 'Phát triển Web' },
@@ -33,6 +35,7 @@ const CourseCreateForm = () => {
   const [formData, setFormData] = useState({
     title: '',
     description: '',
+    shortDescription: '',
     category: '',
     price: '',
     duration: '',
@@ -124,7 +127,7 @@ const CourseCreateForm = () => {
 
       console.log('📤 Sending course data:', submitData);
 
-      const response = await fetch('/api/courses', {
+      const response = await fetch(`${BACKEND_URL}/courses`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -138,8 +141,11 @@ const CourseCreateForm = () => {
       console.log('📥 Server response:', data);
 
       if (response.ok && data.success) {
-        toast.success('Tạo khóa học thành công!');
-        navigate(`/instructor/courses/${data.data.course_id}`);
+        toast.success(data.message || 'Khóa học đã được tạo và đang chờ Admin duyệt!');
+        // Navigate to instructor courses list instead of specific course
+        setTimeout(() => {
+          navigate('/instructor/courses');
+        }, 1500);
       } else {
         console.error('❌ Error response:', data);
         toast.error(data.message || 'Có lỗi xảy ra khi tạo khóa học');
@@ -210,6 +216,22 @@ const CourseCreateForm = () => {
                 />
                 <p className="text-xs text-gray-500 mt-1">
                   Sử dụng editor để format text, thêm lists, links, etc.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  Mô tả ngắn
+                </label>
+                <Textarea
+                  value={formData.shortDescription}
+                  onChange={(e) => handleInputChange('shortDescription', e.target.value)}
+                  placeholder="Mô tả ngắn gọn về khóa học (hiển thị trên card)"
+                  rows={2}
+                  maxLength={200}
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  {formData.shortDescription?.length || 0}/200 ký tự
                 </p>
               </div>
 

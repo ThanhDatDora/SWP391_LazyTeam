@@ -111,16 +111,55 @@ const MyProfilePage = () => {
 
   const loadUserStats = async () => {
     try {
-      // Simulate loading user statistics
-      setUserStats({
-        totalCourses: 12,
-        completedCourses: 8,
-        inProgressCourses: 4,
-        totalHours: 120,
-        certificates: 6
+      console.log('📊 Loading user stats...');
+      // Fetch enrollment data to calculate stats
+      const token = localStorage.getItem('token');
+      const response = await fetch('http://localhost:3001/api/enrollments/my-enrollments', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
       });
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('📊 Enrollments data:', data);
+        
+        if (data.success && data.data) {
+          const enrollments = data.data;
+          const totalCourses = enrollments.length;
+          const completedCourses = enrollments.filter(e => e.completed_at || e.progress === 100).length;
+          const inProgressCourses = enrollments.filter(e => !e.completed_at && e.progress > 0).length;
+          
+          setUserStats({
+            totalCourses,
+            completedCourses,
+            inProgressCourses,
+            totalHours: 120, // TODO: Calculate from actual course durations
+            certificates: completedCourses // Certificates = completed courses
+          });
+          console.log('✅ Stats loaded:', { totalCourses, completedCourses, inProgressCourses, certificates: completedCourses });
+        }
+      } else {
+        console.error('❌ Failed to fetch enrollments');
+        // Fallback to hardcoded stats
+        setUserStats({
+          totalCourses: 0,
+          completedCourses: 0,
+          inProgressCourses: 0,
+          totalHours: 0,
+          certificates: 0
+        });
+      }
     } catch (error) {
-      console.error('Error loading user stats:', error);
+      console.error('❌ Error loading user stats:', error);
+      setUserStats({
+        totalCourses: 0,
+        completedCourses: 0,
+        inProgressCourses: 0,
+        totalHours: 0,
+        certificates: 0
+      });
     }
   };
 

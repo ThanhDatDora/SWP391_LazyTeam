@@ -212,7 +212,17 @@ const CourseLearningPage = () => {
 
   const getCurrentLesson = () => {
     if (!courseContent) return null;
-    return courseContent.moocs[currentMoocIndex]?.lessons[currentLessonIndex];
+    const lesson = courseContent.moocs[currentMoocIndex]?.lessons[currentLessonIndex];
+    const mooc = courseContent.moocs[currentMoocIndex];
+    
+    // Add mooc_id to lesson for components that need it (e.g., QuizLesson)
+    if (lesson && mooc) {
+      return {
+        ...lesson,
+        mooc_id: mooc.mooc_id
+      };
+    }
+    return lesson;
   };
 
   const getCurrentMooc = () => {

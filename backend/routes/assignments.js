@@ -240,17 +240,31 @@ router.post('/grade', authenticateToken, async (req, res) => {
         WHERE essay_submission_id = @submissionId
       `);
 
-    // Mark lesson as completed in progress table
+    // Get pass_mark from mooc to determine if assignment is completed
+    const moocResult = await pool.request()
+      .input('lessonId', sql.BigInt, task_id)
+      .query(`
+        SELECT m.pass_mark
+        FROM lessons l
+        JOIN moocs m ON l.mooc_id = m.mooc_id
+        WHERE l.lesson_id = @lessonId
+      `);
+
+    const passMark = moocResult.recordset[0]?.pass_mark || 50; // Default 50 if not found
+    const isPassed = score >= passMark;
+
+    // Only mark lesson as completed if score >= pass_mark
     await pool.request()
       .input('userId', sql.BigInt, user_id)
       .input('lessonId', sql.BigInt, task_id)
+      .input('isCompleted', sql.Bit, isPassed ? 1 : 0)
       .query(`
         UPDATE progress 
-        SET is_completed = 1, updated_at = GETDATE()
+        SET is_completed = @isCompleted, updated_at = GETDATE()
         WHERE user_id = @userId AND lesson_id = @lessonId
       `);
 
-    console.log('✅ Graded submission:', submission_id, 'and marked lesson completed');
+    console.log(`✅ Graded submission: ${submission_id}, score: ${score}, pass_mark: ${passMark}, completed: ${isPassed}`);
 
     res.json({
       success: true,
@@ -535,6 +549,27 @@ router.post('/submissions/:submissionId/grade', authenticateToken, async (req, r
           WHERE user_id = @userId AND lesson_id = @lessonId
         `);
     }
+
+    // Create notification for learner about grading result
+    const isPassing = score !== null && score >= 50;
+    const notificationTitle = isPassing 
+      ? '🎉 Bài tập đã được chấm - ĐẠT' 
+      : '📝 Bài tập đã được chấm';
+    const notificationMessage = isPassing
+      ? `Bạn đã hoàn thành bài tập với điểm ${score}/100. Xuất sắc!`
+      : `Bài tập của bạn đã được chấm: ${score}/100. ${score < 50 ? 'Bạn có thể nộp lại để cải thiện điểm.' : ''}`;
+
+    await pool.request()
+      .input('userId', sql.BigInt, user_id)
+      .input('title', sql.NVarChar(255), notificationTitle)
+      .input('message', sql.NVarChar(sql.MAX), notificationMessage)
+      .input('type', sql.NVarChar(50), isPassing ? 'success' : 'info')
+      .input('link', sql.NVarChar(500), `/learning/${task_id}`)
+      .input('icon', sql.NVarChar(50), isPassing ? 'CheckCircle' : 'AlertCircle')
+      .query(`
+        INSERT INTO notifications (user_id, title, message, type, link, icon, is_read, created_at)
+        VALUES (@userId, @title, @message, @type, @link, @icon, 0, GETDATE())
+      `);
 
     console.log('✅ Submission graded successfully');
 

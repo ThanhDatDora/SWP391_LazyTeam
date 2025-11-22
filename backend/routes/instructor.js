@@ -1,8 +1,41 @@
 import express from 'express';
+import multer from 'multer';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { authenticateToken, authorizeRoles } from '../middleware/auth.js';
 import { getPool, sql } from '../config/database.js';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 const router = express.Router();
+
+// Configure multer for certificate uploads
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, path.join(__dirname, '../uploads/certificates'));
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, 'cert-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = /pdf|jpg|jpeg|png/;
+    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+    const mimetype = allowedTypes.test(file.mimetype);
+    
+    if (extname && mimetype) {
+      cb(null, true);
+    } else {
+      cb(new Error('Chỉ chấp nhận file PDF, JPG, PNG'));
+    }
+  }
+});
 
 // ==================== INSTRUCTOR COURSES ====================
 
@@ -119,12 +152,11 @@ router.post('/courses/:courseId/moocs', authenticateToken, authorizeRoles('instr
     const result = await pool.request()
       .input('course_id', sql.Int, courseId)
       .input('title', sql.NVarChar(255), title.trim())
-      .input('description', sql.NVarChar(sql.MAX), description || '')
       .input('order_no', sql.Int, order_no || 1)
       .query(`
-        INSERT INTO moocs (course_id, title, description, order_no)
+        INSERT INTO moocs (course_id, title, order_no)
         OUTPUT INSERTED.*
-        VALUES (@course_id, @title, @description, @order_no)
+        VALUES (@course_id, @title, @order_no)
       `);
 
     res.status(201).json({
@@ -162,13 +194,11 @@ router.put('/moocs/:moocId', authenticateToken, authorizeRoles('instructor', 'ad
     const result = await pool.request()
       .input('mooc_id', sql.Int, moocId)
       .input('title', sql.NVarChar(255), title.trim())
-      .input('description', sql.NVarChar(sql.MAX), description || '')
       .input('order_no', sql.Int, order_no || 1)
       .query(`
         UPDATE moocs
         SET 
           title = @title,
-          description = @description,
           order_no = @order_no
         OUTPUT INSERTED.*
         WHERE mooc_id = @mooc_id
@@ -333,7 +363,7 @@ router.post('/lessons', authenticateToken, authorizeRoles('instructor', 'admin')
       });
     }
 
-    if (!['video', 'assignment', 'reading'].includes(content_type)) {
+    if (!['video', 'assignment', 'reading', 'quiz'].includes(content_type)) {
       return res.status(400).json({
         success: false,
         message: 'Loại nội dung không hợp lệ'
@@ -346,9 +376,7 @@ router.post('/lessons', authenticateToken, authorizeRoles('instructor', 'admin')
       .input('title', sql.NVarChar(255), title.trim())
       .input('content_type', sql.NVarChar(50), content_type)
       .input('content_url', sql.NVarChar(sql.MAX), content_url || '')
-      .input('description', sql.NVarChar(sql.MAX), description || '')
       .input('order_no', sql.Int, order_no || 1)
-      .input('duration', sql.Int, duration || 0)
       .input('is_preview', sql.Bit, is_preview || false)
       .query(`
         INSERT INTO lessons (
@@ -356,9 +384,7 @@ router.post('/lessons', authenticateToken, authorizeRoles('instructor', 'admin')
           title, 
           content_type, 
           content_url, 
-          description, 
           order_no, 
-          duration,
           is_preview
         )
         OUTPUT INSERTED.*
@@ -367,9 +393,7 @@ router.post('/lessons', authenticateToken, authorizeRoles('instructor', 'admin')
           @title, 
           @content_type, 
           @content_url, 
-          @description, 
           @order_no, 
-          @duration,
           @is_preview
         )
       `);
@@ -421,7 +445,7 @@ router.put('/lessons/:lessonId', authenticateToken, authorizeRoles('instructor',
       });
     }
 
-    if (!['video', 'assignment', 'reading'].includes(content_type)) {
+    if (!['video', 'assignment', 'reading', 'quiz'].includes(content_type)) {
       return res.status(400).json({
         success: false,
         message: 'Loại nội dung không hợp lệ'
@@ -435,9 +459,7 @@ router.put('/lessons/:lessonId', authenticateToken, authorizeRoles('instructor',
       .input('title', sql.NVarChar(255), title.trim())
       .input('content_type', sql.NVarChar(50), content_type)
       .input('content_url', sql.NVarChar(sql.MAX), content_url || '')
-      .input('description', sql.NVarChar(sql.MAX), description || '')
       .input('order_no', sql.Int, order_no || 1)
-      .input('duration', sql.Int, duration || 0)
       .input('is_preview', sql.Bit, is_preview || false)
       .query(`
         UPDATE lessons
@@ -446,9 +468,7 @@ router.put('/lessons/:lessonId', authenticateToken, authorizeRoles('instructor',
           title = @title,
           content_type = @content_type,
           content_url = @content_url,
-          description = @description,
           order_no = @order_no,
-          duration = @duration,
           is_preview = @is_preview
         OUTPUT INSERTED.*
         WHERE lesson_id = @lesson_id
@@ -548,7 +568,7 @@ router.get('/courses/:courseId/students', authenticateToken, authorizeRoles('ins
           e.enrolled_at,
           u.full_name,
           u.email,
-          e.progress_percentage,
+          ISNULL(e.progress, 0) as progress_percentage,
           COUNT(DISTINCT l.lesson_id) as total_lessons
         FROM enrollments e
         JOIN users u ON e.user_id = u.user_id
@@ -561,7 +581,7 @@ router.get('/courses/:courseId/students', authenticateToken, authorizeRoles('ins
           e.enrolled_at,
           u.full_name,
           u.email,
-          e.progress_percentage
+          e.progress
         ORDER BY e.enrolled_at DESC
       `);
 
@@ -735,6 +755,435 @@ router.get('/revenue/summary', authenticateToken, authorizeRoles('instructor', '
     res.status(500).json({
       success: false,
       message: 'Không thể lấy thống kê doanh thu'
+    });
+  }
+});
+
+// ==================== INSTRUCTOR PROFILE ====================
+
+/**
+ * GET /api/instructor/profile
+ * Get instructor profile with certifications and experiences
+ */
+router.get('/profile', authenticateToken, authorizeRoles('instructor', 'admin'), async (req, res) => {
+  try {
+    const instructorId = req.user.userId;
+    const pool = await getPool();
+
+    // Get profile from instructors table
+    const profileResult = await pool.request()
+      .input('instructor_id', sql.BigInt, instructorId)
+      .query(`
+        SELECT 
+          headline,
+          bio,
+          degrees_and_certificates,
+          work_history,
+          awards,
+          documents,
+          verified
+        FROM instructors
+        WHERE instructor_id = @instructor_id
+      `);
+
+    const profile = profileResult.recordset[0] || {
+      headline: '',
+      bio: '',
+      degrees_and_certificates: '[]',
+      work_history: '[]',
+      awards: '',
+      documents: '',
+      verified: false
+    };
+    
+    // Parse JSON fields - nếu không phải JSON thì convert sang JSON array
+    let certifications = [];
+    let experiences = [];
+    
+    try {
+      certifications = JSON.parse(profile.degrees_and_certificates || '[]');
+    } catch {
+      // Nếu là text cũ, convert sang array
+      if (profile.degrees_and_certificates) {
+        certifications = profile.degrees_and_certificates.split(';').map(item => ({
+          id: Date.now() + Math.random(),
+          name: item.trim(),
+          issuer: '',
+          date: '',
+          credential_id: ''
+        }));
+      }
+    }
+    
+    try {
+      experiences = JSON.parse(profile.work_history || '[]');
+    } catch {
+      // Nếu là text cũ, convert sang array
+      if (profile.work_history) {
+        experiences = profile.work_history.split(';').map(item => ({
+          id: Date.now() + Math.random(),
+          title: item.trim(),
+          company: '',
+          start_date: '',
+          end_date: '',
+          description: ''
+        }));
+      }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        profile: {
+          headline: profile.headline,
+          bio: profile.bio,
+          awards: profile.awards,
+          documents: profile.documents,
+          verified: profile.verified
+        },
+        certifications,
+        experiences
+      }
+    });
+  } catch (error) {
+    console.error('Error getting profile:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Không thể tải hồ sơ'
+    });
+  }
+});
+
+/**
+ * PUT /api/instructor/profile
+ * Update instructor profile (bio, headline, awards, documents)
+ */
+router.put('/profile', authenticateToken, authorizeRoles('instructor', 'admin'), async (req, res) => {
+  try {
+    const instructorId = req.user.userId;
+    const { bio, headline, awards, documents } = req.body;
+    const pool = await getPool();
+
+    await pool.request()
+      .input('instructor_id', sql.BigInt, instructorId)
+      .input('bio', sql.NVarChar(sql.MAX), bio || '')
+      .input('headline', sql.NVarChar(300), headline || '')
+      .input('awards', sql.NVarChar(sql.MAX), awards || '')
+      .input('documents', sql.NVarChar(sql.MAX), documents || '')
+      .query(`
+        UPDATE instructors
+        SET bio = @bio,
+            headline = @headline,
+            awards = @awards,
+            documents = @documents,
+            updated_at = GETDATE()
+        WHERE instructor_id = @instructor_id
+      `);
+
+    res.json({
+      success: true,
+      message: 'Cập nhật hồ sơ thành công'
+    });
+  } catch (error) {
+    console.error('Error updating profile:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Không thể cập nhật hồ sơ'
+    });
+  }
+});
+
+/**
+ * POST /api/instructor/certifications/upload
+ * Upload certificate file and add certification
+ */
+router.post('/certifications/upload', authenticateToken, authorizeRoles('instructor', 'admin'), upload.single('certificate'), async (req, res) => {
+  try {
+    const instructorId = req.user.userId;
+    const { name, issuer, date, credential_id } = req.body;
+    const pool = await getPool();
+
+    // Get file path if uploaded
+    const file_url = req.file ? `/uploads/certificates/${req.file.filename}` : null;
+
+    // Get current certifications
+    const result = await pool.request()
+      .input('instructor_id', sql.BigInt, instructorId)
+      .query(`
+        SELECT degrees_and_certificates
+        FROM instructors
+        WHERE instructor_id = @instructor_id
+      `);
+
+    let certifications = [];
+    try {
+      certifications = JSON.parse(result.recordset[0]?.degrees_and_certificates || '[]');
+    } catch {
+      certifications = [];
+    }
+
+    // Add new certification with file
+    const newCert = {
+      id: Date.now(),
+      name,
+      issuer,
+      date,
+      credential_id,
+      file_url
+    };
+    certifications.push(newCert);
+
+    // Update database
+    await pool.request()
+      .input('instructor_id', sql.BigInt, instructorId)
+      .input('certifications', sql.NVarChar(sql.MAX), JSON.stringify(certifications))
+      .query(`
+        UPDATE instructors
+        SET degrees_and_certificates = @certifications,
+            updated_at = GETDATE()
+        WHERE instructor_id = @instructor_id
+      `);
+
+    res.json({
+      success: true,
+      data: newCert,
+      message: 'Đã thêm chứng chỉ'
+    });
+  } catch (error) {
+    console.error('Error adding certification:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Không thể thêm chứng chỉ'
+    });
+  }
+});
+
+/**
+ * POST /api/instructor/certifications
+ * Add certification to degrees_and_certificates JSON array (without file)
+ */
+router.post('/certifications', authenticateToken, authorizeRoles('instructor', 'admin'), async (req, res) => {
+  try {
+    const instructorId = req.user.userId;
+    const { name, issuer, date, credential_id, file_url } = req.body;
+    const pool = await getPool();
+
+    // Get current certifications
+    const result = await pool.request()
+      .input('instructor_id', sql.BigInt, instructorId)
+      .query(`
+        SELECT degrees_and_certificates
+        FROM instructors
+        WHERE instructor_id = @instructor_id
+      `);
+
+    let certifications = [];
+    try {
+      certifications = JSON.parse(result.recordset[0]?.degrees_and_certificates || '[]');
+    } catch {
+      certifications = [];
+    }
+
+    // Add new certification
+    const newCert = {
+      id: Date.now(),
+      name,
+      issuer,
+      date,
+      credential_id,
+      file_url: file_url || null
+    };
+    certifications.push(newCert);
+
+    // Update database
+    await pool.request()
+      .input('instructor_id', sql.BigInt, instructorId)
+      .input('certifications', sql.NVarChar(sql.MAX), JSON.stringify(certifications))
+      .query(`
+        UPDATE instructors
+        SET degrees_and_certificates = @certifications,
+            updated_at = GETDATE()
+        WHERE instructor_id = @instructor_id
+      `);
+
+    res.json({
+      success: true,
+      data: newCert,
+      message: 'Đã thêm chứng chỉ'
+    });
+  } catch (error) {
+    console.error('Error adding certification:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Không thể thêm chứng chỉ'
+    });
+  }
+});
+
+/**
+ * DELETE /api/instructor/certifications/:id
+ * Delete certification from degrees_and_certificates JSON array
+ */
+router.delete('/certifications/:id', authenticateToken, authorizeRoles('instructor', 'admin'), async (req, res) => {
+  try {
+    const instructorId = req.user.userId;
+    const certId = parseInt(req.params.id);
+    const pool = await getPool();
+
+    // Get current certifications
+    const result = await pool.request()
+      .input('instructor_id', sql.BigInt, instructorId)
+      .query(`
+        SELECT degrees_and_certificates
+        FROM instructors
+        WHERE instructor_id = @instructor_id
+      `);
+
+    let certifications = [];
+    try {
+      certifications = JSON.parse(result.recordset[0]?.degrees_and_certificates || '[]');
+    } catch {
+      certifications = [];
+    }
+
+    // Remove certification
+    certifications = certifications.filter(cert => cert.id !== certId);
+
+    // Update database
+    await pool.request()
+      .input('instructor_id', sql.BigInt, instructorId)
+      .input('certifications', sql.NVarChar(sql.MAX), JSON.stringify(certifications))
+      .query(`
+        UPDATE instructors
+        SET degrees_and_certificates = @certifications,
+            updated_at = GETDATE()
+        WHERE instructor_id = @instructor_id
+      `);
+
+    res.json({
+      success: true,
+      message: 'Đã xóa chứng chỉ'
+    });
+  } catch (error) {
+    console.error('Error deleting certification:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Không thể xóa chứng chỉ'
+    });
+  }
+});
+
+/**
+ * POST /api/instructor/experiences
+ * Add experience to work_history JSON array
+ */
+router.post('/experiences', authenticateToken, authorizeRoles('instructor', 'admin'), async (req, res) => {
+  try {
+    const instructorId = req.user.userId;
+    const { title, company, start_date, end_date, description } = req.body;
+    const pool = await getPool();
+
+    // Get current experiences
+    const result = await pool.request()
+      .input('instructor_id', sql.BigInt, instructorId)
+      .query(`
+        SELECT work_history
+        FROM instructors
+        WHERE instructor_id = @instructor_id
+      `);
+
+    let experiences = [];
+    try {
+      experiences = JSON.parse(result.recordset[0]?.work_history || '[]');
+    } catch {
+      experiences = [];
+    }
+
+    // Add new experience
+    const newExp = {
+      id: Date.now(),
+      title,
+      company,
+      start_date,
+      end_date,
+      description
+    };
+    experiences.push(newExp);
+
+    // Update database
+    await pool.request()
+      .input('instructor_id', sql.BigInt, instructorId)
+      .input('experiences', sql.NVarChar(sql.MAX), JSON.stringify(experiences))
+      .query(`
+        UPDATE instructors
+        SET work_history = @experiences,
+            updated_at = GETDATE()
+        WHERE instructor_id = @instructor_id
+      `);
+
+    res.json({
+      success: true,
+      data: newExp,
+      message: 'Đã thêm kinh nghiệm'
+    });
+  } catch (error) {
+    console.error('Error adding experience:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Không thể thêm kinh nghiệm'
+    });
+  }
+});
+
+/**
+ * DELETE /api/instructor/experiences/:id
+ * Delete experience from work_history JSON array
+ */
+router.delete('/experiences/:id', authenticateToken, authorizeRoles('instructor', 'admin'), async (req, res) => {
+  try {
+    const instructorId = req.user.userId;
+    const expId = parseInt(req.params.id);
+    const pool = await getPool();
+
+    // Get current experiences
+    const result = await pool.request()
+      .input('instructor_id', sql.BigInt, instructorId)
+      .query(`
+        SELECT work_history
+        FROM instructors
+        WHERE instructor_id = @instructor_id
+      `);
+
+    let experiences = [];
+    try {
+      experiences = JSON.parse(result.recordset[0]?.work_history || '[]');
+    } catch {
+      experiences = [];
+    }
+
+    // Remove experience
+    experiences = experiences.filter(exp => exp.id !== expId);
+
+    // Update database
+    await pool.request()
+      .input('instructor_id', sql.BigInt, instructorId)
+      .input('experiences', sql.NVarChar(sql.MAX), JSON.stringify(experiences))
+      .query(`
+        UPDATE instructors
+        SET work_history = @experiences,
+            updated_at = GETDATE()
+        WHERE instructor_id = @instructor_id
+      `);
+
+    res.json({
+      success: true,
+      message: 'Đã xóa kinh nghiệm'
+    });
+  } catch (error) {
+    console.error('Error deleting experience:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Không thể xóa kinh nghiệm'
     });
   }
 });
