@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Admin Unread Badge</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .section {
+            background: white;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        button {
+            background: #4f46e5;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #4338ca;
+        }
+        .result {
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 4px;
+            padding: 15px;
+            margin-top: 15px;
+            white-space: pre-wrap;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+        }
+        .success { color: #059669; }
+        .error { color: #dc2626; }
+        .info { color: #0891b2; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Test Admin Unread Badge</h1>
+    
+    <div class="section">
+        <h2>1️⃣ Login as Admin</h2>
+        <button onclick="loginAsAdmin()">Login Admin</button>
+        <div id="loginResult" class="result"></div>
+    </div>
+
+    <div class="section">
+        <h2>2️⃣ Check Conversations</h2>
+        <button onclick="getConversations()">Get Admin Conversations</button>
+        <div id="conversationsResult" class="result"></div>
+    </div>
+
+    <div class="section">
+        <h2>3️⃣ Send Test Message (Instructor → Admin)</h2>
+        <p>Login as instructor first, then send message to create unread</p>
+        <button onclick="loginAsInstructor()">Login Instructor</button>
+        <button onclick="sendMessageToAdmin()">Send Message to Admin</button>
+        <div id="messageResult" class="result"></div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://localhost:3001/api';
+        let adminToken = '';
+        let instructorToken = '';
+        let conversationId = null;
+
+        async function loginAsAdmin() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        email: 'tuanomega@gmail.com',
+                        password: '123456'
+                    })
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    adminToken = data.token;
+                    localStorage.setItem('token', adminToken);
+                    document.getElementById('loginResult').innerHTML = 
+                        `<span class="success">✅ Admin logged in successfully</span>\n` +
+                        `Token: ${adminToken.substring(0, 50)}...\n` +
+                        `User ID: ${data.user.userId}\n` +
+                        `Role: ${data.user.role}`;
+                } else {
+                    document.getElementById('loginResult').innerHTML = 
+                        `<span class="error">❌ Login failed: ${data.error}</span>`;
+                }
+            } catch (error) {
+                document.getElementById('loginResult').innerHTML = 
+                    `<span class="error">❌ Error: ${error.message}</span>`;
+            }
+        }
+
+        async function loginAsInstructor() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        email: 'instructor@example.com',
+                        password: '123456'
+                    })
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    instructorToken = data.token;
+                    document.getElementById('messageResult').innerHTML = 
+                        `<span class="success">✅ Instructor logged in</span>\n` +
+                        `Token: ${instructorToken.substring(0, 50)}...`;
+                } else {
+                    document.getElementById('messageResult').innerHTML = 
+                        `<span class="error">❌ Login failed: ${data.error}</span>`;
+                }
+            } catch (error) {
+                document.getElementById('messageResult').innerHTML = 
+                    `<span class="error">❌ Error: ${error.message}</span>`;
+            }
+        }
+
+        async function getConversations() {
+            if (!adminToken) {
+                document.getElementById('conversationsResult').innerHTML = 
+                    '<span class="error">❌ Please login as admin first</span>';
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/chat/conversations?status=active`, {
+                    headers: { 'Authorization': `Bearer ${adminToken}` }
+                });
+                const data = await response.json();
+                
+                document.getElementById('conversationsResult').innerHTML = 
+                    `<span class="info">📋 Response:</span>\n` +
+                    JSON.stringify(data, null, 2) + '\n\n' +
+                    `<span class="info">📊 Summary:</span>\n` +
+                    `Total conversations: ${data.data?.length || 0}\n` +
+                    `Total unread: ${data.data?.reduce((sum, c) => sum + (c.unread_count || 0), 0) || 0}`;
+
+                if (data.data && data.data.length > 0) {
+                    conversationId = data.data[0].conversation_id;
+                }
+            } catch (error) {
+                document.getElementById('conversationsResult').innerHTML = 
+                    `<span class="error">❌ Error: ${error.message}</span>`;
+            }
+        }
+
+        async function sendMessageToAdmin() {
+            if (!instructorToken) {
+                document.getElementById('messageResult').innerHTML = 
+                    '<span class="error">❌ Please login as instructor first</span>';
+                return;
+            }
+
+            try {
+                // First, create or get conversation
+                let response = await fetch(`${API_BASE_URL}/chat/conversations`, {
+                    method: 'POST',
+                    headers: { 
+                        'Authorization': `Bearer ${instructorToken}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                let data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.error || 'Failed to create conversation');
+                }
+
+                conversationId = data.data.conversation_id;
+
+                // Send message
+                response = await fetch(`${API_BASE_URL}/chat/conversations/${conversationId}/messages`, {
+                    method: 'POST',
+                    headers: { 
+                        'Authorization': `Bearer ${instructorToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        message_text: `Test message at ${new Date().toLocaleTimeString()}`
+                    })
+                });
+                data = await response.json();
+
+                if (data.success) {
+                    document.getElementById('messageResult').innerHTML = 
+                        `<span class="success">✅ Message sent successfully</span>\n` +
+                        `Conversation ID: ${conversationId}\n` +
+                        `Message: ${data.data.message_text}\n\n` +
+                        `<span class="info">Now check admin panel - badge should show 1!</span>`;
+                } else {
+                    document.getElementById('messageResult').innerHTML = 
+                        `<span class="error">❌ Failed to send: ${data.error}</span>`;
+                }
+            } catch (error) {
+                document.getElementById('messageResult').innerHTML = 
+                    `<span class="error">❌ Error: ${error.message}</span>`;
+            }
+        }
+    </script>
+</body>
+</html>

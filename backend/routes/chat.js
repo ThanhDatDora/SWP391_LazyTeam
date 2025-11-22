@@ -530,6 +530,57 @@ router.get('/conversations/:id/messages', authenticateToken, async (req, res) =>
 });
 
 /**
+ * PUT /api/chat/conversations/:id/read
+ * Mark all messages in conversation as read (for current user)
+ * Supports both admin-instructor chat (chat_messages) and learner-instructor chat (learner_chat_messages)
+ */
+router.put('/conversations/:id/read', authenticateToken, async (req, res) => {
+  try {
+    const pool = await connectDB();
+    const conversationId = req.params.id;
+    const userId = req.user.userId;
+    
+    // Check if this is a learner-instructor conversation
+    const learnerConvCheck = await pool.request()
+      .input('conversationId', sql.BigInt, conversationId)
+      .query(`SELECT conversation_id FROM learner_conversations WHERE conversation_id = @conversationId`);
+    
+    if (learnerConvCheck.recordset.length > 0) {
+      // Learner-instructor chat: Update learner_chat_messages
+      await pool.request()
+        .input('conversationId', sql.BigInt, conversationId)
+        .input('userId', sql.BigInt, userId)
+        .query(`
+          UPDATE learner_chat_messages 
+          SET is_read = 1 
+          WHERE conversation_id = @conversationId 
+          AND sender_id != @userId 
+          AND is_read = 0
+        `);
+      console.log('✅ Marked learner conversation', conversationId, 'as read for user', userId);
+    } else {
+      // Admin-instructor chat: Update chat_messages
+      await pool.request()
+        .input('conversationId', sql.BigInt, conversationId)
+        .input('userId', sql.BigInt, userId)
+        .query(`
+          UPDATE chat_messages 
+          SET is_read = 1 
+          WHERE conversation_id = @conversationId 
+          AND sender_id != @userId 
+          AND is_read = 0
+        `);
+      console.log('✅ Marked admin conversation', conversationId, 'as read for user', userId);
+    }
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('❌ Error marking conversation as read:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
  * POST /api/chat/conversations/:id/messages
  * Send a message in a conversation
  */
@@ -657,6 +708,400 @@ router.get('/unread-count', authenticateToken, async (req, res) => {
     });
   } catch (error) {
     console.error('❌ Error fetching unread count:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ===== LEARNER-INSTRUCTOR CHAT ROUTES =====
+
+/**
+ * GET /api/chat/learner/conversations
+ * Get all learner-instructor conversations for current learner
+ */
+router.get('/learner/conversations', authenticateToken, async (req, res) => {
+  try {
+    const pool = await connectDB();
+    const learnerId = req.user.userId;
+    const roleId = req.user.roleId;
+    
+    // Only learners can access this
+    if (roleId !== 3) {
+      return res.status(403).json({ 
+        success: false, 
+        error: 'Only learners can access this endpoint' 
+      });
+    }
+    
+    console.log('📋 Fetching learner conversations for:', learnerId);
+    
+    const result = await pool.request()
+      .input('learnerId', sql.BigInt, learnerId)
+      .query(`
+        SELECT 
+          lc.conversation_id,
+          lc.learner_id,
+          lc.instructor_id,
+          lc.status,
+          lc.created_at,
+          lc.updated_at,
+          lc.last_message_at,
+          instructor.full_name as instructor_name,
+          instructor.email as instructor_email,
+          (SELECT COUNT(DISTINCT c.course_id)
+           FROM enrollments e
+           INNER JOIN courses c ON e.course_id = c.course_id
+           WHERE e.user_id = lc.learner_id AND c.owner_instructor_id = lc.instructor_id) as course_count,
+          (SELECT COUNT(*) FROM learner_chat_messages 
+           WHERE conversation_id = lc.conversation_id 
+           AND sender_id != @learnerId AND is_read = 0) as unread_count,
+          (SELECT TOP 1 message_text FROM learner_chat_messages 
+           WHERE conversation_id = lc.conversation_id 
+           ORDER BY created_at DESC) as last_message
+        FROM learner_conversations lc
+        LEFT JOIN users instructor ON lc.instructor_id = instructor.user_id
+        WHERE lc.learner_id = @learnerId AND lc.status = 'active'
+        ORDER BY lc.last_message_at DESC
+      `);
+    
+    res.json({
+      success: true,
+      data: result.recordset
+    });
+  } catch (error) {
+    console.error('❌ Error fetching learner conversations:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * GET /api/chat/learner/instructor-conversations
+ * Get all learner conversations for an instructor (their courses)
+ */
+router.get('/learner/instructor-conversations', authenticateToken, async (req, res) => {
+  try {
+    const pool = await connectDB();
+    const instructorId = req.user.userId;
+    const roleId = req.user.roleId;
+    
+    // Only instructors can access this
+    if (roleId !== 2) {
+      return res.status(403).json({ 
+        success: false, 
+        error: 'Only instructors can access this endpoint' 
+      });
+    }
+    
+    console.log('📋 Fetching instructor-learner conversations for:', instructorId);
+    
+    const result = await pool.request()
+      .input('instructorId', sql.BigInt, instructorId)
+      .query(`
+        SELECT 
+          lc.conversation_id,
+          lc.learner_id,
+          lc.instructor_id,
+          lc.status,
+          lc.created_at,
+          lc.updated_at,
+          lc.last_message_at,
+          learner.full_name as learner_name,
+          learner.email as learner_email,
+          (SELECT COUNT(DISTINCT c.course_id)
+           FROM enrollments e
+           INNER JOIN courses c ON e.course_id = c.course_id
+           WHERE e.user_id = lc.learner_id AND c.owner_instructor_id = lc.instructor_id) as course_count,
+          (SELECT COUNT(*) FROM learner_chat_messages 
+           WHERE conversation_id = lc.conversation_id 
+           AND sender_id != @instructorId AND is_read = 0) as unread_count,
+          (SELECT TOP 1 message_text FROM learner_chat_messages 
+           WHERE conversation_id = lc.conversation_id 
+           ORDER BY created_at DESC) as last_message
+        FROM learner_conversations lc
+        LEFT JOIN users learner ON lc.learner_id = learner.user_id
+        WHERE lc.instructor_id = @instructorId AND lc.status = 'active'
+        ORDER BY lc.last_message_at DESC
+      `);
+    
+    res.json({
+      success: true,
+      data: result.recordset
+    });
+  } catch (error) {
+    console.error('❌ Error fetching instructor-learner conversations:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * POST /api/chat/learner/conversations
+ * Create or get learner-instructor conversation
+ * Body: { instructor_id }
+ */
+router.post('/learner/conversations', authenticateToken, async (req, res) => {
+  try {
+    const pool = await connectDB();
+    const learnerId = req.user.userId;
+    const roleId = req.user.roleId;
+    const { instructor_id } = req.body;
+    
+    // Only learners can create conversations
+    if (roleId !== 3) {
+      return res.status(403).json({ 
+        success: false, 
+        error: 'Only learners can create conversations' 
+      });
+    }
+    
+    if (!instructor_id) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'instructor_id is required' 
+      });
+    }
+    
+    console.log('💬 Creating/getting learner-instructor conversation');
+    
+    // Verify learner has enrolled in at least one course of this instructor
+    const enrollment = await pool.request()
+      .input('learnerId', sql.BigInt, learnerId)
+      .input('instructorId', sql.BigInt, instructor_id)
+      .query(`
+        SELECT TOP 1 e.enrollment_id
+        FROM enrollments e
+        INNER JOIN courses c ON e.course_id = c.course_id
+        WHERE e.user_id = @learnerId AND c.owner_instructor_id = @instructorId
+      `);
+    
+    if (enrollment.recordset.length === 0) {
+      return res.status(403).json({ 
+        success: false, 
+        error: 'You must be enrolled in at least one course of this instructor to chat' 
+      });
+    }
+    
+    // Check if conversation already exists
+    const existing = await pool.request()
+      .input('learnerId', sql.BigInt, learnerId)
+      .input('instructorId', sql.BigInt, instructor_id)
+      .query(`
+        SELECT conversation_id FROM learner_conversations 
+        WHERE learner_id = @learnerId AND instructor_id = @instructorId AND status = 'active'
+      `);
+    
+    if (existing.recordset.length > 0) {
+      console.log('ℹ️ Conversation already exists');
+      return res.json({
+        success: true,
+        data: { 
+          conversation_id: existing.recordset[0].conversation_id,
+          existed: true
+        }
+      });
+    }
+    
+    // Create new conversation
+    const result = await pool.request()
+      .input('learnerId', sql.BigInt, learnerId)
+      .input('instructorId', sql.BigInt, instructor_id)
+      .query(`
+        INSERT INTO learner_conversations (learner_id, instructor_id, status)
+        OUTPUT INSERTED.conversation_id, INSERTED.created_at
+        VALUES (@learnerId, @instructorId, 'active')
+      `);
+    
+    console.log('✅ Learner conversation created:', result.recordset[0].conversation_id);
+    
+    res.status(201).json({
+      success: true,
+      data: { 
+        conversation_id: result.recordset[0].conversation_id,
+        created_at: result.recordset[0].created_at,
+        existed: false
+      }
+    });
+  } catch (error) {
+    console.error('❌ Error creating learner conversation:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * GET /api/chat/learner/conversations/:id/messages
+ * Get messages in a learner-instructor conversation
+ */
+router.get('/learner/conversations/:id/messages', authenticateToken, async (req, res) => {
+  try {
+    const pool = await connectDB();
+    const conversationId = req.params.id;
+    const userId = req.user.userId;
+    const { limit = 50, offset = 0 } = req.query;
+    
+    console.log('📨 Fetching learner messages for conversation:', conversationId);
+    
+    // Verify user has access
+    const access = await pool.request()
+      .input('conversationId', sql.BigInt, conversationId)
+      .input('userId', sql.BigInt, userId)
+      .query(`
+        SELECT conversation_id FROM learner_conversations 
+        WHERE conversation_id = @conversationId 
+        AND (learner_id = @userId OR instructor_id = @userId)
+      `);
+    
+    if (access.recordset.length === 0) {
+      return res.status(403).json({ 
+        success: false, 
+        error: 'Access denied to this conversation' 
+      });
+    }
+    
+    const messages = await pool.request()
+      .input('conversationId', sql.BigInt, conversationId)
+      .input('limit', sql.Int, parseInt(limit))
+      .input('offset', sql.Int, parseInt(offset))
+      .query(`
+        SELECT 
+          m.message_id,
+          m.conversation_id,
+          m.sender_id,
+          m.message_text,
+          m.message_type,
+          m.is_read,
+          m.created_at,
+          u.full_name as sender_name,
+          u.email as sender_email,
+          r.role_name as sender_role
+        FROM learner_chat_messages m
+        LEFT JOIN users u ON m.sender_id = u.user_id
+        LEFT JOIN roles r ON u.role_id = r.role_id
+        WHERE m.conversation_id = @conversationId
+        ORDER BY m.created_at DESC
+        OFFSET @offset ROWS
+        FETCH NEXT @limit ROWS ONLY
+      `);
+    
+    // Mark messages as read
+    await pool.request()
+      .input('conversationId', sql.BigInt, conversationId)
+      .input('userId', sql.BigInt, userId)
+      .query(`
+        UPDATE learner_chat_messages 
+        SET is_read = 1 
+        WHERE conversation_id = @conversationId 
+        AND sender_id != @userId 
+        AND is_read = 0
+      `);
+    
+    console.log('✅ Fetched', messages.recordset.length, 'learner messages');
+    
+    res.json({
+      success: true,
+      data: messages.recordset.reverse()
+    });
+  } catch (error) {
+    console.error('❌ Error fetching learner messages:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * POST /api/chat/learner/conversations/:id/messages
+ * Send a message in learner-instructor conversation
+ */
+router.post('/learner/conversations/:id/messages', authenticateToken, async (req, res) => {
+  try {
+    const pool = await connectDB();
+    const conversationId = req.params.id;
+    const senderId = req.user.userId;
+    const { message_text, message_type = 'text', file_url = null } = req.body;
+    
+    if (!message_text || !message_text.trim()) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Message text is required' 
+      });
+    }
+    
+    console.log('💬 Sending learner message in conversation:', conversationId);
+    
+    // Verify user has access
+    const access = await pool.request()
+      .input('conversationId', sql.BigInt, conversationId)
+      .input('userId', sql.BigInt, senderId)
+      .query(`
+        SELECT conversation_id FROM learner_conversations 
+        WHERE conversation_id = @conversationId 
+        AND (learner_id = @userId OR instructor_id = @userId)
+      `);
+    
+    if (access.recordset.length === 0) {
+      return res.status(403).json({ 
+        success: false, 
+        error: 'Access denied to this conversation' 
+      });
+    }
+    
+    // Insert message
+    const result = await pool.request()
+      .input('conversationId', sql.BigInt, conversationId)
+      .input('senderId', sql.BigInt, senderId)
+      .input('messageText', sql.NVarChar, message_text.trim())
+      .input('messageType', sql.NVarChar, message_type)
+      .query(`
+        INSERT INTO learner_chat_messages 
+        (conversation_id, sender_id, message_text, message_type)
+        OUTPUT INSERTED.*
+        VALUES (@conversationId, @senderId, @messageText, @messageType)
+      `);
+    
+    // Update conversation last_message_at
+    await pool.request()
+      .input('conversationId', sql.BigInt, conversationId)
+      .query(`
+        UPDATE learner_conversations 
+        SET last_message_at = GETDATE(), updated_at = GETDATE()
+        WHERE conversation_id = @conversationId
+      `);
+    
+    const message = result.recordset[0];
+    
+    // Get sender info
+    const sender = await pool.request()
+      .input('senderId', sql.BigInt, senderId)
+      .query(`
+        SELECT u.full_name, u.email, r.role_name 
+        FROM users u
+        LEFT JOIN roles r ON u.role_id = r.role_id
+        WHERE u.user_id = @senderId
+      `);
+    
+    const messageData = {
+      ...message,
+      sender_name: sender.recordset[0].full_name,
+      sender_email: sender.recordset[0].email,
+      sender_role: sender.recordset[0].role_name
+    };
+    
+    console.log('✅ Learner message sent:', message.message_id);
+    
+    // Emit WebSocket event to conversation room (matching admin chat pattern)
+    if (global.websocketService) {
+      console.log('🔔 Emitting new_learner_chat_message to conversation room:', conversationId);
+      global.websocketService.emitNewLearnerChatMessage(parseInt(conversationId), messageData);
+      
+      // Emit conversation updated to refresh conversation lists
+      global.websocketService.io.emit('learner_conversation_updated', {
+        conversation_id: parseInt(conversationId),
+        sender_id: senderId
+      });
+    }
+    
+    res.status(201).json({
+      success: true,
+      data: messageData
+    });
+  } catch (error) {
+    console.error('❌ Error sending learner message:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });

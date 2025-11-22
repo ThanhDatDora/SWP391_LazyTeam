@@ -296,6 +296,7 @@ const startServer = async () => {
     
     // Make WebSocket service available to routes
     app.locals.wsService = wsService;
+    global.websocketService = wsService; // Add global reference for chat routes
     
     server.listen(PORT, '127.0.0.1', (error) => {
       if (error) {

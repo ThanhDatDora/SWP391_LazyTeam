@@ -25,6 +25,8 @@ import {
 } from 'chart.js';
 import { Line, Bar, Pie } from 'react-chartjs-2';
 import { useAuth } from '../../contexts/AuthContext';
+import { useWebSocket } from '../../contexts/WebSocketContext';
+import ConversationList from '../../components/chat/ConversationList';
 
 // Register Chart.js components
 ChartJS.register(
@@ -524,6 +526,10 @@ const AdminPanel = () => {
   
   // Global Toast state
   const [toast, setToast] = useState({ show: false, type: '', message: '' });
+  const [chatUnreadCount, setChatUnreadCount] = useState(0);
+
+  // WebSocket context for badge updates
+  const { getSocket, isConnected } = useWebSocket();
 
   // Profile Editing States
   const [isEditingProfile, setIsEditingProfile] = useState(false);
@@ -561,6 +567,44 @@ const AdminPanel = () => {
     setTimeout(() => {
       setToast({ show: false, type: '', message: '' });
     }, 4500);
+  };
+
+  /**
+   * Load chat unread count for badge display
+   */
+  const loadChatUnreadCount = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      console.log('🔍 AdminPanel: Loading chat unread count...', { hasToken: !!token });
+      if (!token) {
+        console.warn('⚠️ AdminPanel: No token found, skipping unread count');
+        return;
+      }
+
+      console.log('📞 AdminPanel: Fetching from', `${API_BASE_URL}/chat/conversations?status=active`);
+      const response = await fetch(`${API_BASE_URL}/chat/conversations?status=active`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      console.log('📥 AdminPanel: Response status:', response.status);
+      const data = await response.json();
+      console.log('📦 AdminPanel: Response data:', { 
+        success: data.success, 
+        dataLength: data.data?.length,
+        conversations: data.data 
+      });
+      
+      if (data.success && data.data) {
+        // Sum up all unread_count from conversations (same logic as InstructorAdminChat)
+        const totalUnread = data.data.reduce((sum, c) => sum + (c.unread_count || 0), 0);
+        setChatUnreadCount(Math.min(totalUnread, 99)); // Cap at 99
+        console.log('📬 AdminPanel: Total chat unread:', totalUnread, '→ Badge count:', Math.min(totalUnread, 99));
+      } else {
+        console.warn('⚠️ AdminPanel: Invalid response format:', data);
+      }
+    } catch (error) {
+      console.error('❌ AdminPanel: Error loading chat unread count:', error);
+    }
   };
 
   /**
@@ -912,12 +956,94 @@ const AdminPanel = () => {
     
     loadDashboardData();
     loadInstructorRevenue();
+    loadChatUnreadCount();
+    
+    // Periodic refresh of chat unread count (every 5 seconds for realtime badge updates)
+    // Matches InstructorAdminChat behavior for consistent UX
+    const unreadInterval = setInterval(() => {
+      // Only reload if not on conversations page to avoid duplicate requests
+      if (location.pathname !== '/admin/conversations') {
+        loadChatUnreadCount();
+      }
+    }, 100);   // 1 second for responsive badge updates
     
     // Cleanup function
     return () => {
       console.log("🧹 AdminPanel unmounting");
+      clearInterval(unreadInterval);
     };
   }, []);
+
+  // Debug: Log chatUnreadCount changes
+  useEffect(() => {
+    console.log('🔔 AdminPanel: chatUnreadCount changed →', chatUnreadCount);
+  }, [chatUnreadCount]);
+
+  // Reload chat unread count when returning from ConversationsPage
+  useEffect(() => {
+    const path = location.pathname;
+    console.log('📡 AdminPanel: Path changed →', path);
+    
+    // If returning to admin panel (not on conversations page), reload badge
+    if (path !== '/admin/conversations') {
+      console.log('🔄 Reloading chat badge (returned from conversations)');
+      loadChatUnreadCount();
+    }
+  }, [location.pathname]);
+
+  // Reload badge when page becomes visible (user switches tabs)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden && location.pathname !== '/admin/conversations') {
+        console.log('👁️ Page visible - reloading chat badge');
+        loadChatUnreadCount();
+      }
+    };
+    
+    // Listen for chatMarkedAsRead event from ConversationsPage
+    const handleChatMarkedAsRead = () => {
+      console.log('📨 Received chatMarkedAsRead event - reloading badge');
+      loadChatUnreadCount();
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('chatMarkedAsRead', handleChatMarkedAsRead);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('chatMarkedAsRead', handleChatMarkedAsRead);
+    };
+  }, [location.pathname]);
+
+  // WebSocket listener: Reload badge when new message arrives
+  useEffect(() => {
+    if (!isConnected) {
+      console.log('⚠️ WebSocket not connected - skipping badge listener');
+      return;
+    }
+
+    const socket = getSocket();
+    if (!socket) {
+      console.warn('⚠️ Socket not available for badge updates');
+      return;
+    }
+
+    const handleNewMessage = (data) => {
+      console.log('💬 AdminPanel: New message received, reloading badge', data);
+      // Only reload if not on conversations page (to avoid duplicate reloads)
+      if (location.pathname !== '/admin/conversations') {
+        loadChatUnreadCount();
+      }
+    };
+
+    socket.on('new_message', handleNewMessage);
+    console.log('✅ AdminPanel: WebSocket badge listener registered');
+
+    return () => {
+      socket.off('new_message', handleNewMessage);
+      console.log('🔌 AdminPanel: WebSocket badge listener removed');
+    };
+  }, [isConnected, location.pathname]);
 
   // Debug: Log state changes
   useEffect(() => {
@@ -4546,6 +4672,11 @@ const AdminPanel = () => {
                 )}
               </TabsContent>
 
+              {/* CONVERSATIONS TAB - Admin-Instructor Chat */}
+              <TabsContent value="conversations" className="p-0 h-full">
+                <ConversationList className="h-full" />
+              </TabsContent>
+
               {/* PAYOUTS TAB */}
               <TabsContent value="payouts" className="p-6 space-y-4">
                 <div className="flex items-center justify-between mb-4">
@@ -5226,9 +5357,15 @@ const AdminPanel = () => {
       )}
 
       {/* Floating Chat Button - Portal to Body - CỐ ĐỊNH MÀU INDIGO-600 */}
-      {createPortal(
+      {/* Hide button when on ConversationsPage */}
+      {location.pathname !== '/admin/conversations' && createPortal(
         <button
-          onClick={() => navigate('/admin/conversations')}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            // Navigate without scroll restoration - keep AdminPanel scroll position
+            navigate('/admin/conversations', { replace: false });
+          }}
           style={{
             all: 'unset',
             position: 'fixed',
@@ -5274,6 +5411,30 @@ const AdminPanel = () => {
               pointerEvents: 'none'
             }} 
           />
+          {/* Unread Badge */}
+          {chatUnreadCount > 0 && (
+            <span style={{
+              position: 'absolute',
+              top: '-8px',
+              right: '-8px',
+              minWidth: '24px',
+              height: '24px',
+              borderRadius: '12px',
+              backgroundColor: '#ef4444',
+              color: '#ffffff',
+              fontSize: '12px',
+              fontWeight: '700',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '0 6px',
+              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
+              border: '2px solid #ffffff',
+              pointerEvents: 'none'
+            }}>
+              {chatUnreadCount >= 99 ? '99+' : chatUnreadCount}
+            </span>
+          )}
         </button>,
         document.body
       )}

@@ -113,10 +113,12 @@ class WebSocketService {
 
       // Handle chat conversations (Instructor-Admin Chat)
       socket.on('join_conversation', (data) => {
+        console.log(`[WebSocket] 🎯 RECEIVED join_conversation event from user ${socket.userId}:`, data);
         this.handleJoinConversation(socket, data);
       });
 
       socket.on('leave_conversation', (data) => {
+        console.log(`[WebSocket] 🎯 RECEIVED leave_conversation event from user ${socket.userId}:`, data);
         this.handleLeaveConversation(socket, data);
       });
 
@@ -506,12 +508,28 @@ class WebSocketService {
   handleJoinConversation(socket, data) {
     try {
       const { conversationId } = data;
-      if (!conversationId) return;
+      console.log(`[WebSocket] 🔍 Join request from user ${socket.userId}:`, {
+        conversationId,
+        type: typeof conversationId,
+        data
+      });
+      
+      if (!conversationId) {
+        console.warn(`[WebSocket] ⚠️ User ${socket.userId} tried to join conversation without conversationId`);
+        return;
+      }
 
       const roomName = `conversation:${conversationId}`;
       socket.join(roomName);
 
-      console.log(`[WebSocket] User ${socket.userId} joined conversation ${conversationId}`);
+      console.log(`[WebSocket] ✅ User ${socket.userId} joined conversation ${conversationId} (room: ${roomName})`);
+      
+      // Log all clients in room
+      const clientsInRoom = this.io.sockets.adapter.rooms.get(roomName);
+      console.log(`[WebSocket] 👥 Clients in room ${roomName}:`, clientsInRoom?.size || 0);
+      if (clientsInRoom) {
+        console.log(`[WebSocket] 👥 Socket IDs:`, Array.from(clientsInRoom));
+      }
 
       // Notify others in conversation
       socket.to(roomName).emit('user_joined_conversation', {
@@ -606,6 +624,36 @@ class WebSocketService {
       return true;
     } catch (error) {
       console.error('[WebSocket] Error emitting chat message:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Emit new learner chat message notification (for learner-instructor conversations)
+   * @param {number} conversationId - Conversation ID
+   * @param {object} message - Message data
+   */
+  emitNewLearnerChatMessage(conversationId, message) {
+    try {
+      const roomName = `conversation:${conversationId}`;
+      
+      console.log(`[WebSocket] 🔔 Emitting new_learner_chat_message:`, {
+        conversationId,
+        conversationIdType: typeof conversationId,
+        roomName,
+        messageId: message?.message_id,
+        clientsInRoom: this.io.sockets.adapter.rooms.get(roomName)?.size || 0
+      });
+      
+      this.io.to(roomName).emit('new_learner_chat_message', {
+        conversation_id: conversationId,
+        message: message
+      });
+
+      console.log(`[WebSocket] ✅ New learner chat message emitted to conversation ${conversationId}`);
+      return true;
+    } catch (error) {
+      console.error('[WebSocket] Error emitting learner chat message:', error);
       return false;
     }
   }

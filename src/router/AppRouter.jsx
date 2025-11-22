@@ -11,12 +11,12 @@ import ResetPasswordPage from '../pages/auth/ResetPasswordPage';
 
 // Critical Pages - Keep immediately available
 import Landing from '../pages/Landing';
-import LandingSimple from '../pages/LandingSimple';
 import LandingLearner from '../pages/LandingLearner';
 import AuthDebug from '../pages/AuthDebug';
 
 // Lazy Load Main Pages for Performance
 const LearnerDashboard = lazy(() => import('../pages/learner/LearnerDashboard'));
+const LearnerChatPage = lazy(() => import('../pages/learner/LearnerChatPage'));
 const CoursePage = lazy(() => import('../pages/course/CoursePage'));
 const CoursesPage = lazy(() => import('../pages/CoursesPage'));
 const CourseDetailPage = lazy(() => import('../pages/CourseDetailPageNew'));
@@ -54,6 +54,7 @@ const PayoutsPage = lazy(() => import('../pages/admin/PayoutsPage'));
 
 // Instructor Pages
 const InstructorDashboard = lazy(() => import('../pages/instructor/InstructorDashboard'));
+const InstructorChatPage = lazy(() => import('../pages/instructor/InstructorChatPage'));
 const CourseManagement = lazy(() => import('../pages/instructor/CourseManagement'));
 
 // Legacy Pages (keeping for compatibility) - Lazy load these
@@ -284,6 +285,16 @@ const AppRouter = () => {
         } 
       />
       
+      {/* Learner Chat Route */}
+      <Route 
+        path="/learner/chat" 
+        element={
+          <ProtectedRoute allowedRoles={[3]}>
+            <LearnerChatPage />
+          </ProtectedRoute>
+        } 
+      />
+      
       {/* My Courses Route */}
       <Route 
         path="/my-courses" 
@@ -452,6 +463,14 @@ const AppRouter = () => {
         element={
           <ProtectedRoute allowedRoles={[2, 1]}>
             <CourseManagement />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/instructor/chat" 
+        element={
+          <ProtectedRoute allowedRoles={[2, 1]}>
+            <InstructorChatPage />
           </ProtectedRoute>
         } 
       />

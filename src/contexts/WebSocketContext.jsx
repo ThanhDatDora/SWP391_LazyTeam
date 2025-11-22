@@ -133,6 +133,13 @@ function websocketReducer(state, action) {
     
     case WS_ACTIONS.ADD_CHAT_MESSAGE:
       const { conversationId, message: chatMessage } = action.payload;
+      console.log('🔄 ADD_CHAT_MESSAGE reducer:', {
+        conversationId,
+        conversationIdType: typeof conversationId,
+        messageId: chatMessage?.message_id,
+        currentChatMessages: Object.keys(state.chatMessages),
+        existingMessagesCount: (state.chatMessages[conversationId] || []).length
+      });
       return {
         ...state,
         chatMessages: {
@@ -300,6 +307,20 @@ export function WebSocketProvider({ children }) {
       dispatch({
         type: WS_ACTIONS.ADD_CHAT_MESSAGE,
         payload: { conversationId: message.conversation_id, message }
+      });
+    });
+    
+    // Learner-Instructor chat messages
+    socket.on('new_learner_chat_message', (data) => {
+      console.log('📨 WebSocketContext received new_learner_chat_message:', {
+        conversation_id: data.conversation_id,
+        conversationIdType: typeof data.conversation_id,
+        message: data.message,
+        messageId: data.message?.message_id
+      });
+      dispatch({
+        type: WS_ACTIONS.ADD_CHAT_MESSAGE,
+        payload: { conversationId: data.conversation_id, message: data.message }
       });
     });
 

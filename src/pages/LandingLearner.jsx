@@ -10,6 +10,7 @@ import { api } from '../services/api';
 import { useNavigation } from '../hooks/useNavigation';
 import { useAuth } from '../contexts/AuthContext';
 import { useCourses } from '../hooks/useOptimizedFetch';
+import LearnerChatButton from '../components/chat/LearnerChatButton';
 
 const LandingLearner = () => {
   const navigate = useNavigation();
@@ -308,6 +309,9 @@ const LandingLearner = () => {
           </div>
         </section>
       </main>
+      
+      {/* Floating Chat Button - Chat với instructor */}
+      <LearnerChatButton />
       
       <Footer />
     </div>

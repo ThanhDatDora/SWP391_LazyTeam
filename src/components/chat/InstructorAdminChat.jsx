@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Send, Minimize2, Maximize2, X, MessageCircle, Loader2, Archive, Trash2, MoreVertical, RotateCcw, Inbox, User, Clock } from 'lucide-react';
+import { Send, X, MessageCircle, Loader2, Archive, Trash2, MoreVertical, RotateCcw, Inbox, User, Clock } from 'lucide-react';
 import { useWebSocket } from '../../contexts/WebSocketContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { cn } from '../../lib/utils';
@@ -51,7 +51,6 @@ export function InstructorAdminChat({ className = '' }) {
   });
   
   const [isOpen, setIsOpen] = useState(false);
-  const [isMinimized, setIsMinimized] = useState(false);
   const [activeTab, setActiveTab] = useState('active'); // 'active' or 'archived'
   const [conversations, setConversations] = useState([]);
   const [conversation, setConversation] = useState(null);
@@ -126,7 +125,7 @@ export function InstructorAdminChat({ className = '' }) {
     }
   };
   
-  // Load unread count
+  // Load unread count - total unread messages (max 99+)
   const loadUnreadCount = async () => {
     try {
       const res = await fetch(`${API_BASE_URL}/chat/conversations?status=active`, {
@@ -135,8 +134,11 @@ export function InstructorAdminChat({ className = '' }) {
       const data = await res.json();
       
       if (data.success && data.data) {
-        const unread = data.data.filter(c => c.unread_count > 0).length;
-        setUnreadCount(unread);
+        // Sum up all unread_count from conversations
+        const totalUnread = data.data.reduce((sum, c) => sum + (c.unread_count || 0), 0);
+        // Cap at 99
+        setUnreadCount(Math.min(totalUnread, 99));
+        console.log('📬 Total unread messages:', totalUnread);
       }
     } catch (error) {
       console.error('❌ Error loading unread count:', error);
@@ -150,7 +152,6 @@ export function InstructorAdminChat({ className = '' }) {
       
       // Load conversations first
       await loadConversations(activeTab);
-      await loadUnreadCount();
       
       // Get active conversations
       const convRes = await fetch(`${API_BASE_URL}/chat/conversations?status=active`, {
@@ -202,6 +203,8 @@ export function InstructorAdminChat({ className = '' }) {
         if (msgData.success) {
           setMessages(msgData.data || []);
           setUnreadCount(0);
+          // Reload total unread count to update badge (messages were marked as read by server)
+          await loadUnreadCount();
         }
       }
     } catch (error) {
@@ -232,7 +235,7 @@ export function InstructorAdminChat({ className = '' }) {
       const data = await res.json();
       
       if (data.success) {
-        setMessages(prev => [...prev, data.data]);
+        console.log('✅ Message sent:', data.data.message_id, '- waiting for WebSocket event');
         setNewMessage('');
         
         // Send via WebSocket for realtime
@@ -240,6 +243,9 @@ export function InstructorAdminChat({ className = '' }) {
         
         // Stop typing indicator
         typingInConversation(conversation.conversation_id, false);
+        
+        // DON'T add to local state here - let WebSocket sync handle it
+        // This prevents duplicate messages on sender's side
       }
     } catch (error) {
       console.error('❌ Error sending message:', error);
@@ -427,15 +433,34 @@ export function InstructorAdminChat({ className = '' }) {
   };
   
   // Toggle chat
-  const toggleChat = () => {
+  const toggleChat = async () => {
     if (!isOpen) {
+      // Opening chat - clear badge and initialize
+      setUnreadCount(0);
       initializeConversation();
+      setIsOpen(true);
     } else {
+      // Closing chat - mark messages as read before closing
       if (conversation) {
+        try {
+          // Mark all messages in this conversation as read
+          await fetch(`${API_BASE_URL}/chat/conversations/${conversation.conversation_id}/read`, {
+            method: 'PUT',
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          console.log('✅ Marked conversation as read before closing');
+          
+          // Reload unread count to update badge immediately
+          await loadUnreadCount();
+          console.log('✅ Reloaded unread count after marking as read');
+        } catch (error) {
+          console.error('❌ Error marking as read:', error);
+        }
+        
         leaveConversation(conversation.conversation_id);
       }
+      setIsOpen(false);
     }
-    setIsOpen(!isOpen);
   };
   
   // Listen for conversation deleted/archived events
@@ -506,13 +531,35 @@ export function InstructorAdminChat({ className = '' }) {
         
         if (newMessages.length > 0) {
           console.log('📨 Adding', newMessages.length, 'new WebSocket messages');
+          
+          // If chat is closed, reload unread count to update badge
+          if (!isOpen) {
+            console.log('🔔 Chat closed - reloading unread count for badge');
+            loadUnreadCount();
+          }
+          
           return [...prevMessages, ...newMessages];
         }
         
         return prevMessages;
       });
     }
-  }, [chatMessages, conversation]);
+  }, [chatMessages, conversation, isOpen, loadUnreadCount]);
+  
+  // Periodic unread count check when chat is closed
+  useEffect(() => {
+    if (!isOpen) {
+      // Load initial count
+      loadUnreadCount();
+      
+      // Set up interval to check every 5 seconds (matching AdminPanel)
+      const interval = setInterval(() => {
+        loadUnreadCount();
+      }, 5000);
+      
+      return () => clearInterval(interval);
+    }
+  }, [isOpen, loadUnreadCount]);
   
   // Listen for incoming messages via WebSocket
   useEffect(() => {
@@ -565,8 +612,8 @@ export function InstructorAdminChat({ className = '' }) {
         >
           <MessageCircle style={{ width: 'clamp(24px, 3.5vw, 28px)', height: 'clamp(24px, 3.5vw, 28px)' }} />
           {unreadCount > 0 && (
-            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-              {unreadCount}
+            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full min-w-[20px] h-5 px-1 flex items-center justify-center font-semibold">
+              {unreadCount >= 99 ? '99+' : unreadCount}
             </span>
           )}
         </button>,
@@ -576,7 +623,7 @@ export function InstructorAdminChat({ className = '' }) {
       {/* Chat Window - Portal to escape overflow constraints */}
       {isOpen && createPortal(
         <div 
-          className={`fixed z-[9999] rounded-lg shadow-2xl ${isMinimized ? 'h-14' : 'h-[480px]'} flex flex-col`} 
+          className="fixed z-[9999] rounded-lg shadow-2xl h-[480px] flex flex-col" 
           style={{
             bottom: 'max(5rem, calc(env(safe-area-inset-bottom) + 4rem))',
             right: 'max(1.5rem, env(safe-area-inset-right))',
@@ -633,13 +680,6 @@ export function InstructorAdminChat({ className = '' }) {
               )}
               
               <button 
-                onClick={() => setIsMinimized(!isMinimized)} 
-                className="hover:bg-indigo-700 p-1 rounded transition-colors"
-                title={isMinimized ? 'Maximize' : 'Minimize'}
-              >
-                {isMinimized ? <Maximize2 className="w-4 h-4" /> : <Minimize2 className="w-4 h-4" />}
-              </button>
-              <button 
                 onClick={toggleChat} 
                 className="hover:bg-indigo-700 p-1 rounded transition-colors"
                 title="Close chat"
@@ -649,9 +689,7 @@ export function InstructorAdminChat({ className = '' }) {
             </div>
           </div>
           
-          {!isMinimized && (
-            <>
-              {/* Tabs */}
+          {/* Tabs */}
               <div 
                 className="flex border-b"
                 style={{ 
@@ -848,8 +886,6 @@ export function InstructorAdminChat({ className = '' }) {
                   )}
                 </div>
               )}
-            </>
-          )}
         </div>,
         document.body
       )}

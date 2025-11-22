@@ -45,8 +45,10 @@ export default function ConversationsPage() {
   const [confirmModal, setConfirmModal] = useState({ open: false, action: null, conversationId: null });
   
   const messagesEndRef = useRef(null);
+  const messagesContainerRef = useRef(null);
   const activeTabRef = useRef(activeTab); // Ref to track current tab without causing re-renders
   const selectedConvRef = useRef(selectedConv); // Ref to track selected conversation
+  const shouldScrollRef = useRef(false); // Flag to force scroll when user sends message
   const token = localStorage.getItem('token');
   
   // Helper function to format datetime from SQL Server (handles timezone correctly)
@@ -103,14 +105,24 @@ export default function ConversationsPage() {
     hover: theme === 'dark' ? '#334155' : '#f1f5f9'
   };
   
-  // Scroll to bottom
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-  
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+  // Check if user is near bottom of scroll (within 100px)
+  const isNearBottom = useCallback(() => {
+    if (!messagesContainerRef.current) return true;
+    const container = messagesContainerRef.current;
+    const threshold = 100;
+    return container.scrollHeight - container.scrollTop - container.clientHeight < threshold;
+  }, []);
+
+  // Scroll to bottom (scroll container only, not page)
+  const scrollToBottom = useCallback(() => {
+    console.log('🎯 scrollToBottom called, ref:', messagesContainerRef.current);
+    if (messagesContainerRef.current) {
+      console.log('✅ Scrolling - scrollHeight:', messagesContainerRef.current.scrollHeight);
+      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+    } else {
+      console.error('❌ messagesContainerRef.current is null!');
+    }
+  }, []);
   
   // Load unread count (always from active conversations)
   const loadUnreadCount = useCallback(async () => {
@@ -180,6 +192,9 @@ export default function ConversationsPage() {
     if (selectedConv && chatMessages[selectedConv.conversation_id]) {
       const wsMessages = chatMessages[selectedConv.conversation_id];
       
+      // Check if user was near bottom before adding new messages
+      const wasNearBottom = isNearBottom();
+      
       // Only add new messages that aren't already in state
       setMessages(prevMessages => {
         const existingIds = new Set(prevMessages.map(m => m.message_id));
@@ -187,13 +202,92 @@ export default function ConversationsPage() {
         
         if (newMessages.length > 0) {
           console.log('📨 Adding', newMessages.length, 'new WebSocket messages');
+          
+          // Get current user ID from token
+          const tokenData = JSON.parse(atob(localStorage.getItem('token').split('.')[1]));
+          const currentUserId = parseInt(tokenData.userId);
+          
+          // Check if any new message is from current user
+          const hasOwnMessage = newMessages.some(msg => msg.sender_id === currentUserId);
+          
+          console.log('🔍 ConversationsPage Scroll decision:', {
+            wasNearBottom,
+            hasOwnMessage,
+            shouldScrollRef: shouldScrollRef.current,
+            currentUserId,
+            newMessageSenderIds: newMessages.map(m => m.sender_id),
+            willScroll: wasNearBottom || hasOwnMessage || shouldScrollRef.current
+          });
+          
+          // Only auto-scroll if:
+          // 1. User was at bottom, OR
+          // 2. Message is from current user, OR
+          // 3. shouldScrollRef flag is set (user just sent message or selected conversation)
+          if (wasNearBottom || hasOwnMessage || shouldScrollRef.current) {
+            console.log('✅ ConversationsPage: Scrolling to bottom');
+            setTimeout(() => scrollToBottom(), 100);
+            shouldScrollRef.current = false; // Reset flag
+          } else {
+            console.log('⏭️ ConversationsPage: Skip scroll - user not at bottom');
+          }
+          
           return [...prevMessages, ...newMessages];
         }
         
         return prevMessages;
       });
     }
-  }, [chatMessages, selectedConv]);
+  }, [chatMessages, selectedConv, isNearBottom, scrollToBottom]);
+  
+  // Mark as read when user scrolls near bottom
+  useEffect(() => {
+    if (!selectedConv || !messagesContainerRef.current) return;
+    
+    const container = messagesContainerRef.current;
+    
+    const handleScroll = () => {
+      // If user is near bottom, mark conversation as read
+      if (isNearBottom()) {
+        const hasUnread = conversations.find(
+          c => c.conversation_id === selectedConv.conversation_id
+        )?.unread_count > 0;
+        
+        if (hasUnread) {
+          console.log('🔔 Marking conversation as read (scrolled to bottom)');
+          markAsRead(selectedConv.conversation_id);
+        }
+      }
+    };
+    
+    container.addEventListener('scroll', handleScroll);
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, [selectedConv, conversations, isNearBottom]);
+  
+  // Scroll to bottom when messages first load (after selecting conversation or clicking chat button)
+  useEffect(() => {
+    if (messages.length > 0 && messagesContainerRef.current && shouldScrollRef.current) {
+      console.log('📜 Initial scroll - messages loaded, scrolling to bottom');
+      setTimeout(() => {
+        scrollToBottom();
+        shouldScrollRef.current = false; // Reset flag after scrolling
+      }, 100);
+    }
+  }, [messages.length, scrollToBottom]);
+  
+  // Scroll AdminPanel's main window down when conversation is selected
+  // This ensures the input field is visible without manual scrolling
+  useEffect(() => {
+    if (selectedConv) {
+      // Wait for messages to render, then scroll window to show input field
+      setTimeout(() => {
+        window.scrollTo({
+          top: document.documentElement.scrollHeight,
+          behavior: 'smooth'
+        });
+        console.log('📜 Scrolling AdminPanel window to bottom to show input field');
+      }, 100);
+    }
+  }, [selectedConv]);
   
   // WebSocket event handlers wrapped in useCallback to prevent recreating listeners
   const handleConversationDeleted = useCallback((data) => {
@@ -283,6 +377,11 @@ export default function ConversationsPage() {
       if (data.success) {
         setMessages(data.data);
         console.log('✅ Loaded', data.data.length, 'messages');
+        // Scroll to bottom when loading initial messages - wait longer for DOM to render
+        setTimeout(() => {
+          scrollToBottom();
+          console.log('📜 Auto-scroll after loading messages');
+        }, 300);
       }
     } catch (error) {
       console.error('❌ Error loading messages:', error);
@@ -299,6 +398,9 @@ export default function ConversationsPage() {
     setSelectedConv(conv);
     setMessages([]);
     
+    // Set flag to scroll to bottom when messages load
+    shouldScrollRef.current = true;
+    
     // Join new conversation
     joinConversation(conv.conversation_id);
     
@@ -308,8 +410,45 @@ export default function ConversationsPage() {
       loadConversations('active'); // Reload active conversations
     }
     
-    // Load messages AFTER assignment
+    const hadUnread = conv.unread_count > 0;
+    
+    // Mark as read immediately to clear badge
+    if (hadUnread) {
+      markAsRead(conv.conversation_id);
+    }
+    
+    // Load messages AFTER assignment (backend also marks as read here)
     await loadMessages(conv.conversation_id);
+    
+    // Emit event AFTER loadMessages completes (backend marks as read during GET)
+    // This ensures AdminPanel reloads badge after all mark operations finish
+    if (hadUnread) {
+      window.dispatchEvent(new CustomEvent('chatMarkedAsRead'));
+      console.log('📡 [After loadMessages] Emitted chatMarkedAsRead event');
+    }
+  };
+  
+  // Mark conversation as read
+  const markAsRead = async (conversationId) => {
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/chat/conversations/${conversationId}/read`,
+        {
+          method: 'PUT',
+          headers: { 'Authorization': `Bearer ${token}` }
+        }
+      );
+      
+      if (res.ok) {
+        console.log('✅ Conversation marked as read:', conversationId);
+        // Reload conversations to update unread count
+        loadConversations(activeTabRef.current);
+        loadUnreadCount();
+        // Note: chatMarkedAsRead event now emitted in handleSelectConversation
+      }
+    } catch (error) {
+      console.error('❌ Error marking conversation as read:', error);
+    }
   };
   
   // Assign to current admin
@@ -459,6 +598,9 @@ export default function ConversationsPage() {
     e.preventDefault();
     if (!newMessage.trim() || !selectedConv) return;
     
+    // Set flag to force scroll when message arrives via WebSocket
+    shouldScrollRef.current = true;
+    
     try {
       setSending(true);
       const res = await fetch(
@@ -476,14 +618,26 @@ export default function ConversationsPage() {
       const data = await res.json();
       
       if (data.success) {
-        setMessages(prev => [...prev, data.data]);
+        // Don't add message here - let WebSocket event handle it to avoid duplicates
+        // Backend already emits WebSocket event, so no need to call sendChatMessage
         setNewMessage('');
+        console.log('✅ Message sent:', data.data.message_id, '- waiting for WebSocket event');
         
-        // Send via WebSocket
-        sendChatMessage(selectedConv.conversation_id, data.data);
+        // Auto-focus input after sending (fix: không phải click lại)
+        setTimeout(() => {
+          const inputElement = document.querySelector('input[placeholder="Type a message..."]');
+          if (inputElement) {
+            inputElement.focus();
+          }
+        }, 100);
+      } else {
+        // Reset flag if message failed
+        shouldScrollRef.current = false;
       }
     } catch (error) {
       console.error('❌ Error sending message:', error);
+      // Reset flag on error
+      shouldScrollRef.current = false;
     } finally {
       setSending(false);
     }
@@ -772,7 +926,7 @@ export default function ConversationsPage() {
             </div>
             
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4 space-y-3">
               {messages.length === 0 ? (
                 <div className="text-center mt-12">
                   <MessageCircle className="w-12 h-12 mx-auto mb-3 opacity-30" style={{ color: currentColors.textSecondary }} />

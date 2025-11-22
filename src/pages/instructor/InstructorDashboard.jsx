@@ -17,7 +17,8 @@ import {
   Clock,
   CheckCircle,
   AlertCircle,
-  BarChart3
+  BarChart3,
+  MessageCircle
 } from 'lucide-react';
 import { api } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
@@ -146,6 +147,10 @@ const InstructorDashboard = () => {
           </p>
         </div>
         <div className="flex gap-3">
+          <Button variant="outline" onClick={() => navigate('/instructor/chat')}>
+            <MessageCircle className="w-4 h-4 mr-2" />
+            Chat với Học viên
+          </Button>
           <Button onClick={() => navigate('/instructor/courses/create')}>
             <Plus className="w-4 h-4 mr-2" />
             Tạo khóa học mới
