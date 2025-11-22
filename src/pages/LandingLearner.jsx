@@ -11,6 +11,7 @@ import { useNavigation } from '../hooks/useNavigation';
 import { useAuth } from '../contexts/AuthContext';
 import { useCourses } from '../hooks/useOptimizedFetch';
 import LearnerChatButton from '../components/chat/LearnerChatButton';
+import { AIChatbot } from '../components/chat/AIChatbot';
 
 const LandingLearner = () => {
   const navigate = useNavigation();
@@ -309,6 +310,9 @@ const LandingLearner = () => {
           </div>
         </section>
       </main>
+      
+      {/* AI Chatbot - Above chat realtime */}
+      <AIChatbot />
       
       {/* Floating Chat Button - Chat với instructor */}
       <LearnerChatButton />

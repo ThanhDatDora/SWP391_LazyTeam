@@ -15,6 +15,7 @@ import Footer from '../components/layout/Footer';
 import { api } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigation } from '../hooks/useNavigation';
+import { AIChatbot } from '../components/chat/AIChatbot';
 
 const CoursesPage = () => {
   const navigate = useNavigation();
@@ -512,6 +513,9 @@ const CoursesPage = () => {
       </div>
 
       <Footer />
+
+      {/* AI Chatbot */}
+      <AIChatbot />
     </div>
   );
 };

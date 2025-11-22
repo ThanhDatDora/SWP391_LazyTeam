@@ -32,6 +32,7 @@ import examRoutes from './routes/exams.js';
 import newExamRoutes from './routes/new-exam-routes.js';
 import assignmentsRoutes from './routes/assignments.js';
 import chatRoutes from './routes/chat.js';
+import aiChatbotRoutes from './routes/ai-chatbot.js';
 
 // Load environment variables
 dotenv.config();
@@ -247,6 +248,7 @@ app.use('/api/exams', examRoutes);
 app.use('/api/learning/exams', newExamRoutes);
 app.use('/api/assignments', assignmentsRoutes);
 app.use('/api/chat', chatRoutes);
+app.use('/api/ai-chatbot', aiChatbotRoutes);
 
 
 // TODO: Add more routes as needed
