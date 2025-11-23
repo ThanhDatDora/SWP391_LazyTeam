@@ -31,9 +31,16 @@ export function AIChatbot({ className = '' }) {
   const [newMessage, setNewMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [theme, setTheme] = useState('light');
+  const [showClearModal, setShowClearModal] = useState(false);
   
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
+
+  // Get unique storage key for each user
+  const getStorageKey = () => {
+    const userId = authState?.user?.user_id || authState?.user?.userId || 'guest';
+    return `ai_chat_history_${userId}`;
+  };
 
   // Theme detection
   useEffect(() => {
@@ -56,18 +63,23 @@ export function AIChatbot({ className = '' }) {
     };
   }, []);
 
-  // Load chat history from localStorage
+  // Load chat history from localStorage (unique per user)
   useEffect(() => {
     if (isOpen) {
-      const savedMessages = localStorage.getItem('ai_chat_history');
+      const storageKey = getStorageKey();
+      const savedMessages = localStorage.getItem(storageKey);
+      console.log('📂 Loading chat history for:', storageKey);
+      
       if (savedMessages) {
         try {
           setMessages(JSON.parse(savedMessages));
+          console.log('✅ Loaded', JSON.parse(savedMessages).length, 'messages');
         } catch (error) {
-          console.error('Error loading chat history:', error);
+          console.error('❌ Error loading chat history:', error);
         }
       } else {
         // Welcome message
+        console.log('👋 No history found, showing welcome message');
         setMessages([{
           id: Date.now(),
           role: 'assistant',
@@ -76,14 +88,16 @@ export function AIChatbot({ className = '' }) {
         }]);
       }
     }
-  }, [isOpen]);
+  }, [isOpen, authState?.user]);
 
-  // Save chat history to localStorage
+  // Save chat history to localStorage (unique per user)
   useEffect(() => {
     if (messages.length > 1) { // Skip saving just welcome message
-      localStorage.setItem('ai_chat_history', JSON.stringify(messages));
+      const storageKey = getStorageKey();
+      localStorage.setItem(storageKey, JSON.stringify(messages));
+      console.log('💾 Saved', messages.length, 'messages to:', storageKey);
     }
-  }, [messages]);
+  }, [messages, authState?.user]);
 
   // Auto-scroll to bottom
   const scrollToBottom = () => {
@@ -382,15 +396,21 @@ ${prompt}
 
   // Clear chat history
   const handleClearChat = () => {
-    if (confirm('Bạn có chắc chắn muốn xóa toàn bộ lịch sử chat?')) {
-      localStorage.removeItem('ai_chat_history');
-      setMessages([{
-        id: Date.now(),
-        role: 'assistant',
-        content: 'Lịch sử chat đã được xóa. Tôi có thể giúp gì cho bạn?',
-        timestamp: new Date().toISOString()
-      }]);
-    }
+    setShowClearModal(true);
+  };
+
+  // Confirm clear chat
+  const confirmClearChat = () => {
+    const storageKey = getStorageKey();
+    localStorage.removeItem(storageKey);
+    console.log('🗑️ Cleared chat history for:', storageKey);
+    setMessages([{
+      id: Date.now(),
+      role: 'assistant',
+      content: 'Lịch sử chat đã được xóa. Tôi có thể giúp gì cho bạn?',
+      timestamp: new Date().toISOString()
+    }]);
+    setShowClearModal(false);
   };
 
   // Format timestamp
@@ -616,6 +636,76 @@ ${prompt}
               AI có thể mắc lỗi. Kiểm tra thông tin quan trọng.
             </p>
           </form>
+        </div>,
+        document.body
+      )}
+
+      {/* Clear Confirmation Modal */}
+      {showClearModal && createPortal(
+        <div
+          className="fixed inset-0 z-[100001] flex items-center justify-center"
+          style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}
+          onClick={() => setShowClearModal(false)}
+        >
+          <div
+            className="rounded-lg shadow-2xl p-6 max-w-sm mx-4"
+            style={{
+              backgroundColor: colors.card,
+              border: `1px solid ${colors.border}`
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-start gap-3 mb-4">
+              <div 
+                className="p-2 rounded-full"
+                style={{ backgroundColor: theme === 'dark' ? '#dc2626' : '#fee2e2' }}
+              >
+                <Trash2 
+                  className="w-5 h-5" 
+                  style={{ color: theme === 'dark' ? '#fca5a5' : '#dc2626' }}
+                />
+              </div>
+              <div className="flex-1">
+                <h3 
+                  className="font-semibold text-base mb-1"
+                  style={{ color: colors.text }}
+                >
+                  Xóa lịch sử chat?
+                </h3>
+                <p 
+                  className="text-sm"
+                  style={{ color: colors.textSecondary }}
+                >
+                  Bạn có chắc chắn muốn xóa toàn bộ lịch sử trò chuyện với AI? Hành động này không thể hoàn tác.
+                </p>
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setShowClearModal(false)}
+                className="px-4 py-2 rounded-lg transition-all"
+                style={{
+                  backgroundColor: theme === 'dark' ? '#334155' : '#f1f5f9',
+                  color: colors.text
+                }}
+              >
+                Hủy
+              </button>
+              <button
+                onClick={confirmClearChat}
+                className="px-4 py-2 rounded-lg transition-all"
+                style={{
+                  background: 'linear-gradient(135deg, #dc2626 0%, #991b1b 100%)',
+                  color: '#ffffff'
+                }}
+              >
+                Xóa lịch sử
+              </button>
+            </div>
+          </div>
         </div>,
         document.body
       )}
