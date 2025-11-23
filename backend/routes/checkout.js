@@ -7,21 +7,37 @@ const router = express.Router();
 
 // Verify payment status (check if payment received via QR/Bank transfer)
 router.post('/verify-payment', authenticateToken, [
-  body('paymentId').isInt().withMessage('Valid payment ID required'),
+  body('paymentId').custom((value) => {
+    // Accept both string and number
+    const num = parseInt(value);
+    if (isNaN(num) || num <= 0) {
+      throw new Error('Valid payment ID required');
+    }
+    return true;
+  }),
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
+      console.error('❌ Verify payment validation error:', errors.array());
+      return res.status(400).json({ 
+        success: false,
+        error: 'Validation failed',
+        validationErrors: errors.array()
+      });
     }
 
     const { paymentId } = req.body;
+    const paymentIdInt = parseInt(paymentId);
     const userId = req.user.userId;
+    
+    console.log('🔍 Verify payment request:', { paymentId, paymentIdInt, userId });
+    
     const pool = await getPool();
 
     // Check payment status in database
     const result = await pool.request()
-      .input('paymentId', sql.BigInt, paymentId)
+      .input('paymentId', sql.BigInt, paymentIdInt)
       .input('userId', sql.BigInt, userId)
       .query(`
         SELECT payment_id, status, paid_at, txn_ref, created_at
@@ -38,40 +54,15 @@ router.post('/verify-payment', authenticateToken, [
 
     const payment = result.recordset[0];
     
-    // TODO: Integrate with VietQR API or bank webhook to check actual payment
-    // For now, we simulate: if payment was created more than 5 seconds ago, consider verified
-    // In production, this should call bank API or check webhook notifications
-    const createdAt = new Date(payment.created_at);
-    const now = new Date();
-    const secondsPassed = (now - createdAt) / 1000;
+    // Check if payment has been marked as 'paid' by webhook or admin
+    // PayOS webhook updates status to 'paid' when payment is received
+    const verified = (payment.status === 'paid' || payment.status === 'completed');
     
-    // Simulate payment verification:
-    // - If status is already 'completed', return verified
-    // - If pending and > 5 seconds old, mark as completed (simulating instant bank confirmation)
-    let verified = payment.status === 'completed';
-    
-    if (!verified && payment.status === 'pending' && secondsPassed >= 5) {
-      // Simulate bank confirmation received
-      // In production: Check with VietQR/Bank API here
-      verified = true;
-      
-      // Update status to completed
-      const txnRef = payment.txn_ref || `TXN-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`.toUpperCase();
-      await pool.request()
-        .input('paymentId', sql.BigInt, paymentId)
-        .input('txnRef', sql.NVarChar, txnRef)
-        .query(`
-          UPDATE payments 
-          SET status = 'completed', txn_ref = @txnRef, paid_at = GETDATE()
-          WHERE payment_id = @paymentId
-        `);
-    }
-
     res.json({
       success: true,
       data: {
         verified,
-        status: verified ? 'completed' : payment.status,
+        status: payment.status,
         paidAt: payment.paid_at,
         transactionRef: payment.txn_ref
       }
@@ -115,11 +106,15 @@ router.post('/create-order', authenticateToken, [
 
     try {
       const invoiceIds = [];
+      const enrollmentIds = [];
       let totalAmount = 0;
+      let firstCourseId = null;
 
-      // Create invoice for each course
+      // Create invoice and enrollment for each course
       for (const item of courses) {
         const { courseId } = item;
+        
+        if (!firstCourseId) firstCourseId = courseId;
 
         // Get course price
         const courseResult = await transaction.request()
@@ -134,11 +129,35 @@ router.post('/create-order', authenticateToken, [
         const amount = course.price;
         totalAmount += amount;
 
+        // Create or get enrollment
+        const enrollmentCheck = await transaction.request()
+          .input('userId', sql.BigInt, userId)
+          .input('courseId', sql.BigInt, courseId)
+          .query('SELECT enrollment_id FROM enrollments WHERE user_id = @userId AND course_id = @courseId');
+
+        let enrollmentId;
+        if (enrollmentCheck.recordset.length > 0) {
+          enrollmentId = enrollmentCheck.recordset[0].enrollment_id;
+        } else {
+          const enrollmentResult = await transaction.request()
+            .input('userId', sql.BigInt, userId)
+            .input('courseId', sql.BigInt, courseId)
+            .input('status', sql.NVarChar(30), 'pending')
+            .query(`
+              INSERT INTO enrollments (user_id, course_id, status, enrolled_at)
+              OUTPUT INSERTED.enrollment_id
+              VALUES (@userId, @courseId, @status, GETDATE())
+            `);
+          enrollmentId = enrollmentResult.recordset[0].enrollment_id;
+        }
+        
+        enrollmentIds.push(enrollmentId);
+
         // Create invoice
         const invoiceResult = await transaction.request()
           .input('userId', sql.BigInt, userId)
           .input('courseId', sql.BigInt, courseId)
-          .input('amount', sql.Decimal(10, 2), amount)
+          .input('amount', sql.Decimal(12, 2), amount)
           .input('status', sql.NVarChar(30), 'pending')
           .query(`
             INSERT INTO invoices (user_id, course_id, amount, status, created_at)
@@ -149,17 +168,22 @@ router.post('/create-order', authenticateToken, [
         invoiceIds.push(invoiceResult.recordset[0].invoice_id);
       }
 
-      // Create payment record
+      // Generate txn_ref
+      const txnRef = `ORDER-${Date.now()}-${userId}`;
+
+      // Create payment record with first enrollment
       const paymentResult = await transaction.request()
         .input('userId', sql.BigInt, userId)
+        .input('enrollmentId', sql.BigInt, enrollmentIds[0]) // Use first enrollment
         .input('provider', sql.NVarChar, paymentMethod)
-        .input('amountCents', sql.Int, Math.round(totalAmount * 100)) // Convert to cents
-        .input('currency', sql.Char(3), 'VND')
+        .input('amountCents', sql.Decimal(12, 2), totalAmount) // Store USD directly
+        .input('currency', sql.Char(3), 'USD')
         .input('status', sql.NVarChar, 'pending')
+        .input('txnRef', sql.NVarChar, txnRef)
         .query(`
-          INSERT INTO payments (user_id, provider, amount_cents, currency, status, created_at)
+          INSERT INTO payments (user_id, enrollment_id, provider, amount_cents, currency, status, txn_ref, created_at)
           OUTPUT INSERTED.payment_id
-          VALUES (@userId, @provider, @amountCents, @currency, @status, GETDATE())
+          VALUES (@userId, @enrollmentId, @provider, @amountCents, @currency, @status, @txnRef, GETDATE())
         `);
 
       const paymentId = paymentResult.recordset[0].payment_id;
@@ -397,7 +421,7 @@ router.post('/enroll-now', authenticateToken, [
       const invoiceResult = await transaction.request()
         .input('userId', sql.BigInt, userId)
         .input('courseId', sql.BigInt, courseId)
-        .input('amount', sql.Decimal(10, 2), course.price)
+        .input('amount', sql.Decimal(12, 2), course.price)
         .input('status', sql.NVarChar(30), 'paid')
         .query(`
           INSERT INTO invoices (user_id, course_id, amount, status, created_at, paid_at)

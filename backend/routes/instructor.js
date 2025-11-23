@@ -92,6 +92,70 @@ router.get('/courses', authenticateToken, authorizeRoles('instructor', 'admin'),
   }
 });
 
+/**
+ * PUT /api/instructor/courses/:courseId
+ * Update course basic information (title, description, price)
+ */
+router.put('/courses/:courseId', authenticateToken, authorizeRoles('instructor', 'admin'), async (req, res) => {
+  try {
+    const { courseId } = req.params;
+    const { title, description, price } = req.body;
+    const instructorId = req.user.userId;
+
+    console.log('📝 Updating course:', courseId, 'by instructor:', instructorId);
+
+    const pool = await getPool();
+
+    // Verify instructor owns this course
+    const ownerCheck = await pool.request()
+      .input('course_id', sql.Int, courseId)
+      .input('instructor_id', sql.BigInt, instructorId)
+      .query(`
+        SELECT course_id 
+        FROM courses 
+        WHERE course_id = @course_id AND owner_instructor_id = @instructor_id
+      `);
+
+    if (ownerCheck.recordset.length === 0) {
+      return res.status(403).json({
+        success: false,
+        message: 'Bạn không có quyền chỉnh sửa khóa học này'
+      });
+    }
+
+    // Update course
+    await pool.request()
+      .input('course_id', sql.Int, courseId)
+      .input('title', sql.NVarChar, title)
+      .input('description', sql.NVarChar, description)
+      .input('price', sql.Decimal(12, 2), price)
+      .query(`
+        UPDATE courses
+        SET 
+          title = @title,
+          description = @description,
+          price = @price,
+          updated_at = GETDATE()
+        WHERE course_id = @course_id
+      `);
+
+    console.log('✅ Course updated successfully');
+
+    res.json({
+      success: true,
+      message: 'Cập nhật khóa học thành công'
+    });
+
+  } catch (error) {
+    console.error('❌ Error updating course:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update course',
+      message: error.message
+    });
+  }
+});
+
 // ==================== MOOC MANAGEMENT ====================
 
 /**
@@ -678,16 +742,15 @@ router.get('/revenue/summary', authenticateToken, authorizeRoles('instructor', '
     const pool = await getPool();
 
     // Calculate revenue from payments table (stored in USD)
-    // amount_cents is stored as USD cents (price × 100)
-    // No need to divide by 1000 anymore - payments are in USD
+    // amount_cents is now DECIMAL(12,2) - stores actual USD amount
     const revenueQuery = await pool.request()
       .input('instructor_id', sql.BigInt, instructorId)
       .query(`
         SELECT 
           COUNT(DISTINCT p.payment_id) as total_sales,
           COUNT(DISTINCT e.user_id) as total_students,
-          ISNULL(SUM(p.amount_cents / 100.0), 0) as total_revenue,
-          ISNULL(SUM(p.amount_cents / 100.0 * 0.8), 0) as instructor_share
+          ISNULL(SUM(p.amount_cents), 0) as total_revenue,
+          ISNULL(SUM(p.amount_cents * 0.8), 0) as instructor_share
         FROM courses c
         LEFT JOIN enrollments e ON c.course_id = e.course_id
         LEFT JOIN payments p ON e.enrollment_id = p.enrollment_id AND p.status IN ('paid', 'completed')
@@ -701,8 +764,8 @@ router.get('/revenue/summary', authenticateToken, authorizeRoles('instructor', '
         SELECT 
           FORMAT(p.paid_at, 'yyyy-MM') as month,
           COUNT(DISTINCT e.enrollment_id) as sales,
-          ISNULL(SUM(p.amount_cents / 100.0), 0) as revenue,
-          ISNULL(SUM(p.amount_cents / 100.0 * 0.8), 0) as instructor_share
+          ISNULL(SUM(p.amount_cents), 0) as revenue,
+          ISNULL(SUM(p.amount_cents * 0.8), 0) as instructor_share
         FROM courses c
         LEFT JOIN enrollments e ON c.course_id = e.course_id
         LEFT JOIN payments p ON e.enrollment_id = p.enrollment_id AND p.status IN ('paid', 'completed')
@@ -720,7 +783,7 @@ router.get('/revenue/summary', authenticateToken, authorizeRoles('instructor', '
           c.course_id,
           c.title,
           COUNT(DISTINCT e.enrollment_id) as enrollments,
-          ISNULL(SUM(p.amount_cents / 100.0), 0) as revenue
+          ISNULL(SUM(p.amount_cents), 0) as revenue
         FROM courses c
         LEFT JOIN enrollments e ON c.course_id = e.course_id
         LEFT JOIN payments p ON e.enrollment_id = p.enrollment_id AND p.status IN ('paid', 'completed')

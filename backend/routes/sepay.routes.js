@@ -121,7 +121,7 @@ router.post('/create', authenticateToken, [
           .input('userId', sql.BigInt, userId)
           .input('courseId', sql.BigInt, course.courseId)
           .input('paymentId', sql.BigInt, paymentId)
-          .input('amount', sql.Decimal(10, 2), course.price)
+          .input('amount', sql.Decimal(12, 2), course.price)
           .input('status', sql.NVarChar(30), 'pending')
           .query(`
             INSERT INTO invoices (
@@ -260,7 +260,7 @@ router.post('/check-status', authenticateToken, [
     // Return pending status
     // SePay Sandbox doesn't support transaction query API
     // User needs to use manual confirmation button
-    const amount = payment.amount_cents / 100;
+    const amount = payment.amount_cents;
     
     return res.json({
       success: true,
@@ -436,7 +436,7 @@ router.post('/webhook', async (req, res) => {
     }
 
     // Verify amount
-    const expectedAmount = payment.amount_cents / 100;
+    const expectedAmount = payment.amount_cents;
     if (parseFloat(amount_in) !== expectedAmount) {
       console.error(`Amount mismatch for payment ${paymentId}: expected ${expectedAmount}, got ${amount_in}`);
       return res.json({ success: true, message: 'Amount mismatch' });

@@ -116,9 +116,6 @@ const InstructorDashboard = () => {
           ...statsFromAPI,
           totalRevenue: loadedRevenue?.summary?.instructorShare || 0
         };
-        console.log('📊 Final merged stats:', mergedStats);
-        console.log('   Total Revenue in stats:', mergedStats.totalRevenue, 'USD');
-        console.log('   Total Revenue in VND:', formatVND(convertUSDtoVND(mergedStats.totalRevenue)));
         setStats(mergedStats);
       } else {
         // ⚠️ Fallback: calculate stats from courses (may have duplicates)

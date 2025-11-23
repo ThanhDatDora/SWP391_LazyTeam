@@ -12,6 +12,7 @@
     "test:coverage": "jest --coverage"
   },
   "dependencies": {
+    "@payos/node": "^2.0.3",
     "bcryptjs": "^2.4.3",
     "compression": "^1.7.4",
     "cookie-parser": "^1.4.7",
@@ -32,6 +33,7 @@
     "node-fetch": "^3.3.2",
     "nodemailer": "^7.0.9",
     "pdfkit": "^0.17.2",
+    "qrcode.react": "^4.2.0",
     "react-hot-toast": "^2.6.0",
     "react-quill": "^2.0.0",
     "redis": "^5.8.3",

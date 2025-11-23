@@ -75,6 +75,13 @@ const InstructorCourseManagement = () => {
     is_preview: false
   });
 
+  // Settings form state
+  const [settingsForm, setSettingsForm] = useState({
+    title: '',
+    description: '',
+    price: 0
+  });
+
   useEffect(() => {
     // Clear cache for this course when component mounts
     clearCache(`/courses/${courseId}`);
@@ -93,6 +100,12 @@ const InstructorCourseManagement = () => {
       
       if (courseResponse.success && courseResponse.course) {
         setCourse(courseResponse.course);
+        // Initialize settings form with course data
+        setSettingsForm({
+          title: courseResponse.course.title || '',
+          description: courseResponse.course.description || '',
+          price: courseResponse.course.price || 0
+        });
       } else {
         console.error('❌ Failed to load course:', courseResponse);
         toast.error('Không thể tải thông tin khóa học');
@@ -435,6 +448,39 @@ const InstructorCourseManagement = () => {
     } catch (error) {
       console.error('Error deleting:', error);
       toast.error('Có lỗi xảy ra');
+    }
+  };
+
+  // Update course settings
+  const handleUpdateCourseSettings = async () => {
+    try {
+      console.log('🔄 Updating course settings:', settingsForm);
+      
+      const response = await fetch(`${BACKEND_URL}/instructor/courses/${courseId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({
+          title: settingsForm.title,
+          description: settingsForm.description,
+          price: parseFloat(settingsForm.price)
+        })
+      });
+
+      const data = await response.json();
+      console.log('📦 Update response:', data);
+      
+      if (data.success) {
+        toast.success('Cập nhật thông tin khóa học thành công');
+        await loadCourseData();
+      } else {
+        toast.error(data.message || 'Không thể cập nhật khóa học');
+      }
+    } catch (error) {
+      console.error('Error updating course:', error);
+      toast.error('Có lỗi xảy ra khi cập nhật khóa học');
     }
   };
 
@@ -989,26 +1035,51 @@ const InstructorCourseManagement = () => {
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <label className="block text-sm font-medium mb-2">Tên khóa học</label>
-                <Input value={course.title} readOnly />
+                <label className="block text-sm font-medium mb-2">
+                  Tên khóa học <span className="text-red-500">*</span>
+                </label>
+                <Input 
+                  value={settingsForm.title} 
+                  onChange={(e) => setSettingsForm({ ...settingsForm, title: e.target.value })}
+                  placeholder="Nhập tên khóa học"
+                />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-2">Mô tả</label>
-                <Textarea value={course.description || ''} rows={4} readOnly />
+                <label className="block text-sm font-medium mb-2">
+                  Mô tả <span className="text-red-500">*</span>
+                </label>
+                <Textarea 
+                  value={settingsForm.description || ''} 
+                  onChange={(e) => setSettingsForm({ ...settingsForm, description: e.target.value })}
+                  rows={4} 
+                  placeholder="Nhập mô tả khóa học"
+                />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium mb-2">Giá</label>
-                  <Input value={course.price || 0} readOnly />
+                  <label className="block text-sm font-medium mb-2">
+                    Giá (USD) <span className="text-red-500">*</span>
+                  </label>
+                  <Input 
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={settingsForm.price || 0} 
+                    onChange={(e) => setSettingsForm({ ...settingsForm, price: e.target.value })}
+                    placeholder="0.00"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Ví dụ: 99.99</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-2">Trạng thái</label>
-                  <Badge variant={course.is_approved ? 'default' : 'secondary'}>
-                    {course.is_approved ? 'Đã duyệt' : 'Chờ duyệt'}
-                  </Badge>
+                  <div className="pt-2">
+                    <Badge variant={course.is_approved ? 'default' : 'secondary'}>
+                      {course.is_approved ? 'Đã duyệt' : 'Chờ duyệt'}
+                    </Badge>
+                  </div>
                 </div>
               </div>
-              <Button>
+              <Button onClick={handleUpdateCourseSettings}>
                 <Save className="w-4 h-4 mr-2" />
                 Lưu thay đổi
               </Button>

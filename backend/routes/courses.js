@@ -620,7 +620,7 @@ router.post('/', authenticateToken, authorizeRoles('instructor', 'admin'), [
       .input('description', sql.NText, description)
       .input('instructorId', sql.BigInt, instructorId)
       .input('categoryId', sql.Int, finalCategoryId)
-      .input('price', sql.Decimal(10, 2), finalPrice)
+      .input('price', sql.Decimal(12, 2), finalPrice)
       .input('level', sql.NVarChar, normalizedLevel)
       .input('languageCode', sql.NVarChar(10), language || 'vi')
       .query(`

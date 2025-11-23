@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Trash2, ShoppingCart, CreditCard, User, Mail, Phone, Lock, ArrowLeft, Check } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 import { Button } from '../components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
@@ -26,6 +27,7 @@ const Checkout = () => {
   const [paymentId, setPaymentId] = useState(null);
   const [paymentVerified, setPaymentVerified] = useState(false);
   const [checkingPayment, setCheckingPayment] = useState(false);
+  const [completedOrderInfo, setCompletedOrderInfo] = useState(null); // Save order info before clearing cart
 
   // Check for enrollNow query parameter
   const searchParams = new URLSearchParams(window.location.search);
@@ -255,6 +257,15 @@ const Checkout = () => {
       
       console.log('📦 Step 4: Payment data extracted:', paymentData);
       
+      // Save order info BEFORE clearing cart
+      setCompletedOrderInfo({
+        transactionRef: paymentData.transactionRef,
+        cartItems: [...cartItems],
+        subtotal,
+        tax,
+        total
+      });
+      
       setTransactionRef(paymentData.transactionRef);
       clearCart();
       showSuccess('Xác nhận thanh toán thành công!');
@@ -275,6 +286,13 @@ const Checkout = () => {
 
   const handlePaymentSubmit = async (e) => {
     e.preventDefault();
+    
+    // Prevent double submission
+    if (loading) {
+      console.log('⚠️ Already processing payment, ignoring duplicate click');
+      return;
+    }
+    
     console.log('🎯 handlePaymentSubmit called [v4.0] - current step:', currentStep);
     console.log('📋 Initial state:', {
       enrollNow,
@@ -444,8 +462,137 @@ const Checkout = () => {
           fullPaymentInfo: paymentInfo
         });
         
+        // For PayOS: create payment link and show QR
+        if (paymentInfo.paymentMethod === 'payos') {
+          console.log('⚡ PayOS Payment path selected');
+          try {
+            // Get first course for payment description
+            const firstCourse = cartItems[0];
+            const courseName = firstCourse?.title || 'Khóa học';
+            
+            console.log('💰 Frontend payment details:', {
+              firstCourseId: firstCourse.id,
+              firstCoursePrice: firstCourse.price,
+              courseName,
+              subtotal,
+              tax,
+              total,
+              totalType: typeof total,
+              cartItems: cartItems.map(c => ({ id: c.id, title: c.title, price: c.price }))
+            });
+            
+            const payosResponse = await api.payos.createPayment({
+              courseId: parseInt(firstCourse.id),
+              courseName: courseName,
+              coursePrice: total // Total in USD
+            });
+
+            console.log('📦 PayOS response:', payosResponse);
+
+            if (!payosResponse || !payosResponse.success) {
+              throw new Error(payosResponse?.error || payosResponse?.message || 'Failed to create PayOS payment');
+            }
+
+            const paymentData = payosResponse.data;
+            
+            // Store payment ID for verification
+            const payosPaymentId = paymentData.paymentId;
+            
+            // Store PayOS payment data for QR display
+            setPaymentInfo(prev => ({
+              ...prev,
+              paymentId: paymentData.paymentId,  // Store payment_id for verification
+              payosData: {
+                orderCode: paymentData.orderCode,
+                amount: paymentData.amount,
+                amountUSD: paymentData.amountUSD,
+                qrCode: paymentData.qrCode,
+                checkoutUrl: paymentData.checkoutUrl
+              }
+            }));
+
+            showSuccess('Đã tạo mã QR PayOS! Vui lòng quét mã để thanh toán.');
+            
+            // Move to QR display step
+            setCurrentStep(3);
+            
+            // Start polling payment status
+            const pollInterval = setInterval(async () => {
+              try {
+                // Check database payment status (updated by webhook)
+                const verifyData = await api.checkout.verifyPaymentStatus({ 
+                  paymentId: parseInt(payosPaymentId)
+                });
+                console.log('🔍 Database payment status:', verifyData);
+
+                // Also check PayOS API status as backup
+                const statusResponse = await api.payos.checkStatus(paymentData.orderCode);
+                console.log('🔍 PayOS API status:', statusResponse);
+                
+                // Payment success conditions:
+                // 1. Database status = 'paid' (updated by webhook) - PRIMARY CHECK
+                // 2. PayOS status = 'PAID' (backup check)
+                const dbVerified = verifyData.success && verifyData.data?.verified;
+                const payosVerified = statusResponse.data?.status === 'PAID';
+                
+                console.log('💳 Status check:', { 
+                  dbVerified, 
+                  dbStatus: verifyData.data?.status,
+                  payosVerified,
+                  payosStatus: statusResponse.data?.status 
+                });
+                
+                if (dbVerified || payosVerified) {
+                  clearInterval(pollInterval);
+                  setPaymentVerified(true);
+                  
+                  // If PayOS paid but DB not updated → manual completion
+                  if (payosVerified && !dbVerified) {
+                    console.log('⚡ PayOS PAID but DB pending → manual completion');
+                    try {
+                      await api.payos.completeByOrder(paymentData.orderCode);
+                      console.log('✅ Manual completion successful');
+                    } catch (completeError) {
+                      console.error('❌ Manual completion failed:', completeError);
+                    }
+                  }
+                  
+                  showSuccess('✅ Thanh toán PayOS thành công!');
+                  
+                  // Auto complete order
+                  setTimeout(() => {
+                    // Save order info BEFORE clearing cart
+                    setCompletedOrderInfo({
+                      transactionRef: paymentData.orderCode.toString(),
+                      cartItems: [...cartItems],
+                      subtotal,
+                      tax,
+                      total
+                    });
+                    
+                    setTransactionRef(paymentData.orderCode.toString());
+                    clearCart();
+                    setCurrentStep(4);
+                  }, 2000);
+                }
+              } catch (error) {
+                console.error('❌ Poll error:', error);
+              }
+            }, 5000); // Poll every 5 seconds
+            
+            // Stop polling after 10 minutes
+            setTimeout(() => {
+              clearInterval(pollInterval);
+              console.log('⏱️ Polling stopped after 10 minutes');
+            }, 600000);
+            
+          } catch (error) {
+            console.error('❌ PayOS error:', error);
+            throw error;
+          }
+        }
         // For VNPay: redirect to VNPay payment gateway
-        if (paymentInfo.paymentMethod === 'vnpay') {
+        else if (paymentInfo.paymentMethod === 'vnpay') {
           console.log('🏦 VNPay Payment path selected');
           try {
             const vnpayResponse = await api.vnpay.createPaymentUrl({
@@ -701,11 +848,12 @@ const Checkout = () => {
                         <label className="block text-sm font-medium text-gray-700 mb-3">
                           Phương thức thanh toán
                         </label>
-                        <div className="grid md:grid-cols-3 gap-4">
+                        <div className="grid md:grid-cols-2 gap-4">
                           {[
-                            { id: 'sepay', name: 'SePay QR (Tự động)', icon: '🚀', recommended: true, badge: 'TỰ ĐỘNG' },
-                            { id: 'vnpay', name: 'VNPay (ATM/Visa/QR)', icon: '💳' },
-                            { id: 'qr', name: 'Chuyển khoản QR Code', icon: '📱' }
+                            { id: 'payos', name: 'PayOS QR (Tự động)', icon: '⚡', recommended: true, badge: 'MỚI' },
+                            { id: 'sepay', name: 'SePay QR', icon: '🚀' },
+                            { id: 'vnpay', name: 'VNPay (ATM/Visa)', icon: '💳' },
+                            { id: 'qr', name: 'QR Code thủ công', icon: '📱' }
                           ].map(method => (
                             <div
                               key={method.id}
@@ -785,6 +933,92 @@ const Checkout = () => {
 
                             <div className="mt-4 bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-800">
                               <strong>✅ An toàn & Bảo mật:</strong> Giao dịch được mã hóa SSL 256-bit bởi VNPay
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* PayOS QR Payment */}
+                      {paymentInfo.paymentMethod === 'payos' && (
+                        <div className="space-y-4">
+                          <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-6 border-2 border-purple-200">
+                            {/* Header */}
+                            <div className="text-center mb-4">
+                              <h3 className="text-xl font-bold text-gray-900 mb-2">
+                                ⚡ PayOS - Thanh toán tự động qua QR
+                              </h3>
+                              <p className="text-sm text-gray-600">
+                                Quét mã QR bằng app ngân hàng, chuyển khoản và tự động xác nhận
+                              </p>
+                            </div>
+
+                            {/* Info Alert */}
+                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                              <div className="flex items-start gap-3">
+                                <div className="text-2xl">ℹ️</div>
+                                <div className="flex-1 text-sm text-blue-900">
+                                  <p className="font-semibold mb-2">Hướng dẫn thanh toán nhanh:</p>
+                                  <ol className="space-y-1 list-decimal list-inside">
+                                    <li>Nhấn nút <strong>"Tạo mã QR PayOS"</strong> bên dưới</li>
+                                    <li>Quét mã QR bằng app ngân hàng (hỗ trợ tất cả ngân hàng)</li>
+                                    <li>Xác nhận chuyển khoản trên app ngân hàng</li>
+                                    <li>Hệ thống <strong>tự động</strong> xác nhận trong 3-5 giây</li>
+                                    <li>Bạn sẽ được chuyển đến khóa học ngay sau đó!</li>
+                                  </ol>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Features */}
+                            <div className="grid md:grid-cols-2 gap-3 mb-4">
+                              <div className="bg-white rounded-lg p-3 shadow-sm">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-2xl">⚡</span>
+                                  <div className="text-sm">
+                                    <div className="font-semibold text-gray-900">Tự động xác nhận</div>
+                                    <div className="text-gray-600">Chỉ 3-5 giây</div>
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="bg-white rounded-lg p-3 shadow-sm">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-2xl">🏦</span>
+                                  <div className="text-sm">
+                                    <div className="font-semibold text-gray-900">Mọi ngân hàng</div>
+                                    <div className="text-gray-600">VietQR, Napas 247</div>
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="bg-white rounded-lg p-3 shadow-sm">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-2xl">🔒</span>
+                                  <div className="text-sm">
+                                    <div className="font-semibold text-gray-900">Bảo mật cao</div>
+                                    <div className="text-gray-600">Mã hóa end-to-end</div>
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="bg-white rounded-lg p-3 shadow-sm">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-2xl">💰</span>
+                                  <div className="text-sm">
+                                    <div className="font-semibold text-gray-900">Không phí</div>
+                                    <div className="text-gray-600">Miễn phí giao dịch</div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Amount Display */}
+                            <div className="bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg p-4 text-center mb-4">
+                              <div className="text-sm opacity-90 mb-1">Số tiền thanh toán</div>
+                              <div className="text-3xl font-bold">{formatCurrency(total)}</div>
+                              <div className="text-sm opacity-75 mt-1">≈ {Math.round(total * 24000).toLocaleString('vi-VN')} VND</div>
+                            </div>
+
+                            {/* Success Message */}
+                            <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-800">
+                              <strong>✅ Ưu điểm PayOS:</strong> Không cần chờ đợi thủ công, hệ thống tự động xác nhận ngay khi bạn chuyển khoản thành công!
                             </div>
                           </div>
                         </div>
@@ -1044,50 +1278,118 @@ const Checkout = () => {
                         <div className="w-16 h-16 bg-blue-500 rounded-full flex items-center justify-center mx-auto mb-4">
                           <CreditCard className="w-8 h-8 text-white" />
                         </div>
-                        <h2 className="text-2xl font-bold text-gray-900 mb-2">Chờ xác nhận thanh toán</h2>
+                        <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                          {paymentInfo.payosData ? 'Quét mã QR PayOS' : 'Chờ xác nhận thanh toán'}
+                        </h2>
                         <p className="text-gray-600 mb-6">
-                          Vui lòng quét mã QR và chuyển khoản, sau đó nhấn nút bên dưới để hoàn tất đơn hàng.
+                          {paymentInfo.payosData 
+                            ? 'Sử dụng app ngân hàng để quét mã QR và thanh toán. Hệ thống sẽ tự động xác nhận.' 
+                            : 'Vui lòng quét mã QR và chuyển khoản, sau đó nhấn nút bên dưới để hoàn tất đơn hàng.'}
                         </p>
                         
-                        {/* Show QR Code Again */}
-                        <div className="max-w-md mx-auto bg-gradient-to-br from-green-50 to-blue-50 rounded-xl p-6 border-2 border-green-200 mb-6">
-                          <div className="bg-white rounded-lg shadow-lg p-6">
-                            {/* QR Code Image */}
-                            <div className="flex justify-center mb-4">
-                              <div className="bg-white p-4 rounded-lg shadow-inner">
-                                <img
-                                  src={`https://img.vietqr.io/image/970448-0933027148-compact2.png?amount=${totalVND}&addInfo=MINICOURSE-${Date.now()}`}
-                                  alt="QR Payment Code"
-                                  className="w-64 h-64 object-contain"
-                                />
+                        {/* Show PayOS QR or Manual QR */}
+                        {paymentInfo.payosData ? (
+                          // PayOS QR Code
+                          <div className="max-w-md mx-auto bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-6 border-2 border-purple-200 mb-6">
+                            <div className="bg-white rounded-lg shadow-lg p-6">
+                              {/* PayOS Logo */}
+                              <div className="text-center mb-4">
+                                <div className="inline-block bg-gradient-to-r from-purple-500 to-pink-500 text-white px-4 py-2 rounded-lg font-bold text-lg mb-2">
+                                  ⚡ PayOS
+                                </div>
+                                <p className="text-sm text-gray-600">Thanh toán tự động qua QR</p>
+                              </div>
+
+                              {/* QR Code from PayOS string data */}
+                              <div className="flex justify-center mb-4">
+                                <div className="bg-white p-4 rounded-lg shadow-inner border-2 border-purple-200">
+                                  <QRCodeSVG
+                                    value={paymentInfo.payosData.qrCode}
+                                    size={256}
+                                    level="H"
+                                    includeMargin={true}
+                                  />
+                                </div>
+                              </div>
+
+                              {/* Order Info */}
+                              <div className="bg-gray-50 rounded-lg p-4 mb-4 space-y-2">
+                                <div className="flex justify-between text-sm">
+                                  <span className="text-gray-600">Mã đơn hàng:</span>
+                                  <span className="font-mono font-semibold">{paymentInfo.payosData.orderCode}</span>
+                                </div>
+                                <div className="flex justify-between text-sm">
+                                  <span className="text-gray-600">Số tiền:</span>
+                                  <span className="font-semibold">{formatCurrency(paymentInfo.payosData.amountUSD)}</span>
+                                </div>
+                                <div className="flex justify-between text-sm">
+                                  <span className="text-gray-600">VND:</span>
+                                  <span className="font-semibold">{paymentInfo.payosData.amount.toLocaleString('vi-VN')} ₫</span>
+                                </div>
+                              </div>
+
+                              {/* Payment Amount */}
+                              <div className="bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg p-4 text-center">
+                                <div className="text-sm opacity-90 mb-1">Tổng thanh toán</div>
+                                <div className="text-3xl font-bold">{formatCurrency(paymentInfo.payosData.amountUSD)}</div>
+                                <div className="text-sm opacity-75 mt-1">≈ {paymentInfo.payosData.amount.toLocaleString('vi-VN')} VND</div>
+                              </div>
+
+                              {/* Status Indicator */}
+                              <div className="mt-4 text-center">
+                                <div className="inline-flex items-center gap-2 bg-yellow-50 text-yellow-700 px-4 py-2 rounded-full text-sm">
+                                  <span className="animate-pulse">⏳</span>
+                                  <span>Đang chờ thanh toán...</span>
+                                </div>
                               </div>
                             </div>
 
-                            {/* Account Info */}
-                            <div className="bg-gray-50 rounded-lg p-4 mb-4 space-y-2">
-                              <div className="flex items-center gap-2">
-                                <User className="w-4 h-4 text-gray-600" />
-                                <div>
-                                  <div className="text-xs text-gray-500">Người nhận</div>
-                                  <div className="font-semibold text-gray-900">NGUYEN DUC HUY</div>
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <CreditCard className="w-4 h-4 text-gray-600" />
-                                <div>
-                                  <div className="text-xs text-gray-500">Số tài khoản</div>
-                                  <div className="font-mono font-semibold text-gray-900">0933027148</div>
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Payment Amount */}
-                            <div className="bg-gradient-to-r from-blue-500 to-teal-500 text-white rounded-lg p-4 text-center">
-                              <div className="text-sm opacity-90 mb-1">Số tiền thanh toán</div>
-                              <div className="text-3xl font-bold">{formatCurrency(total)}</div>
+                            {/* Instructions */}
+                            <div className="mt-4 bg-blue-50 rounded-lg p-3 text-sm text-blue-800">
+                              <p><strong>💡 Lưu ý:</strong> Sau khi chuyển khoản thành công, hệ thống sẽ <strong>tự động</strong> xác nhận và chuyển bạn đến khóa học (3-5 giây).</p>
                             </div>
                           </div>
-                        </div>
+                        ) : (
+                          // Manual QR Code
+                          <div className="max-w-md mx-auto bg-gradient-to-br from-green-50 to-blue-50 rounded-xl p-6 border-2 border-green-200 mb-6">
+                            <div className="bg-white rounded-lg shadow-lg p-6">
+                              {/* QR Code Image */}
+                              <div className="flex justify-center mb-4">
+                                <div className="bg-white p-4 rounded-lg shadow-inner">
+                                  <img
+                                    src={`https://img.vietqr.io/image/970448-0933027148-compact2.png?amount=${totalVND}&addInfo=MINICOURSE-${Date.now()}`}
+                                    alt="QR Payment Code"
+                                    className="w-64 h-64 object-contain"
+                                  />
+                                </div>
+                              </div>
+
+                              {/* Account Info */}
+                              <div className="bg-gray-50 rounded-lg p-4 mb-4 space-y-2">
+                                <div className="flex items-center gap-2">
+                                  <User className="w-4 h-4 text-gray-600" />
+                                  <div>
+                                    <div className="text-xs text-gray-500">Người nhận</div>
+                                    <div className="font-semibold text-gray-900">NGUYEN DUC HUY</div>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <CreditCard className="w-4 h-4 text-gray-600" />
+                                  <div>
+                                    <div className="text-xs text-gray-500">Số tài khoản</div>
+                                    <div className="font-mono font-semibold text-gray-900">0933027148</div>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Payment Amount */}
+                              <div className="bg-gradient-to-r from-blue-500 to-teal-500 text-white rounded-lg p-4 text-center">
+                                <div className="text-sm opacity-90 mb-1">Số tiền thanh toán</div>
+                                <div className="text-3xl font-bold">{formatCurrency(total)}</div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
 
                         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6 text-sm text-yellow-800">
                           <strong>⚠️ Lưu ý:</strong> Sau khi chuyển khoản thành công, hệ thống sẽ tự động xác nhận trong vòng 5-15 giây. 
@@ -1158,6 +1460,101 @@ const Checkout = () => {
                         )}
                       </>
                     )}
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Step 4: Success Page */}
+              {currentStep === 4 && completedOrderInfo && (
+                <Card>
+                  <CardContent className="text-center p-8">
+                    {/* Success Icon */}
+                    <div className="w-20 h-20 bg-gradient-to-br from-green-400 to-teal-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg">
+                      <Check className="w-10 h-10 text-white" />
+                    </div>
+
+                    {/* Success Message */}
+                    <h2 className="text-3xl font-bold text-gray-900 mb-3">
+                      ✅ Chuyển khoản thành công!
+                    </h2>
+                    <p className="text-lg text-gray-600 mb-8">
+                      Thanh toán của bạn đã được xác nhận. Các khóa học đã sẵn sàng để học!
+                    </p>
+
+                    {/* Order Details */}
+                    <div className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-xl p-6 mb-8 border border-blue-200">
+                      <h3 className="font-semibold text-gray-900 mb-4 text-lg">Chi tiết đơn hàng</h3>
+                      
+                      {/* Transaction Reference */}
+                      {completedOrderInfo.transactionRef && (
+                        <div className="bg-white rounded-lg p-4 mb-4 shadow-sm">
+                          <div className="text-sm text-gray-600 mb-1">Mã giao dịch</div>
+                          <div className="font-mono text-lg font-bold text-teal-600">
+                            {completedOrderInfo.transactionRef}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Course List */}
+                      <div className="space-y-3">
+                        {completedOrderInfo.cartItems.map((item) => (
+                          <div key={item.id} className="bg-white rounded-lg p-4 shadow-sm">
+                            <div className="flex items-center gap-3">
+                              <img 
+                                src={item.thumbnail || "https://images.unsplash.com/photo-1633356122102-3fe601e05bd2?q=80&w=80&auto=format&fit=crop"}
+                                alt={item.title}
+                                className="w-16 h-12 object-cover rounded"
+                              />
+                              <div className="flex-1 text-left">
+                                <div className="font-semibold text-gray-900 text-sm">{item.title}</div>
+                                <div className="text-xs text-gray-500">{item.instructor || item.instructorName}</div>
+                              </div>
+                              <div className="font-semibold text-teal-600">
+                                {formatCurrency(item.price)}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Total */}
+                      <div className="bg-gradient-to-r from-teal-500 to-blue-500 text-white rounded-lg p-4 mt-4">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm opacity-90">Tổng thanh toán</span>
+                          <span className="text-2xl font-bold">{formatCurrency(completedOrderInfo.total)}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Navigation Buttons */}
+                    <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                      <Button 
+                        onClick={() => navigate('/my-courses')}
+                        className="bg-gradient-to-r from-teal-500 to-green-500 hover:from-teal-600 hover:to-green-600 text-white px-8 py-6 text-lg shadow-lg"
+                      >
+                        <svg className="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                        </svg>
+                        Tiếp tục học
+                      </Button>
+                      
+                      <Button 
+                        onClick={() => navigate('/courses')}
+                        variant="outline"
+                        className="border-2 border-teal-500 text-teal-600 hover:bg-teal-50 px-8 py-6 text-lg"
+                      >
+                        <svg className="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                        </svg>
+                        Quay về khóa học
+                      </Button>
+                    </div>
+
+                    {/* Additional Info */}
+                    <div className="mt-8 bg-green-50 border border-green-200 rounded-lg p-4 text-sm text-green-800">
+                      <strong>🎉 Chúc mừng!</strong> Bạn đã đăng ký thành công {cartItems.length} khóa học. 
+                      Email xác nhận đã được gửi đến <strong>{billingInfo.email}</strong>
+                    </div>
                   </CardContent>
                 </Card>
               )}

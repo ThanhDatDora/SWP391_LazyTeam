@@ -779,6 +779,34 @@ const vnpayAPI = {
   }
 };
 
+// PayOS API
+const payosAPI = {
+  async createPayment(paymentData) {
+    return await apiRequest('/payment/payos/create', {
+      method: 'POST',
+      body: JSON.stringify(paymentData)
+    });
+  },
+  
+  async checkStatus(orderCode) {
+    return await apiRequest(`/payment/payos/status/${orderCode}`, {
+      method: 'GET'
+    });
+  },
+  
+  async cancelPayment(orderCode) {
+    return await apiRequest(`/payment/payos/cancel/${orderCode}`, {
+      method: 'POST'
+    });
+  },
+  
+  async completeByOrder(orderCode) {
+    return await apiRequest(`/payment/payos/complete-by-order/${orderCode}`, {
+      method: 'POST'
+    });
+  }
+};
+
 // Assignments API
 const assignmentsAPI = {
   async submit(lessonId, contentText, file) {
@@ -918,6 +946,7 @@ export const api = {
   users: userAPI,
   checkout: checkoutAPI,
   vnpay: vnpayAPI,
+  payos: payosAPI,
   assignments: assignmentsAPI,
   questionBank: questionBankAPI,
   cache: cacheUtils

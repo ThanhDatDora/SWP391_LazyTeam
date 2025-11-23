@@ -80,7 +80,7 @@ router.post('/vietqr', async (req, res) => {
         WHERE 
           status = 'pending'
           AND ABS(DATEDIFF(SECOND, created_at, @timestamp)) <= 300
-          AND ABS((amount_cents / 100.0 * 24000) - @amountVND) <= 1000
+          AND ABS((amount_cents * 24000) - @amountVND) <= 1000
         ORDER BY created_at DESC
       `);
 

@@ -50,6 +50,8 @@ import questionBankRoutes from './routes/question-bank.js';
 import webhookRoutes from './routes/webhook.js';
 import vnpayRoutes from './routes/vnpay.js';
 import sepayRoutes from './routes/sepay.routes.js';
+import payosRoutes from './routes/payos.js';
+import payosDevRoutes from './routes/payos-dev.js';
 
 // Load environment variables
 dotenv.config();
@@ -127,7 +129,7 @@ app.use(cors({
   ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Cache-Control', 'Pragma', 'Expires'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'authorization', 'X-Requested-With', 'Cache-Control', 'Pragma', 'Expires'],
   optionsSuccessStatus: 200 // Some legacy browsers choke on 204
 }));
 
@@ -135,7 +137,7 @@ app.use(cors({
 app.options('*', (req, res) => {
   res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
   res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,PATCH,OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Cache-Control, Pragma, Expires');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, authorization, X-Requested-With, Cache-Control, Pragma, Expires');
   res.header('Access-Control-Allow-Credentials', 'true');
   res.sendStatus(200);
 });
@@ -254,6 +256,15 @@ app.use('/api/vnpay', vnpayRoutes); // VNPay payment gateway (public routes)
 console.log('✅ VNPay routes registered at /api/vnpay');
 app.use('/api/payment/sepay', sepayRoutes); // SePay payment gateway (QR Code Banking)
 console.log('✅ SePay routes registered at /api/payment/sepay');
+app.use('/api/payment/payos', payosRoutes); // PayOS payment gateway (QR Code Banking)
+console.log('✅ PayOS routes registered at /api/payment/payos');
+
+// Development routes (only in development)
+if (process.env.NODE_ENV !== 'production') {
+  app.use('/api/payment/payos/dev', payosDevRoutes); // PayOS dev tools
+  console.log('🧪 PayOS DEV routes registered at /api/payment/payos/dev');
+}
+
 app.use('/api/auth', authRoutes);
 app.use('/api/courses', courseRoutes);
 app.use('/api/database', databaseRoutes);

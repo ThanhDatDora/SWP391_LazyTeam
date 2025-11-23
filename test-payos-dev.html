@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PayOS Development Tool - Mini Coursera</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .card h2 {
+            color: #667eea;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: transform 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        .button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .button-success {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+        }
+        .button-danger {
+            background: linear-gradient(135deg, #eb3349 0%, #f45c43 100%);
+        }
+        .input-group {
+            margin-bottom: 16px;
+        }
+        .input-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+        .input-group input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+        .input-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .payment-item {
+            background: #f8f9fa;
+            border-left: 4px solid #667eea;
+            padding: 16px;
+            margin-bottom: 12px;
+            border-radius: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .payment-info {
+            flex: 1;
+        }
+        .payment-info h3 {
+            color: #333;
+            margin-bottom: 8px;
+        }
+        .payment-info p {
+            color: #666;
+            font-size: 14px;
+            margin: 4px 0;
+        }
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-left: 8px;
+        }
+        .badge-warning {
+            background: #fff3cd;
+            color: #856404;
+        }
+        .badge-success {
+            background: #d4edda;
+            color: #155724;
+        }
+        .result {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 16px;
+            margin-top: 16px;
+            border-left: 4px solid #667eea;
+        }
+        .result.success {
+            border-left-color: #38ef7d;
+            background: #d4edda;
+        }
+        .result.error {
+            border-left-color: #f45c43;
+            background: #f8d7da;
+        }
+        .result pre {
+            background: white;
+            padding: 12px;
+            border-radius: 4px;
+            overflow-x: auto;
+            margin-top: 8px;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+        .loading {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 3px solid rgba(255,255,255,.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🧪 PayOS Development Tool</h1>
+            <p>Test PayOS payment flow without webhook (Development Only)</p>
+        </div>
+
+        <div class="grid">
+            <!-- Left Column -->
+            <div>
+                <!-- Pending Payments -->
+                <div class="card">
+                    <h2>
+                        <span>📋</span>
+                        Pending Payments
+                    </h2>
+                    <button class="button" onclick="loadPendingPayments()">
+                        <span id="refresh-icon">🔄</span>
+                        Refresh List
+                    </button>
+                    <div id="pending-list" style="margin-top: 16px;">
+                        <div class="empty-state">Click "Refresh List" to load pending payments</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column -->
+            <div>
+                <!-- Simulate Success -->
+                <div class="card">
+                    <h2>
+                        <span>✅</span>
+                        Simulate Payment Success
+                    </h2>
+                    <div class="input-group">
+                        <label for="orderCode">Order Code (12 digits)</label>
+                        <input 
+                            type="text" 
+                            id="orderCode" 
+                            placeholder="e.g., 173238939140"
+                            maxlength="12"
+                        >
+                    </div>
+                    <button class="button button-success" onclick="simulateSuccess()">
+                        <span>💰</span>
+                        Mark as Paid & Create Enrollment
+                    </button>
+                    <div id="simulate-result"></div>
+                </div>
+
+                <!-- Instructions -->
+                <div class="card">
+                    <h2>
+                        <span>📖</span>
+                        How to Use
+                    </h2>
+                    <ol style="padding-left: 20px; line-height: 1.8;">
+                        <li>Go to <strong>http://localhost:5173/checkout</strong></li>
+                        <li>Add courses to cart</li>
+                        <li>Select <strong>"PayOS QR"</strong> payment method</li>
+                        <li>Click <strong>"Tiếp tục thanh toán"</strong></li>
+                        <li>Copy the <strong>Order Code</strong> from QR screen</li>
+                        <li>Come back here and click <strong>"Refresh List"</strong></li>
+                        <li>Click <strong>"Simulate Success"</strong> for that order</li>
+                        <li>Wait 5-10 seconds for polling to detect</li>
+                        <li>Payment will auto-complete! 🎉</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:3001/api';
+        
+        // Get token from localStorage (same as frontend)
+        function getToken() {
+            return localStorage.getItem('token');
+        }
+
+        async function loadPendingPayments() {
+            const icon = document.getElementById('refresh-icon');
+            icon.innerHTML = '<span class="loading"></span>';
+            
+            try {
+                const response = await fetch(`${API_BASE}/payment/payos/dev/pending`, {
+                    headers: {
+                        'Authorization': `Bearer ${getToken()}`
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.message || 'Failed to load');
+                }
+                
+                const list = document.getElementById('pending-list');
+                
+                if (data.data.length === 0) {
+                    list.innerHTML = '<div class="empty-state">No pending PayOS payments found</div>';
+                } else {
+                    list.innerHTML = data.data.map(payment => `
+                        <div class="payment-item">
+                            <div class="payment-info">
+                                <h3>
+                                    ${payment.course_title || 'Unknown Course'}
+                                    <span class="badge badge-warning">${payment.status}</span>
+                                </h3>
+                                <p><strong>Order Code:</strong> ${payment.orderCode}</p>
+                                <p><strong>User:</strong> ${payment.full_name} (${payment.email})</p>
+                                <p><strong>Amount:</strong> $${payment.amount}</p>
+                                <p><strong>Created:</strong> ${new Date(payment.created_at).toLocaleString('vi-VN')}</p>
+                            </div>
+                            <button class="button button-success" onclick="simulateSuccess('${payment.orderCode}')">
+                                ✅ Simulate Success
+                            </button>
+                        </div>
+                    `).join('');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById('pending-list').innerHTML = `
+                    <div class="result error">
+                        <strong>Error:</strong> ${error.message}
+                    </div>
+                `;
+            } finally {
+                icon.innerHTML = '🔄';
+            }
+        }
+
+        async function simulateSuccess(orderCodeParam) {
+            const orderCode = orderCodeParam || document.getElementById('orderCode').value.trim();
+            
+            if (!orderCode) {
+                alert('Please enter an Order Code');
+                return;
+            }
+            
+            const resultDiv = document.getElementById('simulate-result');
+            resultDiv.innerHTML = '<div class="result">⏳ Processing...</div>';
+            
+            try {
+                const response = await fetch(`${API_BASE}/payment/payos/dev/simulate-success/${orderCode}`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${getToken()}`
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.message || 'Failed to simulate');
+                }
+                
+                resultDiv.innerHTML = `
+                    <div class="result success">
+                        <strong>✅ Success!</strong>
+                        <p style="margin-top: 8px;">${data.message}</p>
+                        <pre>${JSON.stringify(data.data, null, 2)}</pre>
+                        <p style="margin-top: 12px;"><strong>Next:</strong> Wait 5-10 seconds for frontend polling to detect the payment.</p>
+                    </div>
+                `;
+                
+                // Refresh the list
+                loadPendingPayments();
+                
+            } catch (error) {
+                console.error('Error:', error);
+                resultDiv.innerHTML = `
+                    <div class="result error">
+                        <strong>❌ Error:</strong> ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        // Auto-refresh every 10 seconds
+        setInterval(() => {
+            const list = document.getElementById('pending-list');
+            if (!list.innerHTML.includes('empty-state')) {
+                loadPendingPayments();
+            }
+        }, 10000);
+    </script>
+</body>
+</html>
