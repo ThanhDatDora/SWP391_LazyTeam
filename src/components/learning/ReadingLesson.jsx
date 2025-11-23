@@ -1,7 +1,9 @@
 import React from 'react';
-import { BookOpen, Lightbulb, CheckCircle } from 'lucide-react';
+import { BookOpen, Lightbulb, CheckCircle, Download, FileDown } from 'lucide-react';
 import { Card, CardContent } from '../ui/card';
 import { Button } from '../ui/button';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 
 /**
  * Reading Content Component
@@ -44,6 +46,56 @@ const ReadingLesson = ({ lesson, onComplete }) => {
   const handleComplete = () => {
     if (onComplete && !lesson.completed && hasScrolledToBottom) {
       onComplete();
+    }
+  };
+
+  // Download as PDF function
+  const handleDownloadPDF = async () => {
+    try {
+      // Create a new jsPDF instance
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const margin = 20;
+      const contentWidth = pageWidth - 2 * margin;
+
+      // Add title
+      pdf.setFontSize(20);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text(lesson.title, margin, margin);
+
+      // Add content
+      pdf.setFontSize(12);
+      pdf.setFont('helvetica', 'normal');
+      
+      // Strip HTML tags and get plain text
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = content.content;
+      const plainText = tempDiv.textContent || tempDiv.innerText || '';
+
+      // Split text into lines that fit the page
+      const lines = pdf.splitTextToSize(plainText, contentWidth);
+      
+      let yPosition = margin + 15;
+      const lineHeight = 7;
+
+      lines.forEach((line, index) => {
+        if (yPosition + lineHeight > pageHeight - margin) {
+          pdf.addPage();
+          yPosition = margin;
+        }
+        pdf.text(line, margin, yPosition);
+        yPosition += lineHeight;
+      });
+
+      // Save the PDF
+      const fileName = `${lesson.title.replace(/[^a-z0-9]/gi, '_')}.pdf`;
+      pdf.save(fileName);
+      
+      console.log('✅ Downloaded PDF:', fileName);
+    } catch (error) {
+      console.error('❌ Error generating PDF:', error);
+      alert('Không thể tạo file PDF. Vui lòng thử lại!');
     }
   };
 
@@ -154,12 +206,24 @@ const ReadingLesson = ({ lesson, onComplete }) => {
       {/* Footer Actions */}
       <div className="bg-white border-t px-8 py-4">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
-          <div className="text-sm text-gray-500">
-            {hasScrolledToBottom ? (
-              <span className="text-green-600 font-medium">✓ Đã đọc hết bài</span>
-            ) : (
-              <span>Cuộn xuống để đọc toàn bộ nội dung</span>
-            )}
+          <div className="flex items-center gap-3">
+            <div className="text-sm text-gray-500">
+              {hasScrolledToBottom ? (
+                <span className="text-green-600 font-medium">✓ Đã đọc hết bài</span>
+              ) : (
+                <span>Cuộn xuống để đọc toàn bộ nội dung</span>
+              )}
+            </div>
+            
+            {/* Download PDF Button */}
+            <Button
+              onClick={handleDownloadPDF}
+              variant="outline"
+              className="flex items-center gap-2"
+            >
+              <FileDown className="h-4 w-4" />
+              Tải PDF
+            </Button>
           </div>
           
           <Button

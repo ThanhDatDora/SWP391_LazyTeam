@@ -1,9 +1,11 @@
 import React from 'react';
-import { FileText, Upload, CheckCircle, Clock, AlertCircle } from 'lucide-react';
+import { FileText, Upload, CheckCircle, Clock, AlertCircle, Download } from 'lucide-react';
 import { Card, CardContent } from '../ui/card';
 import { Button } from '../ui/button';
 import { api } from '../../services/api';
 import { toast } from 'react-hot-toast';
+
+const BACKEND_URL = 'http://localhost:3001';
 
 /**
  * Assignment Lesson Component
@@ -342,12 +344,14 @@ const AssignmentLesson = ({ lesson, onComplete }) => {
                         <div className="mt-3 pt-3 border-t border-gray-200">
                           <p className="text-sm text-gray-600 mb-2">File đính kèm:</p>
                           <a
-                            href={`http://localhost:3001${existingSubmission.file_url}`}
+                            href={`${BACKEND_URL}${existingSubmission.file_url}`}
                             download
-                            className="inline-flex items-center gap-2 text-blue-600 hover:underline"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                           >
-                            <FileText className="w-4 h-4" />
-                            {existingSubmission.file_name || 'Tải file đã nộp'}
+                            <Download className="w-4 h-4" />
+                            Tải file đã nộp ({existingSubmission.file_name || 'assignment_file'})
                           </a>
                         </div>
                       )}

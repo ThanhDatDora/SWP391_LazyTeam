@@ -30,74 +30,88 @@ const Certificate = ({
   };
 
   return (
-    <div className="max-w-4xl mx-auto p-8">
-      {/* Certificate Container */}
-      <div className="bg-gradient-to-br from-blue-50 to-indigo-100 rounded-2xl shadow-2xl p-12 border-8 border-double border-blue-600">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <Award className="w-24 h-24 mx-auto text-yellow-500 mb-4" />
-          <h1 className="text-5xl font-bold text-gray-900 mb-2">Chứng Nhận</h1>
-          <p className="text-xl text-gray-600">Hoàn Thành Khóa Học</p>
-        </div>
+    <div className="w-full h-full flex items-center justify-center p-2 sm:p-4">
+      {/* Certificate Container - Portrait A4 ratio fit to modal */}
+      <div className="w-full max-w-2xl h-full max-h-[85vh] aspect-[1/1.414] bg-gradient-to-br from-blue-50 via-white to-indigo-50 rounded-lg shadow-2xl border-4 border-blue-600 relative overflow-hidden flex flex-col">
+        
+        {/* Decorative Corner Elements */}
+        <div className="absolute top-0 left-0 w-12 sm:w-16 h-12 sm:h-16 border-t-4 border-l-4 border-yellow-500 rounded-tl-lg"></div>
+        <div className="absolute top-0 right-0 w-12 sm:w-16 h-12 sm:h-16 border-t-4 border-r-4 border-yellow-500 rounded-tr-lg"></div>
+        <div className="absolute bottom-0 left-0 w-12 sm:w-16 h-12 sm:h-16 border-b-4 border-l-4 border-yellow-500 rounded-bl-lg"></div>
+        <div className="absolute bottom-0 right-0 w-12 sm:w-16 h-12 sm:h-16 border-b-4 border-r-4 border-yellow-500 rounded-br-lg"></div>
 
-        {/* Decorative Line */}
-        <div className="w-32 h-1 bg-gradient-to-r from-blue-600 to-purple-600 mx-auto mb-8"></div>
-
-        {/* Content */}
-        <div className="text-center space-y-6">
-          <p className="text-lg text-gray-700">Chứng nhận rằng</p>
+        {/* Content Container */}
+        <div className="flex-1 flex flex-col justify-center items-center px-6 sm:px-10 py-8 z-10">
           
-          <h2 className="text-4xl font-bold text-blue-900 my-6">
-            {student_name}
-          </h2>
-
-          <p className="text-lg text-gray-700">đã hoàn thành xuất sắc khóa học</p>
-
-          <h3 className="text-3xl font-semibold text-gray-900 my-6 px-8">
-            {course_title}
-          </h3>
-
-          <div className="flex items-center justify-center gap-8 my-8">
-            <div className="text-center">
-              <p className="text-sm text-gray-600 mb-1">Ngày hoàn thành</p>
-              <p className="text-lg font-semibold text-gray-900">{formattedDate}</p>
-            </div>
-            {instructor_name && (
-              <div className="text-center">
-                <p className="text-sm text-gray-600 mb-1">Giảng viên</p>
-                <p className="text-lg font-semibold text-gray-900">{instructor_name}</p>
-              </div>
-            )}
+          {/* Header */}
+          <div className="text-center mb-3 sm:mb-4">
+            <Award className="w-12 sm:w-14 h-12 sm:h-14 mx-auto text-yellow-500 mb-2" />
+            <h1 className="text-3xl sm:text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600 mb-1">
+              Chứng Nhận
+            </h1>
+            <p className="text-sm sm:text-base text-gray-600">Hoàn Thành Khóa Học</p>
           </div>
 
-          {/* Certificate ID */}
-          <p className="text-sm text-gray-500 mt-8">
-            Mã chứng chỉ: MC-{course_id}-{new Date(completion_date).getTime()}
-          </p>
-        </div>
+          {/* Decorative Line */}
+          <div className="w-20 sm:w-24 h-1 bg-gradient-to-r from-blue-600 via-purple-600 to-blue-600 mx-auto mb-3 sm:mb-4"></div>
 
-        {/* Decorative Border */}
-        <div className="mt-12 flex items-center justify-center gap-4">
-          <div className="w-20 h-1 bg-gradient-to-r from-transparent to-blue-600"></div>
-          <Award className="w-6 h-6 text-blue-600" />
-          <div className="w-20 h-1 bg-gradient-to-l from-transparent to-blue-600"></div>
+          {/* Content */}
+          <div className="text-center space-y-2 sm:space-y-3 w-full">
+            <p className="text-sm text-gray-700">Chứng nhận rằng</p>
+            
+            <h2 className="text-xl sm:text-2xl font-bold text-blue-900 my-2 px-4">
+              {student_name}
+            </h2>
+
+            <p className="text-sm text-gray-700">đã hoàn thành xuất sắc khóa học</p>
+
+            <h3 className="text-lg sm:text-xl font-semibold text-gray-900 my-2 sm:my-3 px-6 sm:px-8 leading-tight">
+              {course_title}
+            </h3>
+
+            {/* Info Row */}
+            <div className="flex items-center justify-center gap-4 sm:gap-8 my-3 sm:my-4 flex-wrap">
+              <div className="text-center bg-white/50 rounded-lg px-3 sm:px-4 py-1.5 sm:py-2 backdrop-blur-sm">
+                <p className="text-xs text-gray-600 mb-0.5">Ngày hoàn thành</p>
+                <p className="text-sm font-semibold text-gray-900">{formattedDate}</p>
+              </div>
+              {instructor_name && (
+                <div className="text-center bg-white/50 rounded-lg px-3 sm:px-4 py-1.5 sm:py-2 backdrop-blur-sm">
+                  <p className="text-xs text-gray-600 mb-0.5">Giảng viên</p>
+                  <p className="text-sm font-semibold text-gray-900">{instructor_name}</p>
+                </div>
+              )}
+            </div>
+
+            {/* Certificate ID */}
+            <p className="text-xs text-gray-500 mt-3 sm:mt-4">
+              Mã chứng chỉ: MC-{course_id}-{new Date(completion_date).getTime()}
+            </p>
+          </div>
+
+          {/* Decorative Bottom Border */}
+          <div className="mt-3 sm:mt-4 flex items-center justify-center gap-2 sm:gap-3">
+            <div className="w-12 sm:w-16 h-0.5 bg-gradient-to-r from-transparent to-blue-600"></div>
+            <Award className="w-4 sm:w-5 h-4 sm:h-5 text-blue-600" />
+            <div className="w-12 sm:w-16 h-0.5 bg-gradient-to-l from-transparent to-blue-600"></div>
+          </div>
         </div>
       </div>
 
-      {/* Action Buttons */}
-      <div className="flex justify-center gap-4 mt-8 print:hidden">
+      {/* Action Buttons - Outside certificate, below it */}
+      <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex justify-center gap-2 sm:gap-3 print:hidden z-20">
         <button
           onClick={handleDownload}
-          className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          className="flex items-center gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-xs sm:text-sm shadow-lg"
         >
-          <Download className="w-5 h-5" />
-          Tải xuống PDF
+          <Download className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
+          Tải xuống
         </button>
         <button
           onClick={handleShare}
-          className="flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+          className="flex items-center gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-xs sm:text-sm shadow-lg"
         >
-          <Share2 className="w-5 h-5" />
+          <Share2 className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
           Chia sẻ
         </button>
       </div>

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Badge } from '../../components/ui/badge';
@@ -28,11 +29,13 @@ import { convertUSDtoVND, formatVND } from '../../utils/currency';
 const InstructorDashboard = () => {
   const navigate = useNavigation();
   const { state: authState } = useAuth();
+  const [searchParams] = useSearchParams();
   const [courses, setCourses] = useState([]);
   const [stats, setStats] = useState(null);
   const [submissions, setSubmissions] = useState([]);
   const [revenueData, setRevenueData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const activeTab = searchParams.get('tab') || 'courses';
 
   useEffect(() => {
     loadDashboardData();
@@ -256,7 +259,7 @@ const InstructorDashboard = () => {
       )}
 
       {/* Main Content Tabs */}
-      <Tabs defaultValue="courses" className="w-full">
+      <Tabs value={activeTab} onValueChange={(val) => navigate(`/instructor/dashboard?tab=${val}`)} className="w-full">
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="courses">Khóa học</TabsTrigger>
           <TabsTrigger value="submissions">Bài thi</TabsTrigger>
@@ -536,7 +539,7 @@ const InstructorDashboard = () => {
                       </div>
                       <Button 
                         variant="outline"
-                        onClick={() => navigate(`/instructor/courses/${course.id}?tab=students`)}
+                        onClick={() => navigate(`/instructor/courses/${course.course_id}?tab=students`)}
                       >
                         Xem chi tiết
                       </Button>

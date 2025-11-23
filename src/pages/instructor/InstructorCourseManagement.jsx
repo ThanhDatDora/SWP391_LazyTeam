@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Badge } from '../../components/ui/badge';
@@ -31,7 +31,7 @@ import {
   Upload,
   Download
 } from 'lucide-react';
-import { api } from '../../services/api';
+import { api, clearCache } from '../../services/api';
 import { toast } from 'react-hot-toast';
 
 const BACKEND_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api';
@@ -40,6 +40,8 @@ const InstructorCourseManagement = () => {
   const { courseId } = useParams();
   const navigate = useNavigation();
   const { state: authState } = useAuth();
+  const [searchParams] = useSearchParams();
+  const activeTab = searchParams.get('tab') || 'content';
 
   const [course, setCourse] = useState(null);
   const [moocs, setMoocs] = useState([]);
@@ -74,6 +76,8 @@ const InstructorCourseManagement = () => {
   });
 
   useEffect(() => {
+    // Clear cache for this course when component mounts
+    clearCache(`/courses/${courseId}`);
     loadCourseData();
   }, [courseId]);
 
@@ -81,26 +85,31 @@ const InstructorCourseManagement = () => {
     try {
       setLoading(true);
       
+      console.log('🔍 Loading course data for courseId:', courseId);
+      
       // Load course details
       const courseResponse = await api.courses.getCourseById(courseId);
-      if (courseResponse.success) {
-        setCourse(courseResponse.data);
+      console.log('📦 Course response:', courseResponse);
+      
+      if (courseResponse.success && courseResponse.course) {
+        setCourse(courseResponse.course);
       } else {
+        console.error('❌ Failed to load course:', courseResponse);
         toast.error('Không thể tải thông tin khóa học');
-        navigate('/instructor');
+        navigate('/instructor/dashboard');
         return;
       }
 
       // Load MOOCs using content API
       const moocsResponse = await api.content.getMoocsByCourse(courseId);
       if (moocsResponse.success) {
-        setMoocs(moocsResponse.data);
+        setMoocs(moocsResponse.data || []);
       }
 
       // Load all lessons for the course
       const lessonsResponse = await api.courses.getAllLessonsByCourse(courseId);
       if (lessonsResponse.success) {
-        setLessons(lessonsResponse.data);
+        setLessons(lessonsResponse.data || []);
       }
 
       // Load assignment submissions
@@ -536,7 +545,7 @@ const InstructorCourseManagement = () => {
       </div>
 
       {/* Tabs */}
-      <Tabs defaultValue="content" className="w-full">
+      <Tabs value={activeTab} onValueChange={(val) => navigate(`/instructor/courses/${courseId}?tab=${val}`)} className="w-full">
         <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="content">Nội dung</TabsTrigger>
           <TabsTrigger value="assignments">

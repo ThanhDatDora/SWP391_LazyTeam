@@ -308,7 +308,7 @@ const InstructorLayout = ({ children }) => {
                     </Link>
 
                     <Link
-                      to="/instructor/dashboard"
+                      to="/instructor/dashboard?tab=courses"
                       onClick={() => setSidebarOpen(false)}
                       className={`sidebar-menu-item ${activeMenu === 'my-courses' ? 'active' : ''} w-full flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all duration-200`}
                       style={{

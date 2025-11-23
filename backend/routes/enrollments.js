@@ -133,6 +133,7 @@ router.get('/my-enrollments', authenticateToken, async (req, res) => {
       user_id: row.user_id,
       course_id: row.course_id,
       enrolled_at: row.enrolled_at,
+      completed_at: row.completed_at, // Add completion date
       status: row.status,
       
       // Course object (nested structure)

@@ -37,6 +37,10 @@ const MyProfilePage = () => {
     totalHours: 0,
     certificates: 0
   });
+  
+  const [enrolledCourses, setEnrolledCourses] = useState([]);
+  const [courseFilter, setCourseFilter] = useState('all'); // 'all', 'in-progress', 'completed'
+  const [recentActivities, setRecentActivities] = useState([]);
 
   const [profileData, setProfileData] = useState({
     fullName: '',
@@ -123,26 +127,76 @@ const MyProfilePage = () => {
       
       if (response.ok) {
         const data = await response.json();
-        console.log('📊 Enrollments data:', data);
+        console.log('📊 Raw enrollments data:', data);
         
         if (data.success && data.data) {
-          const enrollments = data.data;
-          const totalCourses = enrollments.length;
-          const completedCourses = enrollments.filter(e => e.completed_at || e.progress === 100).length;
-          const inProgressCourses = enrollments.filter(e => !e.completed_at && e.progress > 0).length;
+          const allEnrollments = data.data;
+          
+          // Filter only ACTIVE enrollments (paid and enrolled courses)
+          // Database uses 'status' field with value 'active' for enrolled courses
+          const enrolledOnly = allEnrollments.filter(e => 
+            e.status === 'active' || // Most common case in DB
+            e.enrollment_status === 'enrolled' || // Fallback
+            e.enrolled_at // Has enrolled_at means actually enrolled
+          );
+          
+          console.log('✅ Filtered enrolled courses:', enrolledOnly.length, 'out of', allEnrollments.length);
+          
+          setEnrolledCourses(enrolledOnly);
+          
+          const totalCourses = enrolledOnly.length;
+          
+          // Check completion using API response data
+          const completedCourses = enrolledOnly.filter(e => {
+            // Check multiple possible indicators of completion
+            const isCompleted = e.completed_at || 
+                   e.completion_status === 'completed' ||
+                   e.progress === 100 ||
+                   e.progress_percentage === 100;
+            if (isCompleted) {
+              console.log('✅ Completed course found:', e.course_title || e.title, {
+                completed_at: e.completed_at,
+                progress: e.progress,
+                progress_percentage: e.progress_percentage
+              });
+            }
+            return isCompleted;
+          }).length;
+          
+          const inProgressCourses = enrolledOnly.filter(e => {
+            const isCompleted = e.completed_at || e.completion_status === 'completed' || 
+                               e.progress === 100 || e.progress_percentage === 100;
+            const hasProgress = (e.progress > 0) || (e.progress_percentage > 0);
+            return !isCompleted && hasProgress;
+          }).length;
+          
+          // Calculate total hours from course durations
+          const totalHours = enrolledOnly.reduce((sum, e) => {
+            const duration = e.course?.duration_hours || e.duration_hours || 0;
+            return sum + parseFloat(duration);
+          }, 0);
           
           setUserStats({
             totalCourses,
             completedCourses,
             inProgressCourses,
-            totalHours: 120, // TODO: Calculate from actual course durations
+            totalHours: Math.round(totalHours),
             certificates: completedCourses // Certificates = completed courses
           });
-          console.log('✅ Stats loaded:', { totalCourses, completedCourses, inProgressCourses, certificates: completedCourses });
+          
+          console.log('✅ Stats calculated:', { 
+            totalCourses, 
+            completedCourses, 
+            inProgressCourses, 
+            totalHours: Math.round(totalHours),
+            certificates: completedCourses 
+          });
+          
+          // Build recent activities from enrollments
+          buildRecentActivities(enrolledOnly);
         }
       } else {
         console.error('❌ Failed to fetch enrollments');
-        // Fallback to hardcoded stats
         setUserStats({
           totalCourses: 0,
           completedCourses: 0,
@@ -161,6 +215,64 @@ const MyProfilePage = () => {
         certificates: 0
       });
     }
+  };
+  
+  const buildRecentActivities = (enrollments) => {
+    const activities = [];
+    
+    // Sort by enrolled_at and completed_at to get recent activities
+    const sortedByCompletion = enrollments
+      .filter(e => e.completed_at)
+      .sort((a, b) => new Date(b.completed_at) - new Date(a.completed_at))
+      .slice(0, 2);
+    
+    const sortedByEnroll = enrollments
+      .filter(e => !e.completed_at && e.enrolled_at)
+      .sort((a, b) => new Date(b.enrolled_at) - new Date(a.enrolled_at))
+      .slice(0, 2);
+    
+    // Add completion activities
+    sortedByCompletion.forEach(e => {
+      const courseName = e.course?.title || e.title || 'Khóa học';
+      const completedDate = new Date(e.completed_at);
+      const daysAgo = Math.floor((new Date() - completedDate) / (1000 * 60 * 60 * 24));
+      const timeText = daysAgo === 0 ? 'Hôm nay' : 
+                      daysAgo === 1 ? '1 ngày trước' : 
+                      daysAgo < 7 ? `${daysAgo} ngày trước` :
+                      daysAgo < 30 ? `${Math.floor(daysAgo / 7)} tuần trước` :
+                      `${Math.floor(daysAgo / 30)} tháng trước`;
+      
+      activities.push({
+        type: 'completion',
+        icon: Award,
+        color: 'green',
+        title: `Hoàn thành khóa học "${courseName}"`,
+        time: timeText
+      });
+    });
+    
+    // Add enrollment activities
+    sortedByEnroll.forEach(e => {
+      const courseName = e.course?.title || e.title || 'Khóa học';
+      const enrolledDate = new Date(e.enrolled_at);
+      const daysAgo = Math.floor((new Date() - enrolledDate) / (1000 * 60 * 60 * 24));
+      const timeText = daysAgo === 0 ? 'Hôm nay' :
+                      daysAgo === 1 ? '1 ngày trước' :
+                      daysAgo < 7 ? `${daysAgo} ngày trước` :
+                      daysAgo < 30 ? `${Math.floor(daysAgo / 7)} tuần trước` :
+                      `${Math.floor(daysAgo / 30)} tháng trước`;
+      
+      activities.push({
+        type: 'enrollment',
+        icon: BookOpen,
+        color: 'blue',
+        title: `Bắt đầu khóa học "${courseName}"`,
+        time: timeText
+      });
+    });
+    
+    // Limit to 3 most recent
+    setRecentActivities(activities.slice(0, 3));
   };
 
   const handleEdit = () => {
@@ -650,35 +762,21 @@ const MyProfilePage = () => {
                 <div>
                   <h3 className="text-xl font-semibold text-gray-900 mb-6">Hoạt động gần đây</h3>
                   <div className="space-y-4">
-                    <div className="flex items-start space-x-3 p-4 bg-gray-50 rounded-lg">
-                      <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-                        <Award className="h-5 w-5 text-green-600" />
-                      </div>
-                      <div>
-                        <p className="font-medium text-gray-900">Hoàn thành khóa học "React Fundamentals"</p>
-                        <p className="text-sm text-gray-500">2 ngày trước</p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-start space-x-3 p-4 bg-gray-50 rounded-lg">
-                      <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                        <BookOpen className="h-5 w-5 text-blue-600" />
-                      </div>
-                      <div>
-                        <p className="font-medium text-gray-900">Bắt đầu khóa học "Advanced JavaScript"</p>
-                        <p className="text-sm text-gray-500">1 tuần trước</p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-start space-x-3 p-4 bg-gray-50 rounded-lg">
-                      <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center">
-                        <Star className="h-5 w-5 text-purple-600" />
-                      </div>
-                      <div>
-                        <p className="font-medium text-gray-900">Đạt 100 giờ học tập</p>
-                        <p className="text-sm text-gray-500">2 tuần trước</p>
-                      </div>
-                    </div>
+                    {recentActivities.length > 0 ? (
+                      recentActivities.map((activity, index) => (
+                        <div key={index} className="flex items-start space-x-3 p-4 bg-gray-50 rounded-lg">
+                          <div className={`w-10 h-10 bg-${activity.color}-100 rounded-full flex items-center justify-center`}>
+                            <activity.icon className={`h-5 w-5 text-${activity.color}-600`} />
+                          </div>
+                          <div>
+                            <p className="font-medium text-gray-900">{activity.title}</p>
+                            <p className="text-sm text-gray-500">{activity.time}</p>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-gray-500 text-center py-8">Chưa có hoạt động nào</p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -690,61 +788,100 @@ const MyProfilePage = () => {
                 
                 {/* Course Filter */}
                 <div className="flex space-x-4 mb-6">
-                  <button className="px-4 py-2 bg-blue-100 text-blue-700 rounded-lg font-medium">
-                    Tất cả (12)
+                  <button 
+                    onClick={() => setCourseFilter('all')}
+                    className={`px-4 py-2 rounded-lg font-medium ${
+                      courseFilter === 'all' 
+                        ? 'bg-blue-100 text-blue-700' 
+                        : 'text-gray-600 hover:bg-gray-100'
+                    }`}
+                  >
+                    Tất cả ({enrolledCourses.length})
                   </button>
-                  <button className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg">
-                    Đang học (4)
+                  <button 
+                    onClick={() => setCourseFilter('in-progress')}
+                    className={`px-4 py-2 rounded-lg font-medium ${
+                      courseFilter === 'in-progress' 
+                        ? 'bg-blue-100 text-blue-700' 
+                        : 'text-gray-600 hover:bg-gray-100'
+                    }`}
+                  >
+                    Đang học ({enrolledCourses.filter(e => !e.completed_at && (e.progress > 0 || e.progress_percentage > 0)).length})
                   </button>
-                  <button className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg">
-                    Đã hoàn thành (8)
+                  <button 
+                    onClick={() => setCourseFilter('completed')}
+                    className={`px-4 py-2 rounded-lg font-medium ${
+                      courseFilter === 'completed' 
+                        ? 'bg-blue-100 text-blue-700' 
+                        : 'text-gray-600 hover:bg-gray-100'
+                    }`}
+                  >
+                    Đã hoàn thành ({enrolledCourses.filter(e => e.completed_at || e.progress === 100 || e.progress_percentage === 100).length})
                   </button>
                 </div>
 
                 {/* Course Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {/* Sample Course Card */}
-                  <div className="bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-md transition-shadow">
-                    <div className="h-40 bg-gradient-to-br from-blue-400 to-purple-600"></div>
-                    <div className="p-4">
-                      <h4 className="font-semibold text-gray-900 mb-2">React Fundamentals</h4>
-                      <p className="text-sm text-gray-600 mb-3">Học cơ bản về React JS</p>
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded-full">
-                          Đã hoàn thành
-                        </span>
-                        <span className="text-sm text-gray-500">100%</span>
-                      </div>
-                    </div>
-                  </div>
+                  {enrolledCourses
+                    .filter(enrollment => {
+                      if (courseFilter === 'completed') {
+                        return enrollment.completed_at || enrollment.progress === 100 || enrollment.progress_percentage === 100;
+                      }
+                      if (courseFilter === 'in-progress') {
+                        return !enrollment.completed_at && (enrollment.progress > 0 || enrollment.progress_percentage > 0);
+                      }
+                      return true; // 'all'
+                    })
+                    .map((enrollment, index) => {
+                      const course = enrollment.course || enrollment;
+                      const isCompleted = enrollment.completed_at || enrollment.progress === 100 || enrollment.progress_percentage === 100;
+                      const progress = enrollment.progress_percentage || enrollment.progress || 0;
+                      
+                      // Generate gradient colors based on index
+                      const gradients = [
+                        'from-blue-400 to-purple-600',
+                        'from-green-400 to-blue-600',
+                        'from-purple-400 to-pink-600',
+                        'from-orange-400 to-red-600',
+                        'from-teal-400 to-cyan-600',
+                        'from-indigo-400 to-blue-600',
+                      ];
+                      const gradient = gradients[index % gradients.length];
 
-                  <div className="bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-md transition-shadow">
-                    <div className="h-40 bg-gradient-to-br from-green-400 to-blue-600"></div>
-                    <div className="p-4">
-                      <h4 className="font-semibold text-gray-900 mb-2">Advanced JavaScript</h4>
-                      <p className="text-sm text-gray-600 mb-3">JavaScript nâng cao</p>
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs px-2 py-1 bg-yellow-100 text-yellow-700 rounded-full">
-                          Đang học
-                        </span>
-                        <span className="text-sm text-gray-500">60%</span>
-                      </div>
+                      return (
+                        <div key={enrollment.enrollment_id || index} className="bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-md transition-shadow">
+                          <div className={`h-40 bg-gradient-to-br ${gradient}`}></div>
+                          <div className="p-4">
+                            <h4 className="font-semibold text-gray-900 mb-2">{course.title}</h4>
+                            <p className="text-sm text-gray-600 mb-3 line-clamp-2">{course.description || 'Mô tả khóa học'}</p>
+                            <div className="flex items-center justify-between">
+                              <span className={`text-xs px-2 py-1 rounded-full ${
+                                isCompleted 
+                                  ? 'bg-green-100 text-green-700' 
+                                  : 'bg-yellow-100 text-yellow-700'
+                              }`}>
+                                {isCompleted ? 'Đã hoàn thành' : 'Đang học'}
+                              </span>
+                              <span className="text-sm text-gray-500">{Math.round(progress)}%</span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  }
+                  {enrolledCourses.filter(enrollment => {
+                    if (courseFilter === 'completed') {
+                      return enrollment.completed_at || enrollment.progress === 100 || enrollment.progress_percentage === 100;
+                    }
+                    if (courseFilter === 'in-progress') {
+                      return !enrollment.completed_at && (enrollment.progress > 0 || enrollment.progress_percentage > 0);
+                    }
+                    return true;
+                  }).length === 0 && (
+                    <div className="col-span-3 text-center py-12 text-gray-500">
+                      Không có khóa học nào
                     </div>
-                  </div>
-
-                  <div className="bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-md transition-shadow">
-                    <div className="h-40 bg-gradient-to-br from-purple-400 to-pink-600"></div>
-                    <div className="p-4">
-                      <h4 className="font-semibold text-gray-900 mb-2">UI/UX Design</h4>
-                      <p className="text-sm text-gray-600 mb-3">Thiết kế giao diện người dùng</p>
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs px-2 py-1 bg-yellow-100 text-yellow-700 rounded-full">
-                          Đang học
-                        </span>
-                        <span className="text-sm text-gray-500">30%</span>
-                      </div>
-                    </div>
-                  </div>
+                  )}
                 </div>
               </div>
             )}
@@ -753,50 +890,30 @@ const MyProfilePage = () => {
               <div>
                 <h3 className="text-xl font-semibold text-gray-900 mb-6">Chứng chỉ của tôi</h3>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Certificate Card */}
-                  <div className="bg-gradient-to-br from-blue-50 to-indigo-100 border border-blue-200 rounded-lg p-6">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center mb-2">
-                          <Award className="h-5 w-5 text-blue-600 mr-2" />
-                          <span className="text-sm font-medium text-blue-600">Chứng chỉ hoàn thành</span>
-                        </div>
-                        <h4 className="text-lg font-semibold text-gray-900 mb-2">React Fundamentals</h4>
-                        <p className="text-sm text-gray-600 mb-4">
-                          Hoàn thành ngày: 15/10/2024
-                        </p>
-                        <button className="text-blue-600 hover:text-blue-700 text-sm font-medium">
-                          Tải xuống →
-                        </button>
-                      </div>
-                      <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
-                        <Award className="h-8 w-8 text-blue-600" />
-                      </div>
-                    </div>
+                {userStats.certificates > 0 ? (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-8 text-center">
+                    <Award className="h-16 w-16 text-blue-600 mx-auto mb-4" />
+                    <h4 className="text-lg font-semibold text-gray-900 mb-2">
+                      Bạn có {userStats.certificates} chứng chỉ
+                    </h4>
+                    <p className="text-gray-600 mb-4">
+                      Chứng chỉ từ các khóa học đã hoàn thành
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      Để xem và tải chứng chỉ, vui lòng vào trang chi tiết khóa học đã hoàn thành
+                    </p>
                   </div>
-
-                  <div className="bg-gradient-to-br from-green-50 to-emerald-100 border border-green-200 rounded-lg p-6">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center mb-2">
-                          <Award className="h-5 w-5 text-green-600 mr-2" />
-                          <span className="text-sm font-medium text-green-600">Chứng chỉ hoàn thành</span>
-                        </div>
-                        <h4 className="text-lg font-semibold text-gray-900 mb-2">HTML & CSS Basics</h4>
-                        <p className="text-sm text-gray-600 mb-4">
-                          Hoàn thành ngày: 01/10/2024
-                        </p>
-                        <button className="text-green-600 hover:text-green-700 text-sm font-medium">
-                          Tải xuống →
-                        </button>
-                      </div>
-                      <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
-                        <Award className="h-8 w-8 text-green-600" />
-                      </div>
-                    </div>
+                ) : (
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-8 text-center">
+                    <Award className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                    <h4 className="text-lg font-semibold text-gray-900 mb-2">
+                      Chưa có chứng chỉ
+                    </h4>
+                    <p className="text-gray-600">
+                      Hoàn thành khóa học để nhận chứng chỉ
+                    </p>
                   </div>
-                </div>
+                )}
               </div>
             )}
 
