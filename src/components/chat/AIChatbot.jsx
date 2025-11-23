@@ -456,11 +456,11 @@ ${prompt}
             color: '#ffffff',
             zIndex: 100000,
             cursor: 'pointer',
-            boxShadow: '0 4px 12px rgba(102, 126, 234, 0.4)'
+            boxShadow: '0 20px 60px rgba(102, 126, 234, 0.9), 0 0 0 6px rgba(102, 126, 234, 0.3), inset 0 2px 10px rgba(255, 255, 255, 0.2)'
           }}
           title="AI Chatbot - Trợ lý ảo"
         >
-          <Sparkles style={{ width: 'clamp(24px, 3.5vw, 28px)', height: 'clamp(24px, 3.5vw, 28px)' }} />
+          <Sparkles style={{ width: 'clamp(24px, 3.5vw, 28px)', height: 'clamp(24px, 3.5vw, 28px)', filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.4))' }} />
         </button>,
         document.body
       )}
