@@ -4,6 +4,18 @@ import { DollarSign, User, Calendar, CreditCard, Building, CheckCircle, Clock } 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api';
 
 const COLORS = {
+  light: {
+    primary: '#4f46e5',
+    secondary: '#0891b2',
+    success: '#059669',
+    danger: '#dc2626',
+    warning: '#d97706',
+    background: '#f9fafb',
+    card: '#ffffff',
+    text: '#111827',
+    textSecondary: '#6b7280',
+    border: '#e5e7eb',
+  },
   dark: {
     primary: '#818cf8',
     secondary: '#22d3ee',
@@ -26,10 +38,32 @@ const formatCurrency = (amount) => {
 };
 
 const PayoutsPage = () => {
-  const currentColors = COLORS.dark;
+  const [theme, setTheme] = useState(() => {
+    return localStorage.getItem('adminTheme') || 'light';
+  });
   const [instructors, setInstructors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState('all'); // all, hasCommission, noCommission
+  
+  const currentColors = COLORS[theme];
+
+  // Listen to theme changes from AdminPanel
+  useEffect(() => {
+    const handleThemeChange = (e) => {
+      const newTheme = e.detail?.theme || localStorage.getItem('adminTheme') || 'light';
+      setTheme(newTheme);
+    };
+    
+    window.addEventListener('adminThemeChanged', handleThemeChange);
+    
+    // Check localStorage on mount
+    const currentTheme = localStorage.getItem('adminTheme') || 'light';
+    if (currentTheme !== theme) {
+      setTheme(currentTheme);
+    }
+    
+    return () => window.removeEventListener('adminThemeChanged', handleThemeChange);
+  }, [theme]);
 
   // Calculate payment due date (5th of next month)
   const getPaymentDueDate = () => {
